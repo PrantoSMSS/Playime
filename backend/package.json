@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "smoke:opencode": "tsx scripts/smoke-opencode.ts",
     "smoke:chat": "tsx scripts/smoke-chat.ts",
+    "smoke:stream": "tsx scripts/smoke-stream.ts",
     "db:check": "tsx scripts/db-check.ts"
   },
   "keywords": [],

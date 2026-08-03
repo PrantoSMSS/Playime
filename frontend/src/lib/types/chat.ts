@@ -27,4 +27,7 @@ export interface ChatMessage {
 	role: 'assistant' | 'user';
 	content: string;
 	createdAt: number;
+	/** UI-only marker on the live streaming placeholder being filled
+	 *  token-by-token; persisted messages never set it. */
+	streaming?: boolean;
 }

@@ -7,7 +7,7 @@
  * reply. Non-streaming for now — SSE lands in checklist item 6.
  */
 import type { LmAdapter } from './adapters/index.js';
-import type { ChatMessage, TokenUsage } from './adapters/types.js';
+import type { ChatMessage, GenerateRequest, TokenUsage } from './adapters/types.js';
 import {
   createSession,
   getSession,
@@ -105,19 +105,23 @@ function systemPromptFor(session: SessionRow): string {
   return renderCharacterSystemPrompt(YEHWA_CARD);
 }
 
+export interface StreamMessageHandle {
+  /** Persisted user turn — inserted before the adapter call. */
+  userMessage: MessageRow;
+  /** Fully assembled request for the adapter (system + working context). */
+  request: GenerateRequest;
+}
+
 /**
- * Send a user message and produce the assistant reply.
+ * Validate, persist the user turn, and assemble the adapter request. Shared
+ * by the non-streaming `sendMessage` and the SSE stream route so both paths
+ * build identical context (docs/PLAYIME_PROMPT_SPEC.md §1 + §3).
  *
- * Flow: persist user turn → load visible history → assemble the request
- * (system prompt + last-N-turns working context) → adapter.generate() →
- * persist assistant reply. An OOC turn directs the model but is not
- * dialogue: it is dropped from the fiction sequence and emitted as a
- * separate system block after the character system prompt (§3).
+ * An OOC turn directs the model but is not dialogue: it is dropped from the
+ * fiction sequence and emitted as a separate system block after the
+ * character system prompt (§3).
  */
-export async function sendMessage(
-  adapter: LmAdapter,
-  input: SendMessageInput,
-): Promise<SendMessageResult> {
+export function prepareTurn(input: SendMessageInput): StreamMessageHandle {
   const session = getSession(input.sessionId);
   if (!session) throw new SessionNotFoundError(input.sessionId);
 
@@ -159,22 +163,37 @@ export async function sendMessage(
     });
   }
 
-  const result = await adapter.generate({
-    system: systemPromptFor(session),
-    messages,
-  });
+  return { userMessage: userMsg, request: { system: systemPromptFor(session), messages } };
+}
 
-  const reply = insertMessage({
-    session_id: session.id,
-    seq: nextMessageSeq(session.id),
+/** Persist the assistant reply row (a single insert after the reply completes). */
+export function persistAssistantReply(sessionId: string, text: string): MessageRow {
+  return insertMessage({
+    session_id: sessionId,
+    seq: nextMessageSeq(sessionId),
     role: 'assistant',
-    content: result.text,
+    content: text,
     visible: 1,
     ooc: 0,
   });
+}
+
+/**
+ * Send a user message and produce the assistant reply (non-streaming).
+ *
+ * Flow: `prepareTurn` (persist user turn → assemble request) →
+ * adapter.generate() → persist assistant reply.
+ */
+export async function sendMessage(
+  adapter: LmAdapter,
+  input: SendMessageInput,
+): Promise<SendMessageResult> {
+  const { userMessage, request } = prepareTurn(input);
+  const result = await adapter.generate(request);
+  const reply = persistAssistantReply(input.sessionId, result.text);
 
   return {
-    user_message: userMsg,
+    user_message: userMessage,
     message: reply,
     ...(result.usage ? { usage: result.usage } : {}),
     ...(result.model ? { model: result.model } : {}),

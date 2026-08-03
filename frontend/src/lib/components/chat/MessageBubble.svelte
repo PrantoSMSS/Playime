@@ -7,14 +7,12 @@
 		message,
 		name,
 		initials,
-		hue,
-		children
+		hue
 	}: {
 		message: ChatMessage;
 		name: string;
 		initials: string;
 		hue: number;
-		children?: import('svelte').Snippet;
 	} = $props();
 
 	const segments = $derived(parseMessage(message.content));
@@ -26,15 +24,18 @@
 		<span class="bubble__name">{name}</span>
 	</header>
 
-	<div class="bubble__box">
-		{#each segments as seg, i (i)}
-			<span
-				class="bubble__seg"
-				class:bubble__seg--dialogue={seg.type === 'dialogue'}
-				class:bubble__seg--action={seg.type === 'action'}
-			>{seg.text}</span>
-		{/each}
-		{@render children?.()}
+	<div class="bubble__box" aria-live="polite">
+		{#if message.streaming && message.content === ''}
+			<span class="bubble__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+		{:else}
+			{#each segments as seg, i (i)}
+				<span
+					class="bubble__seg"
+					class:bubble__seg--dialogue={seg.type === 'dialogue'}
+					class:bubble__seg--action={seg.type === 'action'}
+				>{seg.text}</span>
+			{/each}
+		{/if}
 	</div>
 </div>
 
@@ -83,5 +84,37 @@
 	.bubble__seg--action {
 		font-style: italic;
 		color: var(--ai-action);
+	}
+
+	/* Typing indicator: the live streaming placeholder shows animated dots
+	 * until the first delta fills its content (then it renders as a normal
+	 * message, still streaming). */
+	.bubble__dots {
+		display: inline-flex;
+		gap: 5px;
+		align-items: center;
+	}
+	.bubble__dots span {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--ai-narration);
+		animation: bubble-dots 1.2s ease-in-out infinite;
+	}
+	.bubble__dots span:nth-child(2) {
+		animation-delay: 0.15s;
+	}
+	.bubble__dots span:nth-child(3) {
+		animation-delay: 0.3s;
+	}
+	@keyframes bubble-dots {
+		0%,
+		60%,
+		100% {
+			opacity: 0.25;
+		}
+		30% {
+			opacity: 1;
+		}
 	}
 </style>

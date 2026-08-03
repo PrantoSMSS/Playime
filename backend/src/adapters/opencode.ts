@@ -280,9 +280,20 @@ export class OpenCodeAdapter {
           if (ctrl.signal.aborted) {
             throw new LmError('cancelled', 'opencode event stream cancelled');
           }
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+          let readResult: Awaited<ReturnType<typeof reader.read>>;
+          try {
+            readResult = await reader.read();
+          } catch (err) {
+            // An aborted fetch rejects with a DOMException AbortError; fold it
+            // into the adapter's stable 'cancelled' code (contract: failures
+            // are always LmError).
+            if (isAbortError(err)) {
+              throw new LmError('cancelled', 'opencode event stream cancelled', { cause: err });
+            }
+            throw err;
+          }
+          if (readResult.done) break;
+          buffer += decoder.decode(readResult.value, { stream: true });
 
           let idx: number;
           while ((idx = buffer.indexOf('\n\n')) !== -1) {
@@ -325,6 +336,15 @@ export class OpenCodeAdapter {
     if (this.authHeader) h.Authorization = this.authHeader;
     return h;
   }
+}
+
+/** True for a DOMException/undici `AbortError` (avoiding a DOM type dep). */
+function isAbortError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { name?: unknown }).name === 'AbortError'
+  );
 }
 
 /** Parse one SSE event (multiline `data:` payloads joined). */

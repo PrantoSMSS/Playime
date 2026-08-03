@@ -8,10 +8,18 @@
 
 	let listEl = $state<HTMLDivElement | undefined>();
 
-	// Follow the conversation: scroll to the newest message whenever the
-	// active thread changes, a message is added, or a reply is pending.
+	// Follow the conversation: scroll to the newest message whenever the active
+	// thread changes, a message is added, or the live streaming reply grows.
+	// Reading the last message's content (a deep-proxied $state element) makes
+	// this re-run on every streaming delta, not just on message adds. While a
+	// reply is streaming, jump instantly — smooth-scrolling every token would
+	// lag behind the stream.
 	$effect(() => {
-		listEl?.scrollTo({ top: listEl.scrollHeight, behavior: 'smooth' });
+		messages[messages.length - 1]?.content;
+		listEl?.scrollTo({
+			top: listEl.scrollHeight,
+			behavior: chat.sending ? 'auto' : 'smooth'
+		});
 	});
 </script>
 
@@ -35,19 +43,6 @@
 			<UserMessageBubble message={msg} />
 		{/if}
 	{/each}
-
-	{#if chat.sending}
-		<div class="pending" aria-live="polite" aria-label="Waiting for reply">
-			<MessageBubble
-				message={{ id: '__pending__', role: 'assistant', content: '', createdAt: Date.now() }}
-				name={session?.title ?? ''}
-				initials={session?.initials ?? '?'}
-				hue={session?.hue ?? 170}
-			>
-				<span class="pending__dots" aria-hidden="true"><span></span><span></span><span></span></span>
-			</MessageBubble>
-		</div>
-	{/if}
 
 	{#if chat.error}
 		<div class="error" role="alert">{chat.error}</div>
@@ -80,40 +75,6 @@
 	}
 	.message-list__empty span {
 		font-size: var(--font-size-sm);
-	}
-
-	/* ---- Pending "…is writing" bubble ---- */
-	.pending :global(.bubble__box) {
-		display: flex;
-		align-items: center;
-	}
-	.pending__dots {
-		display: inline-flex;
-		gap: 5px;
-		align-items: center;
-	}
-	.pending__dots span {
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: var(--ai-narration);
-		animation: pending-blink 1.2s ease-in-out infinite;
-	}
-	.pending__dots span:nth-child(2) {
-		animation-delay: 0.15s;
-	}
-	.pending__dots span:nth-child(3) {
-		animation-delay: 0.3s;
-	}
-	@keyframes pending-blink {
-		0%,
-		60%,
-		100% {
-			opacity: 0.25;
-		}
-		30% {
-			opacity: 1;
-		}
 	}
 
 	/* ---- Send-failure notice ---- */

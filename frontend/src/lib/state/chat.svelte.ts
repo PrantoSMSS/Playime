@@ -10,7 +10,7 @@
  * the thread. Components only read/mutate this module, so the wiring stays
  * contained.
  */
-import { createSession, postMessage } from '../api/chat';
+import { createSession, streamMessage } from '../api/chat';
 import type { ApiMessage } from '../api/chat';
 import { SAMPLE_MESSAGES_BY_SESSION, SAMPLE_SESSIONS } from '../data/sample';
 import type { ChatMessage, ChatSession } from '../types/chat';
@@ -71,9 +71,10 @@ async function ensureBackendSession(frontendId: string): Promise<string> {
 }
 
 /**
- * Send a user turn to the backend and render the reply. The user's message is
- * appended optimistically so it appears during the multi-second adapter call;
- * on success the stored rows replace it (ids then match the DB). Re-entrant
+ * Send a user turn to the backend and render the reply as it streams in. The
+ * user's message is appended optimistically (appears instantly), followed by a
+ * live `streaming` placeholder that fills token-by-token. On the `done` frame
+ * both are swapped for the persisted rows (ids then match the DB). Re-entrant
  * sends while one is in flight are dropped.
  */
 export async function sendMessage(content: string): Promise<void> {
@@ -83,24 +84,48 @@ export async function sendMessage(content: string): Promise<void> {
 
 	const list = (chat.messagesBySession[session.id] ??= []);
 	const optimisticId = crypto.randomUUID();
+	const streamId = crypto.randomUUID();
 	list.push({ id: optimisticId, role: 'user', content, createdAt: Date.now() });
+	list.push({
+		id: streamId,
+		role: 'assistant',
+		content: '',
+		createdAt: Date.now(),
+		streaming: true,
+	});
 
 	chat.sending = true;
 	chat.error = null;
+
+	const dropStreaming = (): void => {
+		const idx = list.findIndex((m) => m.id === streamId);
+		if (idx >= 0) list.splice(idx, 1);
+	};
+
 	try {
 		const backendId = await ensureBackendSession(session.id);
-		const res = await postMessage(backendId, content);
-
-		// Swap the optimistic turn for the persisted row, then append the reply.
-		const optimisticIdx = list.findIndex((m) => m.id === optimisticId);
-		if (optimisticIdx >= 0) list[optimisticIdx] = messageFromApi(res.user_message);
-		list.push(messageFromApi(res.message));
-
-		const s = chat.sessions.find((x) => x.id === session.id);
-		if (s) s.preview = res.message.content;
+		await streamMessage(backendId, content, {
+			onDelta: (text) => {
+				const m = list.find((x) => x.id === streamId);
+				if (m) m.content += text;
+			},
+			onDone: (res) => {
+				const optimisticIdx = list.findIndex((m) => m.id === optimisticId);
+				if (optimisticIdx >= 0) list[optimisticIdx] = messageFromApi(res.user_message);
+				const streamIdx = list.findIndex((m) => m.id === streamId);
+				if (streamIdx >= 0) list[streamIdx] = messageFromApi(res.message);
+				const s = chat.sessions.find((x) => x.id === session.id);
+				if (s) s.preview = res.message.content;
+			},
+			onError: (_code, message) => {
+				chat.error = message;
+				dropStreaming();
+			},
+		});
 	} catch (err) {
 		chat.error =
 			err instanceof Error ? err.message : 'Could not reach the server. Is it running?';
+		dropStreaming();
 	} finally {
 		chat.sending = false;
 	}
