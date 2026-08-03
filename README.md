@@ -21,10 +21,8 @@ The memory engine, card format compatibility, prompt assembly, lore triggers,
 and provider adapters should stay backstage until a creator deliberately opens
 the toolbox.
 
-```text
-You write the card.
-Playime owns the state.
-The model speaks the next line.
+```
+Say a line. Spark a scene. Watch the story grow.
 ```
 
 ## The Pitch
@@ -47,12 +45,15 @@ required. No provider jargon required.
 
 ## What Makes It Different
 
-**It plays like a game, not a control panel**
+**It plays like a game, and it's a toolbox when you want it**
 
-The complexity is real, but it belongs behind the curtain. Players should see
-clear choices, readable state, remembered relationships, quest progress, and a
-living chat interface. Creators can still open advanced card, lore, memory, and
-model controls when they want them.
+The default experience is game-like: clear choices, readable state, remembered
+relationships, quest progress, and a living chat interface — a general user can
+run it from the get-go with nothing to configure. But Playime is not a thin toy.
+Every layer is reachable: advanced card, lore, memory, model, and provider
+controls sit behind the curtain for creators and power users who want them,
+changeable without ever blocking the casual path. Both audiences use the same
+app without friction.
 
 **Memory is data, not vibes**
 
@@ -104,9 +105,9 @@ Playime's contribution is the database-backed state layer: relationships,
 quests, plot flags, memories, and eventually shareable Story Cards that survive
 beyond a single prompt window.
 
-The other contribution is approachability. Playime should preserve the depth
-that power users love, but package the default experience like a game anyone can
-start playing.
+The other contribution is approachability. Playime preserves the depth that
+power users love, while packaging the default experience like a game anyone can
+start playing — one app, both audiences.
 
 ## Current Build Status
 

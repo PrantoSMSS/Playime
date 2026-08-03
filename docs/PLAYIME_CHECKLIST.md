@@ -91,7 +91,10 @@ Story Cards are Playime's flagship, most-unique feature — see `PLAYIME_ROADMAP
 
 ## Phase 5 — Shared UI polish
 
-- [ ] Unify Character/Story into one chat shell with a mode switch/tab
+- [ ] Unify Character/Story into one chat shell; **Config** opens from a button in the lower-left corner (not a top-level tab)
+- [ ] **Config view** — LM & Models: list configured opencode models, set global default main + small model, provider/connection settings; persists to a `Setting` store (env vars stay the bootstrap default)
+- [ ] **Config view** — memory-system tuning (working-context length, rolling-summary cadence, World Info defaults) surfaced as the relevant phases land
+- [ ] Adapter reads resolved config (Setting > env var > default) on each request; changing the default doesn't disturb running sessions
 - [ ] OOC toggle on the input box (marks message as out-of-character, excluded from in-fiction context)
 - [ ] Message regeneration (re-roll last AI turn)
 - [ ] Message editing (edit a past turn, truncate/replay from there)
@@ -116,7 +119,7 @@ Story Cards are Playime's flagship, most-unique feature — see `PLAYIME_ROADMAP
 - [ ] Image generation hook for scenes/portraits (local SD/ComfyUI endpoint via adapter) — wires up the Phase 5 `Situation Image` toggle
 - [ ] Image Gallery: store/display generated images per session (sidebar grid, per reference screenshots)
 - [ ] Proactive/idle messaging: character sends an unprompted message after some elapsed time — wires up the Phase 5 `Receive Messages` toggle
-- [ ] Per-session model override (pick a different model for a specific character/story)
+- [ ] Per-session model override in the sidebar Chat Settings (overrides the Config-tab default for one session only; conversation and state persist since Playime owns memory)
 - [ ] Cost/token usage display per session (useful once cloud providers are in the mix)
 - [ ] Regex output scripts (SillyTavern/RisuAI-style): per-card find/replace rules run on AI output before render — not core, but cheap once the pipeline exists
 
@@ -131,7 +134,8 @@ Story Cards are Playime's flagship, most-unique feature — see `PLAYIME_ROADMAP
 
 ## Notes / decisions log
 
-- **Product stance: Playime should feel like a real game, not a power-user control panel.** The technical depth stays available for creators and advanced users, but the default player path should hide prompt/provider/lorebook complexity behind clear game-like flows: choose a Character or Story Card, press "New Play", and enter the scene. UI defaults should prioritize approachable play, readable state, quest/relationship feedback, and progressive disclosure of advanced controls.
+- **Product stance: one app, two audiences — the default must be playable instantly, the full depth must be reachable when wanted.** Playime is not just a game and not just a control panel; it serves both. The out-of-box path is game-like: choose a Character or Story Card, press "New Play", and enter the scene — no prompts, providers, or lorebook settings required, and nothing technical blocks the way. The same app exposes everything for power users: providers, models, prompt assembly, lorebooks, and memory tuning are all changeable (through the Config view and per-card/per-session surfaces), never walled off. A general user runs it from the get-go; a power user changes what they want. The design rule is *progressive disclosure* — hide complexity by default, never remove it.
+- **Config as the single home for app-level configuration.** All app-global settings (LM provider + models, memory tuning, defaults) live in one **Config** view, opened from a button in the lower-left corner of the app — a tucked-away entry point, not a prominent top-level tab, so the default play path stays game-clean (see the product stance). Backed by a `Setting` store; env vars are the bootstrap default and lose to stored values. Per-card and per-session settings deliberately stay where they are (on the card / on the Session) — Config is app-global, not a dumping ground for everything.
 
 Use this space to record decisions as you make them, so the reasoning doesn't get lost between sessions.
 

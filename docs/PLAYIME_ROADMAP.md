@@ -92,6 +92,7 @@ Key idea: **Playime owns memory/state; the LLM backend just generates text.** Do
 - `Session` — id, class (`character`|`story`), created_at, provider/model config, message log ref.
 - `Message` — role, content, timestamp, session_id, `visible` flag (for hidden system/state-extraction turns), `ooc` flag (out-of-character aside vs in-fiction).
 - `MemoryEntry` — text, embedding, importance score, source turn ids, decay/last-recalled timestamp.
+- `Setting` — key/value app-level configuration (LM provider + models, memory tuning); the Config view's backing store. Env vars (e.g. `OPENCODE_MODEL`) remain the bootstrap default; once a `Setting` exists it wins.
 
 ### Character class
 ```
@@ -237,6 +238,7 @@ Match the *clarity*, not the chrome:
 - Streaming responses token-by-token (opencode/most local servers support SSE streaming — use it, it's the single biggest perceived-speed win).
 - Lightweight creation forms for Character/World cards — plain forms are enough for v1; no need for a visual node editor early on.
 - **In-session right sidebar**: a persistent panel, not a popover menu. Header: card avatar/name. Below: an **Image Gallery** of images generated this session (feeds off the Phase 7 Situation Image hook), then a **Chat Settings** group — `Play Guide`, `Avatars` (switch mid-session), `Memories` (opens a read-only viewer onto the rolling-summary timeline — no new backend, just a window onto Phase 2's data), `Situation Image` toggle, `Receive Messages` toggle (character sends unprompted/idle messages — proactive messaging, defer to Phase 7). Skip any credit/currency balance section; monetization plumbing has no place in a local-first open-source tool.
+- A **Config view**, opened from a button in the app's lower-left corner (not a top-level tab — keeps the shell game-clean), is the single home for app-level configuration: LM provider + models (main and small), memory-system tuning, and global defaults. The default play path never touches it (progressive disclosure — see the product stance). Config is **layered**: app-global settings live here, per-card settings (e.g. `length_guidance`, World Info book settings) live on the card, per-session picks (avatar, starting scenario, optional model override) live on the Session.
 
 ---
 
@@ -275,7 +277,8 @@ Match the *clarity*, not the chrome:
 - Story-specific sidebar (scene state, stats, quest log, chapter log).
 
 **Phase 5 — Shared UI polish**
-- Unify Character/Story into one chat shell with a mode switch.
+- Unify Character/Story into one chat shell; **Config** opens from a button in the lower-left corner rather than a top-level tab.
+- **Config view** (opened via the lower-left button; the single home for app-level configuration): LM & Models section (list configured opencode models, set the global default main + small model, provider/connection settings), plus memory-system tuning as later phases land. Persists to the `Setting` store; the adapter reads resolved config (Setting > env var > default) on every request.
 - Out-of-character toggle, message editing/regeneration, branching (save a checkpoint, try an alternate choice — a `chapter_log` checkpoint can fork into a new, independently shareable `StoryCard` variant, not just a session-local snapshot; see §0.5).
 
 **Phase 6 — Creation & sharing tools**
@@ -286,7 +289,7 @@ Match the *clarity*, not the chrome:
 
 **Phase 7 — Nice-to-haves**
 - TTS for character voice, optional image generation for scenes/portraits (hook into any local SD/ComfyUI endpoint via the same adapter pattern).
-- Multi-provider per-session override (pick model per character).
+- Per-session model override (in the sidebar Chat Settings — overrides the Config-tab default for one session only; conversation and state persist because Playime owns memory, so the swap is seamless).
 
 **Phase 8 — Packaging**
 - Docker Compose for self-hosting; optionally a Tauri build for a native app feel.
