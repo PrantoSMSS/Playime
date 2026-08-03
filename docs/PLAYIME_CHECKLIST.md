@@ -12,7 +12,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 - [x] Init repo with `backend/` and `frontend/` skeletons per the structure in `CLAUDE.md`
 - [x] `npm init` backend, add TypeScript + Fastify, confirm `tsc`/dev server run clean
 - [x] Install `opencode`, run `opencode serve --port 4096` locally
-- [ ] Explore opencode's own HTTP API (`/doc` OpenAPI spec) — confirm session-create and message-send endpoints work via a manual `curl`/Postman round-trip
+- [x] Explore opencode's own HTTP API (`/doc` OpenAPI spec) — confirm session-create and message-send endpoints work via a manual `curl`/Postman round-trip
 - [ ] Define the LM adapter interface: `generate(messages, system, stream) -> tokens`
 - [ ] Implement `adapters/opencode.ts` against opencode's own session/message API (this is the only provider in scope for now — no Ollama/LM Studio wiring yet)
 - [ ] Confirm streaming works end-to-end through the opencode adapter alone
@@ -102,4 +102,5 @@ Use this space to record decisions as you make them, so the reasoning doesn't ge
 - Backend toolchain: ESM (`"type": "module"`), TypeScript 7 (native `tsc`), Fastify 5, `tsx` for dev watch. Scripts: `dev` = `tsx watch src/index.ts`, `build` = `tsc`, `start` = `node dist/index.js`. Health check at `GET /health`, default port 3000 (`PORT`/`HOST` env overridable).
 - opencode 1.18.11 installed; `opencode serve` already running on `127.0.0.1:4096` (plus instances on 4100 and 4105 — the latter with `--cors http://localhost:3000`, apparently wired for the Playime backend). Verified healthy via `GET /global/health` → `{"healthy":true,"version":"1.18.11"}`. Note: a second `opencode serve --port 4096` dies immediately with a bare `ServeError`/"Unexpected error" — that's just the port already being bound, not a config fault.
 - LM adapter work targets the running server on 4096; opencode is not a hard dependency (direct OpenAI-compatible fallback planned).
+- opencode HTTP API round-trip verified against `127.0.0.1:4096` (OpenAPI 3.1.0 spec at `/doc`, 162 paths). Two API families exist: modern `/api/session/*` (used here) and legacy `/session/*`. Flow: `POST /api/session` with `{location:{directory}}` → returns `ses_…`; `POST /api/session/{id}/prompt` with `{prompt:{text}}` → returns `msg_…` + `admittedSeq` immediately (async delivery); assistant reply streams via SSE on `GET /api/session/{id}/event`. Test: sent "Reply with exactly: Playime API round-trip OK" → received exactly that via `session.next.text.ended` event (model `deepseek-v4-flash-free`/provider `opencode`). History persists via `GET /api/session/{id}/history`. NOTE for the adapter: the `/prompt` call is *fire-and-confirm* — the reply must be read from the `/event` stream, so the adapter interface's `stream` option is not optional for opencode.
 -
