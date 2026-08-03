@@ -28,3 +28,6 @@ Thumbs.db
 
 # Reference projects
 references/
+
+# Test data
+test_files/
