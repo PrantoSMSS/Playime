@@ -4,7 +4,8 @@
  * everything else as narration (docs/PLAYIME_PROMPT_SPEC §1 + the shell's
  * message-styling rules).
  *
- * - `"…"` / `“…”` → dialogue   (bold, full-contrast)
+ * - `"…"` / `“…”` → dialogue   (bold, full-contrast; the surrounding
+ *                                quotation marks are stripped from view)
  * - `*…*`          → action     (italic narration, e.g. stage direction;
  *                                the surrounding `*` are stripped from view)
  * - anything else  → narration  (muted, regular weight)
@@ -26,7 +27,10 @@ export function parseMessage(content: string): MessageSegment[] {
 
 		const token = match[0];
 		if (token.startsWith('"') || token.startsWith('“')) {
-			segments.push({ type: 'dialogue', text: token });
+			// Quotation marks are a markup convention, not part of the line —
+			// drop them so the dialogue reads plainly. The bold full-contrast
+			// styling still marks it as dialogue.
+			segments.push({ type: 'dialogue', text: token.slice(1, -1) });
 		} else {
 			// The surrounding asterisks are a markup convention, not part of
 			// the text — drop them so the stage direction reads plainly.
