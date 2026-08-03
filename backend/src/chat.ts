@@ -16,14 +16,15 @@ import {
   nextMessageSeq,
 } from './models/session.js';
 import type { CreateSessionInput, MessageRow, SessionRow } from './models/session.js';
-import { CHARACTER_SYSTEM_PROMPT } from './prompts/character.js';
+import { YEHWA_CARD } from './models/character.js';
+import { renderCharacterSystemPrompt } from './prompts/character.js';
 
 /** Working-context size — the last N turns go in verbatim (§3). */
 const WORKING_CONTEXT_TURNS = 12;
 
 /**
  * An OOC/stage-direction note is a message whose trimmed text is wrapped in
- * asterisks (`*then Miko bowed*`). This plain-text convention auto-sets the
+ * asterisks (`*you bow politely*`). This plain-text convention auto-sets the
  * same `ooc` flag that the Phase 5 OOC toggle sets explicitly.
  */
 function isOocWrapped(text: string): boolean {
@@ -68,7 +69,7 @@ export class InvalidMessageError extends ChatError {
 export interface SendMessageInput {
   sessionId: string;
   /**
-   * The message text. Wrapping it in asterisks (`*then Miko bowed*`) marks it
+   * The message text. Wrapping it in asterisks (`*you bow politely*`) marks it
    * as an OOC/stage-direction note — same effect as `ooc: true`.
    */
   content: string;
@@ -85,6 +86,22 @@ export interface SendMessageResult {
 
 export { createSession };
 export type { CreateSessionInput, SessionRow } from './models/session.js';
+
+/**
+ * The system prompt for a session, by class. Phase 1 supports Character only
+ * (hardcoded test card — checklist item 3); Story lands in Phase 4, where its
+ * WorldCard renderer slots in here.
+ */
+function systemPromptFor(session: SessionRow): string {
+  if (session.class === 'story') {
+    throw new ChatError(
+      501,
+      'story_not_implemented',
+      'Story sessions are not supported yet (Phase 4)',
+    );
+  }
+  return renderCharacterSystemPrompt(YEHWA_CARD);
+}
 
 /**
  * Send a user message and produce the assistant reply.
@@ -141,7 +158,7 @@ export async function sendMessage(
   }
 
   const result = await adapter.generate({
-    system: CHARACTER_SYSTEM_PROMPT,
+    system: systemPromptFor(session),
     messages,
   });
 

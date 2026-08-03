@@ -25,6 +25,8 @@ process.env.PLAYIME_DB_PATH = join(dir, 'test.db');
 import { chatRoutes } from '../src/routes/chat.js';
 import { getDb } from '../src/db.js';
 import { listTurns } from '../src/models/session.js';
+import { YEHWA_CARD } from '../src/models/character.js';
+import { relationshipProse, renderCharacterSystemPrompt } from '../src/prompts/character.js';
 
 interface SessionResponse {
   id: string;
@@ -52,6 +54,27 @@ function isInCharacter(text: string): boolean {
 }
 
 async function main(): Promise<void> {
+  // 0. Renderer sanity (checklist item 3): card → deterministic system prompt.
+  const rendered = renderCharacterSystemPrompt(YEHWA_CARD);
+  for (const needle of [
+    'You are Yehwa',
+    'Orthodox Murim',
+    'Master Jeong',
+    'Affection: 35/100',
+    'Trust: 45/100',
+  ]) {
+    assert(rendered.includes(needle), `rendered prompt contains '${needle}'`);
+  }
+  assert(rendered.includes('Respectful, still warming up'), 'band prose for (35, 45)');
+  assert(
+    relationshipProse({ affection: 75, trust: 80, flags: ['protector'] }).startsWith(
+      'Close and trusting',
+    ),
+    'band prose for (75, 80)',
+  );
+  assert(!rendered.includes('Miko'), 'old placeholder persona gone');
+  assert(!rendered.includes('coding agent'), 'no coding-agent framing in prompt');
+
   const app = Fastify({ logger: false });
   await app.register(chatRoutes);
   await app.ready();
@@ -121,7 +144,7 @@ async function main(): Promise<void> {
   const stage = await app.inject({
     method: 'POST',
     url: `/api/sessions/${session.id}/messages`,
-    payload: { content: '*then Miko bows politely*' },
+    payload: { content: '*you bow politely*' },
   });
   assert(stage.statusCode === 201, `stage-direction status ${stage.statusCode}`);
   const stageReply = (stage.json() as MessageResponse).message;
@@ -132,7 +155,7 @@ async function main(): Promise<void> {
   );
   const withStage = listTurns(session.id);
   assert(withStage.length === 8, `expected 8 visible turns, got ${withStage.length}`);
-  const stageMsg = withStage.find((t) => t.content.includes('bows politely'));
+  const stageMsg = withStage.find((t) => t.content.includes('bow politely'));
   assert(stageMsg?.ooc === 1, 'asterisk-wrapped message flagged ooc in db');
   console.log('  stage user(6) →', withStage[6]?.content);
   console.log('  assistant(7) →', withStage[7]?.content.slice(0, 100));
@@ -141,7 +164,7 @@ async function main(): Promise<void> {
   const emphasis = await app.inject({
     method: 'POST',
     url: `/api/sessions/${session.id}/messages`,
-    payload: { content: 'Miko *smiles* warmly' },
+    payload: { content: 'the senior disciple *smiles* warmly' },
   });
   assert(emphasis.statusCode === 201, `emphasis status ${emphasis.statusCode}`);
   const emphasisReply = (emphasis.json() as MessageResponse).message;
