@@ -117,7 +117,41 @@ async function main(): Promise<void> {
   console.log('  ooc user(4)  →', after[4]?.content);
   console.log('  assistant(5) →', after[5]?.content.slice(0, 100));
 
-  // 6. Error paths.
+  // 6. Asterisk-wrapped text auto-flags as an OOC stage direction.
+  const stage = await app.inject({
+    method: 'POST',
+    url: `/api/sessions/${session.id}/messages`,
+    payload: { content: '*then Miko bows politely*' },
+  });
+  assert(stage.statusCode === 201, `stage-direction status ${stage.statusCode}`);
+  const stageReply = (stage.json() as MessageResponse).message;
+  assert(stageReply.content.trim().length > 0, 'stage-direction reply non-empty');
+  assert(
+    isInCharacter(stageReply.content),
+    `stage-direction reply in character: '${stageReply.content}'`,
+  );
+  const withStage = listTurns(session.id);
+  assert(withStage.length === 8, `expected 8 visible turns, got ${withStage.length}`);
+  const stageMsg = withStage.find((t) => t.content.includes('bows politely'));
+  assert(stageMsg?.ooc === 1, 'asterisk-wrapped message flagged ooc in db');
+  console.log('  stage user(6) →', withStage[6]?.content);
+  console.log('  assistant(7) →', withStage[7]?.content.slice(0, 100));
+
+  // 7. Inline emphasis (*smiles*) is NOT an OOC marker — stays in-fiction.
+  const emphasis = await app.inject({
+    method: 'POST',
+    url: `/api/sessions/${session.id}/messages`,
+    payload: { content: 'Miko *smiles* warmly' },
+  });
+  assert(emphasis.statusCode === 201, `emphasis status ${emphasis.statusCode}`);
+  const emphasisReply = (emphasis.json() as MessageResponse).message;
+  assert(emphasisReply.content.trim().length > 0, 'emphasis reply non-empty');
+  const withEmphasis = listTurns(session.id);
+  assert(withEmphasis.length === 10, `expected 10 visible turns, got ${withEmphasis.length}`);
+  const emphasisMsg = withEmphasis.find((t) => t.content.includes('*smiles*'));
+  assert(emphasisMsg?.ooc === 0, 'inline emphasis must NOT be flagged ooc');
+
+  // 8. Error paths.
   const missing = await app.inject({
     method: 'POST',
     url: '/api/sessions/does-not-exist/messages',

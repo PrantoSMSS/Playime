@@ -132,6 +132,8 @@ An OOC message is out-of-fiction direction, not dialogue. Assembly:
    ```
 3. The character adjusts its next in-character reply accordingly but never acknowledges the note in-fiction, and the OOC block is never rendered as character dialogue.
 
+**Detection.** A message is OOC when the request sets `ooc: true` (the Phase 5 UI toggle) **or** when its text is wrapped in asterisks (`*then Miko bowed*`) — a plain-text stage-direction convention. The surrounding asterisks are stripped before the note is rendered (`{ooc_text}` never includes them); inline emphasis inside a normal turn (`Miko *smiles* warmly`) is NOT an OOC marker. `ooc_text` is exactly the stripped inner text.
+
 ## 4. Memory block (RAG injection)
 
 - Embed the current user turn, pull top-k = 5 similar `MemoryEntry` rows, and inject them as a **distinct system message immediately above** the character/story system prompt:

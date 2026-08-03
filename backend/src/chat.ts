@@ -21,6 +21,25 @@ import { CHARACTER_SYSTEM_PROMPT } from './prompts/character.js';
 /** Working-context size — the last N turns go in verbatim (§3). */
 const WORKING_CONTEXT_TURNS = 12;
 
+/**
+ * An OOC/stage-direction note is a message whose trimmed text is wrapped in
+ * asterisks (`*then Miko bowed*`). This plain-text convention auto-sets the
+ * same `ooc` flag that the Phase 5 OOC toggle sets explicitly.
+ */
+function isOocWrapped(text: string): boolean {
+  return (
+    text.length > 2 &&
+    text.startsWith('*') &&
+    text.endsWith('*') &&
+    !text.slice(1, -1).includes('*')
+  );
+}
+
+/** Strip the surrounding asterisks from an OOC note (`*…*` → `…`). */
+function unwrapOoc(text: string): string {
+  return text.slice(1, -1).trim();
+}
+
 /** HTTP-facing error raised by the service; routes map it to a status. */
 export class ChatError extends Error {
   readonly status: number;
@@ -48,7 +67,12 @@ export class InvalidMessageError extends ChatError {
 
 export interface SendMessageInput {
   sessionId: string;
+  /**
+   * The message text. Wrapping it in asterisks (`*then Miko bowed*`) marks it
+   * as an OOC/stage-direction note — same effect as `ooc: true`.
+   */
   content: string;
+  /** Explicit OOC flag (Phase 5 toggle). Redundant with asterisk wrapping. */
   ooc?: boolean | undefined;
 }
 
@@ -82,7 +106,9 @@ export async function sendMessage(
   if (content.length === 0) {
     throw new InvalidMessageError('message content must be non-empty');
   }
-  const ooc = input.ooc === true;
+  // Explicit flag OR the asterisk stage-direction convention (*…*).
+  const ooc = input.ooc === true || isOocWrapped(content);
+  const note = ooc ? unwrapOoc(content) : content;
 
   // Persist the user turn first; it is the newest row in the session.
   const userMsg = insertMessage({
@@ -106,9 +132,11 @@ export async function sendMessage(
 
   if (ooc) {
     // Separate system block placed after the character system prompt (§3).
+    // The note is the stripped text — the surrounding asterisks are a UI
+    // convention, not part of the direction.
     messages.push({
       role: 'system',
-      content: `(Out-of-character note for the character: ${content})`,
+      content: `(Out-of-character note for the character: ${note})`,
     });
   }
 
