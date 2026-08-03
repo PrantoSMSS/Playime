@@ -1,5 +1,6 @@
 import cors from '@fastify/cors';
 import Fastify from 'fastify';
+import { characterRoutes } from './routes/character.js';
 import { chatRoutes } from './routes/chat.js';
 
 const app = Fastify({ logger: true });
@@ -12,6 +13,7 @@ app.get('/health', async () => ({ status: 'ok' }));
 await app.register(cors, { origin: process.env.CORS_ORIGIN ?? true });
 
 app.register(chatRoutes);
+app.register(characterRoutes);
 
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? '127.0.0.1';

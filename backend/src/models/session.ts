@@ -17,6 +17,9 @@ export interface SessionRow {
   provider: string;
   model: string | null;
   small_model: string | null;
+  character_card_id: string | null;
+  avatar_selection: string | null;
+  starting_scenario_id: string | null;
 }
 
 export interface MessageRow {
@@ -33,6 +36,12 @@ export interface MessageRow {
 export interface CreateSessionInput {
   class?: SessionClass | undefined;
   provider?: string | undefined;
+  /** Link this session to a character card (Phase 2 "New Play" flow). */
+  character_card_id?: string | undefined;
+  /** Which avatar the user picked at New Play time. */
+  avatar_selection?: string | undefined;
+  /** Which starting scenario the user picked at New Play time. */
+  starting_scenario_id?: string | undefined;
 }
 
 /** Create a session row; the id is generated here, not by SQLite. */
@@ -43,14 +52,35 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
   const sessionClass: SessionClass = input.class ?? 'character';
   const provider = input.provider ?? 'opencode';
   db.prepare(
-    'INSERT INTO session (id, class, created_at, provider) VALUES (?, ?, ?, ?)',
-  ).run(id, sessionClass, now, provider);
-  return { id, class: sessionClass, created_at: now, provider, model: null, small_model: null };
+    `INSERT INTO session (id, class, created_at, provider, character_card_id, avatar_selection, starting_scenario_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    id,
+    sessionClass,
+    now,
+    provider,
+    input.character_card_id ?? null,
+    input.avatar_selection ?? null,
+    input.starting_scenario_id ?? null,
+  );
+  return {
+    id,
+    class: sessionClass,
+    created_at: now,
+    provider,
+    model: null,
+    small_model: null,
+    character_card_id: input.character_card_id ?? null,
+    avatar_selection: input.avatar_selection ?? null,
+    starting_scenario_id: input.starting_scenario_id ?? null,
+  };
 }
 
 export function getSession(id: string): SessionRow | undefined {
   const row = getDb()
-    .prepare('SELECT id, class, created_at, provider, model, small_model FROM session WHERE id = ?')
+    .prepare(
+      'SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id FROM session WHERE id = ?',
+    )
     .get(id) as unknown as SessionRow | undefined;
   return row;
 }
