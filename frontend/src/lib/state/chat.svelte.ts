@@ -9,13 +9,7 @@
 import { SAMPLE_MESSAGES_BY_SESSION, SAMPLE_SESSIONS } from '../data/sample';
 import type { ChatMessage, ChatSession } from '../types/chat';
 
-export type NavId =
-	| 'search'
-	| 'story'
-	| 'character'
-	| 'my-titles'
-	| 'notifications'
-	| 'credits';
+export type NavId = 'search' | 'story' | 'character' | 'my-titles' | 'notifications';
 
 export type ResponseLength = 'Short' | 'Normal' | 'Long';
 

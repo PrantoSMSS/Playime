@@ -1,10 +1,12 @@
 /**
  * Sample data for the chat shell (checklist item 4).
  *
- * Stands in for the backend until item 5 wires the real API. The messages
- * exercise the narration / dialogue / action rendering: quoted lines
- * (`"..."`) render as bold dialogue, `*...*` as italic action, everything
- * else as muted narration (see `$lib/messageParse.ts`).
+ * Stands in for the backend until item 5 wires the real API. Only one test
+ * character exists for now — Yehwa — so every session here is a past
+ * conversation with that card (no story sessions yet, no other characters).
+ * The messages exercise the narration / dialogue / action rendering: quoted
+ * lines (`"..."`) render as bold dialogue, `*...*` as italic action,
+ * everything else as muted narration (see `$lib/messageParse.ts`).
  */
 import type { ChatMessage, ChatSession } from '../types/chat';
 
@@ -22,35 +24,19 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 	},
 	{
 		id: 'yehwa-plum',
-		title: 'Plum Blossom Tea',
+		title: 'Yehwa',
 		kind: 'character',
 		preview: 'You picked up the plum blossom tea again, I see.',
-		initials: 'PB',
-		hue: 158,
+		initials: 'YE',
+		hue: 172,
 	},
 	{
 		id: 'yehwa-night-watch',
-		title: 'Night Watch',
+		title: 'Yehwa',
 		kind: 'character',
 		preview: 'The east wall is quiet tonight, Senior.',
-		initials: 'NW',
-		hue: 186,
-	},
-	{
-		id: 'story-silent-village',
-		title: 'The Silent Village',
-		kind: 'story',
-		preview: 'You approach the empty village at dusk and find the well dry.',
-		initials: 'SV',
-		hue: 28,
-	},
-	{
-		id: 'story-jade-empire',
-		title: 'Whispers of the Jade Empire',
-		kind: 'story',
-		preview: 'The court stirs as the old emperor takes ill.',
-		initials: 'JE',
-		hue: 275,
+		initials: 'YE',
+		hue: 172,
 	},
 ];
 
@@ -103,25 +89,6 @@ export const SAMPLE_MESSAGES_BY_SESSION: Record<string, ChatMessage[]> = {
 			'assistant',
 			'"I expect the world to stay interesting." *Yehwa\'s hand rests on the hilt, easy and practiced.* "Keep your eyes open."',
 			298,
-		),
-	],
-	'story-silent-village': [
-		msg('assistant', 'The village is empty by the time you arrive. A well, drawn dry; a gate, left open.', 900),
-		msg('assistant', '"The door was open," you say to yourself. "That is never a good sign."', 899),
-		msg('user', 'I step inside the first house.', 898),
-		msg(
-			'assistant',
-			'*Dust motes hang in the failing light.* On the table, a bowl of rice — still warm. The village left in a hurry, or was taken in one.',
-			897,
-		),
-	],
-	'story-jade-empire': [
-		msg('assistant', 'The courtiers speak in whispers today, and the reason sits in the emperor\'s chambers behind a closed door.', 1200),
-		msg('user', 'I slip the guard a coin and ask what happened.', 1199),
-		msg(
-			'assistant',
-			'*The guard glances both ways before leaning close.* "The old emperor took ill at dawn. The third prince has not left the palace gates since."',
-			1198,
 		),
 	],
 };

@@ -4,13 +4,14 @@
 	import Avatar from './Avatar.svelte';
 	import Icon from './Icon.svelte';
 
+	// No credit/currency section — this is a local-first tool, not a hosted
+	// product (AGENTS.md: explicitly skip monetization plumbing).
 	const NAV_ITEMS: { id: NavId; label: string }[] = [
 		{ id: 'search', label: 'Search' },
 		{ id: 'story', label: 'Story' },
 		{ id: 'character', label: 'Character' },
 		{ id: 'my-titles', label: 'My Titles' },
-		{ id: 'notifications', label: 'Notifications' },
-		{ id: 'credits', label: 'Credits' }
+		{ id: 'notifications', label: 'Notifications' }
 	];
 
 	const filteredSessions = $derived(chat.sessions.filter((s) => s.kind === chat.historyTab));
