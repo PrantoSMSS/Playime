@@ -4,15 +4,18 @@
 	let { message }: { message: ChatMessage } = $props();
 
 	// An OOC/stage-direction note (*…*) renders italic + muted to read as
-	// meta, not dialogue — the same distinction the backend draws.
+	// meta, not dialogue — the same distinction the backend draws. The
+	// surrounding asterisks are stripped from view, matching the assistant
+	// action segments.
 	const isOoc = $derived(
 		message.content.length > 2 &&
 			message.content.startsWith('*') &&
 			message.content.endsWith('*')
 	);
+	const display = $derived(isOoc ? message.content.slice(1, -1) : message.content);
 </script>
 
-<div class="user-bubble" class:user-bubble--ooc={isOoc}>{message.content}</div>
+<div class="user-bubble" class:user-bubble--ooc={isOoc}>{display}</div>
 
 <style>
 	.user-bubble {

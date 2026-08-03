@@ -5,7 +5,8 @@
  * message-styling rules).
  *
  * - `"…"` / `“…”` → dialogue   (bold, full-contrast)
- * - `*…*`          → action     (italic narration, e.g. stage direction)
+ * - `*…*`          → action     (italic narration, e.g. stage direction;
+ *                                the surrounding `*` are stripped from view)
  * - anything else  → narration  (muted, regular weight)
  */
 export type MessageSegment =
@@ -27,7 +28,9 @@ export function parseMessage(content: string): MessageSegment[] {
 		if (token.startsWith('"') || token.startsWith('“')) {
 			segments.push({ type: 'dialogue', text: token });
 		} else {
-			segments.push({ type: 'action', text: token });
+			// The surrounding asterisks are a markup convention, not part of
+			// the text — drop them so the stage direction reads plainly.
+			segments.push({ type: 'action', text: token.slice(1, -1) });
 		}
 		last = match.index + token.length;
 	}
@@ -41,13 +44,15 @@ export function parseMessage(content: string): MessageSegment[] {
 }
 
 /** Collapse consecutive same-type segments so the bubble doesn't stack a
- *  run of identical styling lines for adjacent tokens. */
+ *  run of identical styling lines for adjacent tokens. Join with a space —
+ *  adjacent tokens are only separated by whitespace, so the join preserves
+ *  the original spacing. */
 function mergeAdjacent(segments: MessageSegment[]): MessageSegment[] {
 	const out: MessageSegment[] = [];
 	for (const seg of segments) {
 		const prev = out[out.length - 1];
 		if (prev && prev.type === seg.type) {
-			out[out.length - 1] = { type: seg.type, text: prev.text + seg.text };
+			out[out.length - 1] = { type: seg.type, text: `${prev.text} ${seg.text}` };
 		} else {
 			out.push(seg);
 		}
