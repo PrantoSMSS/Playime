@@ -92,12 +92,12 @@ people love about AI roleplay tools.
 
 | Project | Strength worth celebrating | How it shines through Playime |
 |---|---|---|
-| SillyTavern | Deep customization, extensions, World Info/lorebooks, and the de facto Tavern card ecosystem | Playime adopts card-format compatibility and treats lorebooks as a real deterministic memory layer |
-| Chub.ai | A huge public library of character cards and practical card-format conventions | Playime aims to make those cards import cleanly, including embedded lore, instead of asking users to start from zero |
-| RisuAI | Cross-platform polish, approachable memory UX, regex tooling, and character asset workflows | Playime borrows the lesson that power features should feel friendly, local, and visible to the player |
-| Agnai | Self-hostable roleplay infrastructure, multi-character/group-chat ideas, and clean provider support | Playime keeps the provider-flexible spirit while focusing v1 on a single local user and stronger structured state |
-| TavernAI | The original card-shaped seed that much of the ecosystem grew from | Playime keeps respect for the simple character-card loop: persona, scenario, greeting, conversation |
-| KoboldAI / kobold.cpp | Accessible local inference for people who want the model on their own machine | Playime's adapter boundary is designed so local engines can be first-class voices, not afterthoughts |
+| [SillyTavern](https://github.com/SillyTavern/SillyTavern) | Deep customization, extensions, World Info/lorebooks, and the de facto Tavern card ecosystem | Playime adopts card-format compatibility and treats lorebooks as a real deterministic memory layer |
+| [Chub.ai](https://chub.ai) | A huge public library of character cards and practical card-format conventions | Playime aims to make those cards import cleanly, including embedded lore, instead of asking users to start from zero |
+| [RisuAI](https://github.com/kwaroran/RisuAI) | Cross-platform polish, approachable memory UX, regex tooling, and character asset workflows | Playime borrows the lesson that power features should feel friendly, local, and visible to the player |
+| [Agnai](https://github.com/agnaistic/agnai) | Self-hostable roleplay infrastructure, multi-character/group-chat ideas, and clean provider support | Playime keeps the provider-flexible spirit while focusing v1 on a single local user and stronger structured state |
+| [TavernAI](https://github.com/TavernAI/TavernAI) | The original card-shaped seed that much of the ecosystem grew from | Playime keeps respect for the simple character-card loop: persona, scenario, greeting, conversation |
+| [KoboldAI / kobold.cpp](https://github.com/LostRuins/koboldcpp) | Accessible local inference for people who want the model on their own machine | Playime's adapter boundary is designed so local engines can be first-class voices, not afterthoughts |
 
 Those projects are the limelight around Playime: they show what already works,
 what users care about, and where this project can add something of its own.
