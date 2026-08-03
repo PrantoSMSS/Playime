@@ -92,6 +92,7 @@ people love about AI roleplay tools.
 
 | Project | Strength worth celebrating | How it shines through Playime |
 |---|---|---|
+| [OOC: Playable Anime](https://ooc.ai) | The original proof that character chat and DM-style branching story modes can live in one app, with a polished, approachable UI | Playime borrows the two-mode structure (Character + Story), the card-based creation flow, and the lesson that power features should feel like a game — then makes it open-source and local-first |
 | [SillyTavern](https://github.com/SillyTavern/SillyTavern) | Deep customization, extensions, World Info/lorebooks, and the de facto Tavern card ecosystem | Playime adopts card-format compatibility and treats lorebooks as a real deterministic memory layer |
 | [Chub.ai](https://chub.ai) | A huge public library of character cards and practical card-format conventions | Playime aims to make those cards import cleanly, including embedded lore, instead of asking users to start from zero |
 | [RisuAI](https://github.com/kwaroran/RisuAI) | Cross-platform polish, approachable memory UX, regex tooling, and character asset workflows | Playime borrows the lesson that power features should feel friendly, local, and visible to the player |
