@@ -11,12 +11,14 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 - [x] Backend language/framework decided: Node.js + TypeScript, Fastify — `CLAUDE.md` and `PLAYIME_ROADMAP.md` updated
 - [x] Init repo with `backend/` and `frontend/` skeletons per the structure in `CLAUDE.md`
 - [x] `npm init` backend, add TypeScript + Fastify, confirm `tsc`/dev server run clean
-- [ ] Install `opencode`, run `opencode serve --port 4096` locally
-- [ ] Connect opencode to at least one local provider (Ollama or LM Studio) and confirm a manual `curl`/request round-trips
+- [x] Install `opencode`, run `opencode serve --port 4096` locally
+- [ ] Explore opencode's own HTTP API (`/doc` OpenAPI spec) — confirm session-create and message-send endpoints work via a manual `curl`/Postman round-trip
 - [ ] Define the LM adapter interface: `generate(messages, system, stream) -> tokens`
-- [ ] Implement `adapters/opencode.py` (or `.ts`) against the running server
-- [ ] Implement a direct OpenAI-compatible fallback adapter (talks straight to Ollama/LM Studio), confirm it's swappable via config, not hardcoded
+- [ ] Implement `adapters/opencode.ts` against opencode's own session/message API (this is the only provider in scope for now — no Ollama/LM Studio wiring yet)
+- [ ] Confirm streaming works end-to-end through the opencode adapter alone
 - [ ] Write a one-page setup doc (`docs/setup-opencode.md`) so future-you can rebuild the environment from scratch
+
+**Later, out of scope for now:** each additional provider (Ollama, LM Studio, vLLM, cloud APIs) gets its own adapter that talks to *that provider's own API directly* — they're peers alongside `adapters/opencode.ts`, not routed through opencode. Add an item back here per-provider when you're ready to pick that up
 
 ## Phase 1 — Core chat loop (no memory yet)
 
@@ -98,5 +100,6 @@ Use this space to record decisions as you make them, so the reasoning doesn't ge
 - Backend: Node.js + TypeScript + Fastify (chosen over Python/FastAPI for a single-language stack alongside SvelteKit)
 - Skeleton uses `.gitkeep` + README placeholders only — actual tooling (npm init, tsconfig, Fastify app) lands with the next checklist item, per the "don't scaffold ahead of need" rule.
 - Backend toolchain: ESM (`"type": "module"`), TypeScript 7 (native `tsc`), Fastify 5, `tsx` for dev watch. Scripts: `dev` = `tsx watch src/index.ts`, `build` = `tsc`, `start` = `node dist/index.js`. Health check at `GET /health`, default port 3000 (`PORT`/`HOST` env overridable).
--
+- opencode 1.18.11 installed; `opencode serve` already running on `127.0.0.1:4096` (plus instances on 4100 and 4105 — the latter with `--cors http://localhost:3000`, apparently wired for the Playime backend). Verified healthy via `GET /global/health` → `{"healthy":true,"version":"1.18.11"}`. Note: a second `opencode serve --port 4096` dies immediately with a bare `ServeError`/"Unexpected error" — that's just the port already being bound, not a config fault.
+- LM adapter work targets the running server on 4096; opencode is not a hard dependency (direct OpenAI-compatible fallback planned).
 -
