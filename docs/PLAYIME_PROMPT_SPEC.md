@@ -7,7 +7,7 @@ Source of truth for how Playime assembles every prompt sent to the LM backend. I
 1. **Playime owns memory & state; the LLM only generates text.** No relationship stats, plot flags, or world state ever lives in the provider's session history. Every turn, Playime re-assembles the full prompt from its own SQLite data and discards the provider's bookkeeping of the exchange.
 2. **Reproducibility.** Same card + state + memory ⇒ same prompt, byte-for-byte. No ad-hoc prose injected by the app layer. All sections are deterministic renderings of structured data.
 3. **Final text only.** The model emits no reasoning, planning, or meta-commentary. The adapter additionally strips `session.next.reasoning.*` events defensively (opencode) so nothing but `session.next.text.*` reaches the UI. This is a hard product requirement — see decisions log.
-4. **Small context.** A request carries working context (last ~12 turns) + rolling summary + top-k recalled memories — never the full raw history.
+4. **Small context.** A request carries working context (last ~12 turns) + the key-event timeline + top-k recalled memories — never the full raw history.
 5. **One request ⇒ one in-character reply.** The prompt asks for a single response; all bookkeeping (summarization, state extraction) happens in separate background calls with a small/cheap model.
 
 ## 1. Request anatomy
@@ -43,8 +43,8 @@ You are {name}. {tagline}
 {relationship_prose}                      # see §2, deterministic
 
 ## Memory
-### Long-term summary
-{memory_summary}                          # from rolling summarizer
+### Memory timeline
+{memory_timeline}                         # append-only key-event timeline (see §6)
 
 ### Recalled moments
 {recalled_memories}                       # top-k from RAG, or "none right now"
@@ -163,16 +163,33 @@ Rules:
 
 ## 6. Rolling summarization (every ~15–20 turns, small model)
 
+Builds the **append-only key-event timeline** — the confirmed format from the reference
+"Memories" screen (see `CLAUDE.md` "Memory system" and `PLAYIME_ROADMAP.md` §4). Each run
+extracts the key events since the last boundary and **appends** new rows; it never rewrites
+or collapses prior entries.
+
 **System:**
 ```
-Summarize the recent roleplay turns in 3–5 sentences: what happened, key emotional beats,
-promises made, and anything the character must remember long-term. Preserve concrete facts.
-Do not add interpretation. Output only the summary text.
+You maintain a roleplay key-event timeline. From the recent turns, extract the notable
+events: what happened, key emotional beats, promises made, and anything the character
+must remember long-term. Preserve concrete facts; do not interpret or editorialize.
+
+Output ONLY rows in this format (newest range last):
+[Key Event Timeline]
+- <start>–<end>
+  - <one event per line>
+  - <one event per line>
+
+Use a compact local timestamp range, e.g. 2026-08-03 14:00–15:00. If nothing notable
+happened, output no new rows.
 ```
 
 **User:** the turns since the last summary boundary.
 
-→ Replaces `memory_summary`; the raw turns remain in SQLite. Story mode runs the same job chapter-scoped, feeding `chapter_log`.
+→ The app parses the new rows and **appends** them to the timeline as structured rows
+(`timestamp_range`, `entries: [str]`); raw turns remain in SQLite. The accumulated timeline
+is what §1 injects as `{memory_timeline}` and what the Memories modal renders verbatim.
+Story mode runs the same job chapter-scoped, feeding `chapter_log` (title + summary).
 
 ## 7. Streaming
 

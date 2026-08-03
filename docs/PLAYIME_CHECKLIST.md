@@ -18,7 +18,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 - [ ] Confirm streaming works end-to-end through the opencode adapter alone
 - [ ] Write a one-page setup doc (`docs/setup-opencode.md`) so future-you can rebuild the environment from scratch
 
-**Later, out of scope for now:** each additional provider (Ollama, LM Studio, vLLM, cloud APIs) gets its own adapter that talks to *that provider's own API directly* — they're peers alongside `adapters/opencode.ts`, not routed through opencode. Add an item back here per-provider when you're ready to pick that up
+**Later, out of scope for now:** each additional provider (Ollama, LM Studio, vLLM, cloud APIs) gets its own adapter that talks to *that provider's own API directly* — they're peers alongside `adapters/opencode.ts`, not routed through opencode. Add an item back here per-provider when you're ready to pick that up.
 
 ## Phase 1 — Core chat loop (no memory yet)
 
@@ -32,10 +32,14 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 
 ## Phase 2 — Character class MVP
 
-- [ ] `CharacterCard` schema + DB table (personality, speech_style, scenario, first_message, relationship_state, memory_summary)
+- [ ] `CharacterCard` schema + DB table (personality, speech_style, scenario, first_message, relationship_state) — the key-event timeline is per-session rows, not a card field (see `CLAUDE.md` memory system layer 2)
+- [ ] Add card-browser metadata fields (`cover_image`, `creator_name`, `tags`, `description`, `prologue_preview`, local `stats`, `last_updated`) — see `CLAUDE.md` UI reference
+- [ ] Support multiple avatar options + multiple starting scenarios per card
+- [ ] `CardInfoModal` component (reusable for Character and Story): cover, tags, description, prologue preview, avatar picker, starting-scenario picker, "New Play" CTA
+- [ ] "New Play" flow: modal selections → create `Session` with `avatar_selection` + `starting_scenario_id`
 - [ ] Character creation form (frontend) + save/load
 - [ ] System prompt assembly: card fields → system prompt, reproducibly
-- [ ] Rolling summary job: every ~15–20 turns, background call compresses history
+- [ ] Rolling summary job: every ~15–20 turns, background call compresses history into a timestamped key-event timeline (append-only rows, not a rewritten blob) — see `CLAUDE.md` memory system for the exact confirmed format
 - [ ] Swap raw-history-in-context for "recent turns + rolling summary" in the prompt
 - [ ] Structured-state extraction call after each AI turn (JSON mode / function-calling) → relationship deltas
 - [ ] Apply state deltas deterministically to `relationship_state`
@@ -54,6 +58,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 ## Phase 4 — Story class MVP
 
 - [ ] `WorldCard` schema + DB table (locations, npcs, protagonist, plot_flags, current_scene, chapter_log)
+- [ ] Reuse card-browser metadata + `CardInfoModal` from Phase 2 (parameterize by card type, don't rebuild)
 - [ ] World/story creation form
 - [ ] DM-style system prompt: multi-NPC narration + choice generation instructions
 - [ ] Reuse Phase 2/3 memory engine, generalized to plot_flags + chapter summaries instead of relationship_state
@@ -68,6 +73,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 - [ ] Message regeneration (re-roll last AI turn)
 - [ ] Message editing (edit a past turn, truncate/replay from there)
 - [ ] Checkpoint/branch: save a state snapshot, try an alternate choice, switch between branches
+- [ ] In-session right sidebar (persistent panel, not a popover): card avatar/name header + `Play Guide` + `Avatars` (switch mid-session) + `Memories` (read-only viewer rendering the Phase 2 timeline directly) + `Situation Image` toggle (no-op until Phase 7 lands) + `Receive Messages` toggle (no-op until Phase 7's proactive messaging lands) — explicitly skip a credit/currency section, it's monetization plumbing with no place here
 - [ ] Pass: does the UI stay clear when switching between Character and Story mid-session?
 
 ## Phase 6 — Creation & sharing tools
@@ -80,7 +86,9 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 ## Phase 7 — Nice-to-haves
 
 - [ ] TTS hook for character voice (adapter-pattern, swappable engine)
-- [ ] Image generation hook for scenes/portraits (local SD/ComfyUI endpoint via adapter)
+- [ ] Image generation hook for scenes/portraits (local SD/ComfyUI endpoint via adapter) — wires up the Phase 5 `Situation Image` toggle
+- [ ] Image Gallery: store/display generated images per session (sidebar grid, per reference screenshots)
+- [ ] Proactive/idle messaging: character sends an unprompted message after some elapsed time — wires up the Phase 5 `Receive Messages` toggle
 - [ ] Per-session model override (pick a different model for a specific character/story)
 - [ ] Cost/token usage display per session (useful once cloud providers are in the mix)
 
@@ -104,5 +112,7 @@ Use this space to record decisions as you make them, so the reasoning doesn't ge
 - LM adapter work targets the running server on 4096; opencode is not a hard dependency (direct OpenAI-compatible fallback planned).
 - opencode HTTP API round-trip verified against `127.0.0.1:4096` (OpenAPI 3.1.0 spec at `/doc`, 162 paths). Two API families exist: modern `/api/session/*` (used here) and legacy `/session/*`. Flow: `POST /api/session` with `{location:{directory}}` → returns `ses_…`; `POST /api/session/{id}/prompt` with `{prompt:{text}}` → returns `msg_…` + `admittedSeq` immediately (async delivery); assistant reply streams via SSE on `GET /api/session/{id}/event`. Test: sent "Reply with exactly: Playime API round-trip OK" → received exactly that via `session.next.text.ended` event (model `deepseek-v4-flash-free`/provider `opencode`). History persists via `GET /api/session/{id}/history`. NOTE for the adapter: the `/prompt` call is *fire-and-confirm* — the reply must be read from the `/event` stream, so the adapter interface's `stream` option is not optional for opencode.
 - **Product decision: never surface model reasoning to the user.** Only the assistant's final text is shown. The `/event` stream carries `session.next.reasoning.*` events — the adapter/UI must filter those out and deliver only `session.next.text.*` content. This applies to any provider, not just opencode.
-- **Prompt architecture defined in `docs/PLAYIME_PROMPT_SPEC.md`** — the single source of truth for prompt assembly. Key choices: Character & Story system prompts are deterministic renderings of card + state + memory (no ad-hoc prose); working context = last 12 turns; OOC turns excluded from fiction and delivered as a separate system block; RAG block injected as its own system message above the main prompt (top-k = 5); state extraction and rolling summary run as separate small-model calls producing deterministic deltas (clamped 0–100) and a 3–5 sentence summary respectively; system prompts explicitly require final-text-only output, backing up the adapter-level reasoning filtering.
+- **Prompt architecture defined in `docs/PLAYIME_PROMPT_SPEC.md`** — the single source of truth for prompt assembly. Key choices: Character & Story system prompts are deterministic renderings of card + state + memory (no ad-hoc prose); working context = last 12 turns; OOC turns excluded from fiction and delivered as a separate system block; RAG block injected as its own system message above the main prompt (top-k = 5); state extraction and rolling summary run as separate small-model calls producing deterministic deltas (clamped 0–100) and an append-only key-event timeline respectively; system prompts explicitly require final-text-only output, backing up the adapter-level reasoning filtering.
 - **LM adapter interface defined** (`backend/src/adapters/index.ts` `LmAdapter` + `types.ts`). Design: `LmAdapter` exposes two methods — `stream(request, opts): AsyncIterable<StreamChunk>` (token deltas) and `generate(request, opts): Promise<GenerateResult>` (full text, may internally collect a stream) — which together satisfy the checklist's `generate(messages, system, stream) -> tokens`. `GenerateRequest` = assembled `{system, messages}` straight from the prompt assembler (adapters never assemble prompts). `StreamChunk` is a discriminated union (`text` delta | `usage` | `done`); `LmError` normalizes failures to stable codes (`config`/`provider`/`timeout`/`cancelled`/`context`/`not-implemented`). Contract guarantees: final-text-only, prompt-agnostic, streaming-native, cancellable via `AbortSignal`, failure-normalized. `AdapterConfig` is a discriminated union per provider (opencode / openai-compatible / ollama); a factory/registry lands with the first implementation.
+- The rolling-summary **format is confirmed as an append-only key-event timeline** (see `CLAUDE.md` "Memory system" and `PLAYIME_PROMPT_SPEC.md` §6) — not a single prose blob. Each run appends `{timestamp_range, entries: [str]}` rows; this same data feeds the prompt (`{memory_timeline}`) and renders verbatim in the user-facing Memories modal.
+

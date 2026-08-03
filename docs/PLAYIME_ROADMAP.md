@@ -69,7 +69,7 @@ CharacterCard {
   personality, speech_style, likes/dislikes
   scenario (starting situation), first_message
   relationship_state: { affection: int, trust: int, flags: [str] }
-  memory_summary: str   // rolling compressed history
+  // the running key-event timeline is per-session (see §4 layer 2), not on the card
 }
 ```
 
@@ -88,6 +88,25 @@ WorldCard {
 
 Both are just JSON blobs with a schema — store as structured columns/JSON in SQLite so you can query and diff them, not just embed them in prompt text.
 
+### Card-browser metadata (both card types)
+
+Reference screenshots of the original show a card info modal with: cover image, creator credit, tag chips, short + long description, a "Prologue Preview" excerpt, engagement stats (replay/like/comment counts), last-updated date, and a "New Play" action. Worth modeling as shared fields rather than duplicating per card type:
+
+```
+CardMeta {
+  cover_image, creator_name, tags: [str]
+  description, prologue_preview
+  stats: { replay_count, like_count, comment_count }  // local-only, no backend needed for v1
+  last_updated
+}
+```
+
+A card can also define **multiple** avatar options and **multiple** starting scenarios (the original lets you pick both at "New Play" time). Store that choice on the `Session`, not the card — the card stays reusable across sessions with different settings:
+
+```
+Session += { avatar_selection, starting_scenario_id }
+```
+
 ---
 
 ## 4. Memory system (the hard part)
@@ -95,7 +114,16 @@ Both are just JSON blobs with a schema — store as structured columns/JSON in S
 Four layers, matching how the original claims "deep memory":
 
 1. **Working context** — last N raw turns, sent verbatim every request.
-2. **Rolling summary** — every ~15–20 turns, fire a background LLM call: *"Summarize what just happened in 3-5 sentences, update relationship/plot flags."* Store the summary, drop the raw turns from the prompt (keep them in DB for reference/export).
+2. **Rolling summary** — every ~15–20 turns, fire a background LLM call that compresses history into key events and updates relationship/plot flags; raw turns drop from the prompt (kept in DB for reference/export). **Confirmed format** (reference screenshots show the original's actual "Memories" view): a human-readable, timestamped key-event timeline that gets appended to over time rather than rewritten —
+   ```
+   [Key Event Timeline]
+   - 2023-10-27 10:00–11:00
+     - Abyss Weiss and Emma met for the first time in their new shared home.
+     - Emma expressed immediate disdain for the new family situation.
+   - 2023-10-27 11:00–12:00
+     - Abyss Weiss and Emma had an argument after Abyss Weiss entered without knocking.
+   ```
+   Store as structured rows (`timestamp_range`, `entries: [str]`) rather than one growing blob of prose — this doubles as both the mid-term memory fed back into prompts *and* the exact content rendered in the user-facing memory viewer, so it needs to read cleanly on its own.
 3. **Long-term recall (RAG)** — embed every summary chunk + key moments. On each new user turn, embed the user's message, pull top-k similar memories, inject as a short "relevant memories" block above the system prompt.
 4. **Structured state** — after each AI turn, run a cheap structured-output call (JSON mode / function-calling) that extracts state deltas: `{"affection_delta": +2, "new_flag": "confessed_secret"}`. Apply deterministically to the state object. This is what makes relationships/plots feel like they *persist* rather than just being remembered as text.
 
@@ -124,6 +152,7 @@ Match the *clarity*, not the chrome:
 - An explicit **OOC toggle** on the input box (this is literally the source app's namesake mechanic) — lets the user step outside the fiction to give the AI direction ("make her more jealous," "skip ahead a day") without that text being treated as in-world dialogue.
 - Streaming responses token-by-token (opencode/most local servers support SSE streaming — use it, it's the single biggest perceived-speed win).
 - Lightweight creation forms for Character/World cards — plain forms are enough for v1; no need for a visual node editor early on.
+- **In-session right sidebar** (reference screenshots: a persistent panel, not a popover menu): card avatar/name header, an **Image Gallery** of images generated this session (feeds off the Phase 7 Situation Image hook), then a **Chat Settings** group — `Play Guide`, `Avatars` (switch mid-session), `Memories` (opens a read-only viewer onto the rolling-summary timeline — no new backend, just a window onto Phase 2's data), `Situation Image` toggle, `Receive Messages` toggle (character sends unprompted/idle messages — proactive messaging, defer to Phase 7). Skip the credit/currency balance section entirely; it's monetization plumbing for a hosted product and irrelevant to a local-first tool.
 
 ---
 
