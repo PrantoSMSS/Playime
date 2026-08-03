@@ -13,7 +13,7 @@
  * Off-spec fallback handles KoboldAI-style exports (char_name, char_persona,
  * char_greeting) and other non-standard shapes.
  */
-import type { CharacterCard, WorldInfoEntry } from '../models/character.js';
+import type { AvatarOption, CharacterCard, StartingScenario, WorldInfoEntry } from '../models/character.js';
 
 // ── SillyTavern raw types (what we receive, before normalization) ───────
 
@@ -226,6 +226,22 @@ function parseV2OrV3(
     }
   }
 
+  // Build avatars array from the imported avatar
+  const avatars: AvatarOption[] = avatar
+    ? [{ id: 'default', name: 'Default', image: avatar }]
+    : [];
+
+  // Build starting_scenarios from scenario + first_mes + alternate_greetings
+  const startingScenarios: StartingScenario[] = [];
+  if (data.scenario || data.first_mes) {
+    startingScenarios.push({
+      id: 'default',
+      name: 'Default',
+      scenario: data.scenario ?? '',
+      first_message: data.first_mes ?? '',
+    });
+  }
+
   // V3 extras that don't map to core fields — preserve in extensions
   const v3Extras: Record<string, unknown> = {};
   if (version === 'v3') {
@@ -248,6 +264,8 @@ function parseV2OrV3(
     relationship_state: { affection: 0, trust: 0, flags: [] },
     length_guidance: null,
 
+    avatars: avatars,
+    starting_scenarios: startingScenarios,
     alternate_greetings: data.alternate_greetings ?? [],
     mes_example: data.mes_example ?? null,
     system_prompt: data.system_prompt ?? null,
@@ -271,6 +289,17 @@ function parseV2OrV3(
 // ── V1 ─────────────────────────────────────────────────────────────────
 
 function parseV1(card: SillyTavernV1): Partial<CharacterCard> {
+  // Build starting_scenarios from scenario + first_mes
+  const startingScenarios: StartingScenario[] = [];
+  if (card.scenario || card.first_mes) {
+    startingScenarios.push({
+      id: 'default',
+      name: 'Default',
+      scenario: card.scenario ?? '',
+      first_message: card.first_mes ?? '',
+    });
+  }
+
   return {
     name: card.name ?? '',
     tagline: card.description ?? '',
@@ -282,6 +311,8 @@ function parseV1(card: SillyTavernV1): Partial<CharacterCard> {
     relationship_state: { affection: 0, trust: 0, flags: [] },
     length_guidance: null,
 
+    avatars: [],
+    starting_scenarios: startingScenarios,
     alternate_greetings: [],
     mes_example: card.mes_example ?? null,
     system_prompt: null,
@@ -301,6 +332,18 @@ function parseV1(card: SillyTavernV1): Partial<CharacterCard> {
 // ── Off-spec fallback (KoboldAI-style) ─────────────────────────────────
 
 function parseOffSpec(card: SillyTavernV1): Partial<CharacterCard> {
+  // Build starting_scenarios from scenario + first_mes/greeting
+  const firstMessage = card.char_greeting ?? card.first_mes ?? '';
+  const startingScenarios: StartingScenario[] = [];
+  if (card.scenario || firstMessage) {
+    startingScenarios.push({
+      id: 'default',
+      name: 'Default',
+      scenario: card.scenario ?? '',
+      first_message: firstMessage,
+    });
+  }
+
   return {
     name: card.char_name ?? card.name ?? '',
     tagline: card.char_persona ?? card.description ?? '',
@@ -308,10 +351,12 @@ function parseOffSpec(card: SillyTavernV1): Partial<CharacterCard> {
     speech_style: '',
     likes_and_dislikes: '',
     scenario: card.scenario ?? '',
-    first_message: card.char_greeting ?? card.first_mes ?? null,
+    first_message: firstMessage || null,
     relationship_state: { affection: 0, trust: 0, flags: [] },
     length_guidance: null,
 
+    avatars: [],
+    starting_scenarios: startingScenarios,
     alternate_greetings: [],
     mes_example: card.mes_example ?? null,
     system_prompt: null,
@@ -324,6 +369,6 @@ function parseOffSpec(card: SillyTavernV1): Partial<CharacterCard> {
 
     tags: [],
     description: card.description ?? null,
-    prologue_preview: card.char_greeting ?? card.first_mes ?? null,
+    prologue_preview: firstMessage || null,
   };
 }

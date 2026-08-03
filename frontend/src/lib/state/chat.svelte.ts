@@ -10,8 +10,8 @@
  * the thread. Components only read/mutate this module, so the wiring stays
  * contained.
  */
-import { createSession, streamMessage } from '../api/chat';
-import type { ApiMessage } from '../api/chat';
+import { createSession, getCard, listCards, streamMessage } from '../api/chat';
+import type { ApiCharacterCard, ApiMessage } from '../api/chat';
 import { SAMPLE_MESSAGES_BY_SESSION, SAMPLE_SESSIONS } from '../data/sample';
 import type { ChatMessage, ChatSession } from '../types/chat';
 
@@ -36,6 +36,8 @@ export const chat = $state({
 	sending: false,
 	/** Last send failure message (cleared on the next send). */
 	error: null as string | null,
+	/** Card info modal state. */
+	cardInfoModal: null as { card: ApiCharacterCard } | null,
 });
 
 /** Display session id → backend session id, for sessions made real on demand. */
@@ -47,6 +49,71 @@ export function activeSession(): ChatSession | undefined {
 
 export function activeMessages(): ChatMessage[] {
 	return chat.messagesBySession[chat.activeSessionId] ?? [];
+}
+
+/** Open the card info modal for a given card. */
+export async function openCardInfoModal(cardId: string): Promise<void> {
+	try {
+		const card = await getCard(cardId);
+		chat.cardInfoModal = { card };
+	} catch (err) {
+		chat.error = err instanceof Error ? err.message : 'Failed to load card';
+	}
+}
+
+/** Close the card info modal. */
+export function closeCardInfoModal(): void {
+	chat.cardInfoModal = null;
+}
+
+/** Start a new play session from the card info modal selections. */
+export async function startNewPlay(selections: {
+	avatarSelection?: string;
+	startingScenarioId?: string;
+}): Promise<void> {
+	const modal = chat.cardInfoModal;
+	if (!modal) return;
+
+	try {
+		const apiSession = await createSession({
+			cardId: modal.card.id,
+			avatarSelection: selections.avatarSelection,
+			startingScenarioId: selections.startingScenarioId,
+		});
+
+		// Create a frontend session entry
+		const newSession: ChatSession = {
+			id: apiSession.id,
+			title: modal.card.name,
+			kind: 'character',
+			preview: modal.card.first_message ?? 'New conversation started',
+			initials: modal.card.name.slice(0, 2).toUpperCase(),
+			hue: 172,
+		};
+
+		chat.sessions.unshift(newSession);
+		chat.messagesBySession[apiSession.id] = [];
+
+		// If the card has a first message, add it as the opening assistant message
+		const scenario = modal.card.starting_scenarios.find(
+			(s) => s.id === selections.startingScenarioId
+		);
+		const firstMessage = scenario?.first_message ?? modal.card.first_message;
+		if (firstMessage) {
+			chat.messagesBySession[apiSession.id].push({
+				id: crypto.randomUUID(),
+				role: 'assistant',
+				content: firstMessage,
+				createdAt: Date.now(),
+			});
+			newSession.preview = firstMessage;
+		}
+
+		chat.activeSessionId = apiSession.id;
+		chat.cardInfoModal = null;
+	} catch (err) {
+		chat.error = err instanceof Error ? err.message : 'Failed to start new play';
+	}
 }
 
 /** Backend message row → chat-shell message. */
@@ -65,7 +132,12 @@ function messageFromApi(msg: ApiMessage): ChatMessage {
 async function ensureBackendSession(frontendId: string): Promise<string> {
 	const existing = backendSessions[frontendId];
 	if (existing) return existing;
-	const apiSession = await createSession();
+	// For sessions created via New Play, the backend session is already created
+	// with the card_id and selections. For legacy sample sessions, create a
+	// basic session without a card.
+	const session = chat.sessions.find((s) => s.id === frontendId);
+	const isLegacySession = !session || SAMPLE_SESSIONS.some((s) => s.id === session.id);
+	const apiSession = await createSession(isLegacySession ? undefined : { cardId: undefined });
 	backendSessions[frontendId] = apiSession.id;
 	return apiSession.id;
 }

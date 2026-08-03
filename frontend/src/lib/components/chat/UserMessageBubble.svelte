@@ -32,7 +32,7 @@
 	.user-bubble--ooc {
 		color: var(--text-muted);
 		font-style: italic;
-		background: var(--bg-raised);
-		border-color: var(--border);
+		background: var(--user-bg);
+		border-color: var(--user-border);
 	}
 </style>

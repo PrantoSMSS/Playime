@@ -7,6 +7,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db.js';
+import type { AvatarOption, StartingScenario } from './character.js';
 
 export type SessionClass = 'character' | 'story';
 
@@ -20,6 +21,8 @@ export interface SessionRow {
   character_card_id: string | null;
   avatar_selection: string | null;
   starting_scenario_id: string | null;
+  avatar_snapshot: AvatarOption | null;
+  starting_scenario_snapshot: StartingScenario | null;
 }
 
 export interface MessageRow {
@@ -42,6 +45,10 @@ export interface CreateSessionInput {
   avatar_selection?: string | undefined;
   /** Which starting scenario the user picked at New Play time. */
   starting_scenario_id?: string | undefined;
+  /** Snapshot of the selected avatar option. */
+  avatar_snapshot?: AvatarOption | undefined;
+  /** Snapshot of the selected starting scenario. */
+  starting_scenario_snapshot?: StartingScenario | undefined;
 }
 
 /** Create a session row; the id is generated here, not by SQLite. */
@@ -52,8 +59,8 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
   const sessionClass: SessionClass = input.class ?? 'character';
   const provider = input.provider ?? 'opencode';
   db.prepare(
-    `INSERT INTO session (id, class, created_at, provider, character_card_id, avatar_selection, starting_scenario_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO session (id, class, created_at, provider, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     sessionClass,
@@ -62,6 +69,8 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
     input.character_card_id ?? null,
     input.avatar_selection ?? null,
     input.starting_scenario_id ?? null,
+    input.avatar_snapshot ? JSON.stringify(input.avatar_snapshot) : null,
+    input.starting_scenario_snapshot ? JSON.stringify(input.starting_scenario_snapshot) : null,
   );
   return {
     id,
@@ -73,16 +82,48 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
     character_card_id: input.character_card_id ?? null,
     avatar_selection: input.avatar_selection ?? null,
     starting_scenario_id: input.starting_scenario_id ?? null,
+    avatar_snapshot: input.avatar_snapshot ?? null,
+    starting_scenario_snapshot: input.starting_scenario_snapshot ?? null,
   };
 }
 
 export function getSession(id: string): SessionRow | undefined {
   const row = getDb()
     .prepare(
-      'SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id FROM session WHERE id = ?',
+      'SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot FROM session WHERE id = ?',
     )
-    .get(id) as unknown as SessionRow | undefined;
-  return row;
+    .get(id) as unknown as SessionRowRaw | undefined;
+  if (!row) return undefined;
+  return {
+    ...row,
+    avatar_snapshot: parseJson<AvatarOption | null>(row.avatar_snapshot, null),
+    starting_scenario_snapshot: parseJson<StartingScenario | null>(row.starting_scenario_snapshot, null),
+  };
+}
+
+/** Raw row shape from SQLite (JSON columns are strings). */
+interface SessionRowRaw {
+  id: string;
+  class: SessionClass;
+  created_at: number;
+  provider: string;
+  model: string | null;
+  small_model: string | null;
+  character_card_id: string | null;
+  avatar_selection: string | null;
+  starting_scenario_id: string | null;
+  avatar_snapshot: string | null;
+  starting_scenario_snapshot: string | null;
+}
+
+/** Parse a JSON column, returning a fallback on null/empty/malformed. */
+function parseJson<T>(raw: string | null, fallback: T): T {
+  if (raw == null || raw === '') return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 /** Next per-session sequence number for a message (seq is 0-based per session). */

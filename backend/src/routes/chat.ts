@@ -18,6 +18,8 @@ import {
   prepareTurn,
   sendMessage,
 } from '../chat.js';
+import { getCharacterCard, resolveAvatar, resolveStartingScenario } from '../models/character.js';
+import type { AvatarOption, StartingScenario } from '../models/character.js';
 import type { SessionClass } from '../models/session.js';
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
@@ -35,15 +37,71 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
           type: 'object',
           properties: {
             class: { type: 'string', enum: ['character', 'story'] },
+            card_id: { type: 'string' },
+            avatar_selection: { type: 'string' },
+            starting_scenario_id: { type: 'string' },
           },
           additionalProperties: false,
         },
       },
     },
     async (request, reply) => {
-      const body = request.body as { class?: SessionClass } | undefined;
-      const session =
-        body?.class === undefined ? createSession() : createSession({ class: body.class });
+      const body = request.body as {
+        class?: SessionClass;
+        card_id?: string;
+        avatar_selection?: string;
+        starting_scenario_id?: string;
+      } | undefined;
+
+      // If a card_id is provided, resolve and validate avatar/scenario selections
+      let avatarSnapshot: AvatarOption | undefined;
+      let scenarioSnapshot: StartingScenario | undefined;
+
+      if (body?.card_id) {
+        const card = getCharacterCard(body.card_id);
+        if (!card) {
+          return reply.code(404).send({
+            error: { code: 'card_not_found', message: `Card ${body.card_id} not found` },
+          });
+        }
+
+        // Validate avatar_selection if provided
+        if (body.avatar_selection) {
+          const avatar = resolveAvatar(card, body.avatar_selection);
+          if (!avatar) {
+            return reply.code(400).send({
+              error: {
+                code: 'invalid_avatar',
+                message: `Avatar "${body.avatar_selection}" not found on card ${body.card_id}`,
+              },
+            });
+          }
+          avatarSnapshot = avatar;
+        }
+
+        // Validate starting_scenario_id if provided
+        if (body.starting_scenario_id) {
+          const scenario = resolveStartingScenario(card, body.starting_scenario_id);
+          if (!scenario) {
+            return reply.code(400).send({
+              error: {
+                code: 'invalid_scenario',
+                message: `Starting scenario "${body.starting_scenario_id}" not found on card ${body.card_id}`,
+              },
+            });
+          }
+          scenarioSnapshot = scenario;
+        }
+      }
+
+      const session = createSession({
+        class: body?.class,
+        character_card_id: body?.card_id,
+        avatar_selection: body?.avatar_selection,
+        starting_scenario_id: body?.starting_scenario_id,
+        avatar_snapshot: avatarSnapshot,
+        starting_scenario_snapshot: scenarioSnapshot,
+      });
       return reply.code(201).send(session);
     },
   );

@@ -1,7 +1,9 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import CardInfoModal from '$lib/components/chat/CardInfoModal.svelte';
 	import NavRail from '$lib/components/chat/NavRail.svelte';
+	import { chat, closeCardInfoModal, startNewPlay } from '$lib/state/chat.svelte';
 
 	let { children } = $props();
 </script>
@@ -17,6 +19,14 @@
 		{@render children()}
 	</main>
 </div>
+
+{#if chat.cardInfoModal}
+	<CardInfoModal
+		card={chat.cardInfoModal.card}
+		onclose={closeCardInfoModal}
+		onstartplay={startNewPlay}
+	/>
+{/if}
 
 <style>
 	.app {

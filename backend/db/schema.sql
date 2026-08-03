@@ -1,4 +1,4 @@
--- Playime — SQLite schema (v2, Phase 1 → Phase 2 foundation)
+-- Playime — SQLite schema (v3, Phase 2.5 — avatars + starting scenarios)
 -- Tables: session, message, character_card, session_event
 --
 -- Conventions:
@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS session (
   small_model TEXT,                                   -- bookkeeping model (summarize / state extraction)
   character_card_id TEXT REFERENCES character_card(id), -- which card this session plays (nullable until linked)
   avatar_selection TEXT,                               -- which avatar the user picked at New Play
-  starting_scenario_id TEXT                            -- which starting scenario the user picked at New Play
+  starting_scenario_id TEXT,                           -- which starting scenario the user picked at New Play
+  avatar_snapshot TEXT,                                -- JSON snapshot of the selected AvatarOption
+  starting_scenario_snapshot TEXT                      -- JSON snapshot of the selected StartingScenario
 );
 
 CREATE TABLE IF NOT EXISTS message (
@@ -52,19 +54,23 @@ CREATE TABLE IF NOT EXISTS character_card (
 
   -- Core persona
   name            TEXT NOT NULL,
-  avatar          TEXT,                               -- default avatar URL or base64 data URI
+  avatar          TEXT,                               -- default avatar URL or base64 data URI (legacy)
   tagline         TEXT NOT NULL DEFAULT '',
   personality     TEXT NOT NULL DEFAULT '',
   speech_style    TEXT NOT NULL DEFAULT '',
   likes_and_dislikes TEXT NOT NULL DEFAULT '',
-  scenario        TEXT NOT NULL DEFAULT '',
-  first_message   TEXT,                               -- optional opening line shown at New Play
+  scenario        TEXT NOT NULL DEFAULT '',            -- legacy single scenario (kept for backward compat)
+  first_message   TEXT,                               -- legacy opening line (kept for backward compat)
 
   -- Relationship starting state (JSON: {affection, trust, flags})
   relationship_state TEXT NOT NULL DEFAULT '{"affection":0,"trust":0,"flags":[]}',
 
   -- Prompt tuning
   length_guidance TEXT,                               -- per-card response length hint
+
+  -- Multiple avatars and starting scenarios
+  avatars         TEXT NOT NULL DEFAULT '[]',         -- JSON array of AvatarOption
+  starting_scenarios TEXT NOT NULL DEFAULT '[]',      -- JSON array of StartingScenario
 
   -- Tavern V2/V3 card-spec compatibility fields
   -- (populated on import, editable in the creation form, never silently dropped)

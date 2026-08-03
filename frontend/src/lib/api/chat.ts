@@ -13,6 +13,56 @@ import { PUBLIC_API_BASE_URL } from '$env/static/public';
 
 const BASE = (PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:3000').replace(/\/+$/, '');
 
+/** Avatar option from the backend. */
+export interface ApiAvatarOption {
+	id: string;
+	name?: string;
+	image: string;
+}
+
+/** Starting scenario from the backend. */
+export interface ApiStartingScenario {
+	id: string;
+	name: string;
+	description?: string;
+	scenario: string;
+	first_message: string;
+}
+
+/** A character card from the backend. */
+export interface ApiCharacterCard {
+	id: string;
+	name: string;
+	avatar: string | null;
+	tagline: string;
+	personality: string;
+	speech_style: string;
+	likes_and_dislikes: string;
+	scenario: string;
+	first_message: string | null;
+	relationship_state: { affection: number; trust: number; flags: string[] };
+	length_guidance: string | null;
+	avatars: ApiAvatarOption[];
+	starting_scenarios: ApiStartingScenario[];
+	alternate_greetings: string[];
+	mes_example: string | null;
+	system_prompt: string | null;
+	post_history_instructions: string | null;
+	creator: string | null;
+	creator_notes: string | null;
+	character_version: string | null;
+	world_info: unknown[];
+	extensions: Record<string, unknown>;
+	cover_image: string | null;
+	creator_name: string | null;
+	tags: string[];
+	description: string | null;
+	prologue_preview: string | null;
+	stats: { replay_count: number; like_count: number; comment_count: number };
+	created_at: number;
+	updated_at: number;
+}
+
 /** A row from the backend `session` table. */
 export interface ApiSession {
 	id: string;
@@ -21,6 +71,11 @@ export interface ApiSession {
 	provider: string;
 	model: string | null;
 	small_model: string | null;
+	character_card_id: string | null;
+	avatar_selection: string | null;
+	starting_scenario_id: string | null;
+	avatar_snapshot: ApiAvatarOption | null;
+	starting_scenario_snapshot: ApiStartingScenario | null;
 }
 
 /** A row from the backend `message` table. */
@@ -163,10 +218,33 @@ async function errorFrom(res: Response): Promise<ApiError> {
 }
 
 /** Create a Character session on the backend. */
-export function createSession(): Promise<ApiSession> {
+export function createSession(options?: {
+	cardId?: string;
+	avatarSelection?: string;
+	startingScenarioId?: string;
+}): Promise<ApiSession> {
 	return request<ApiSession>('/api/sessions', {
 		method: 'POST',
-		body: JSON.stringify({ class: 'character' }),
+		body: JSON.stringify({
+			class: 'character',
+			...(options?.cardId ? { card_id: options.cardId } : {}),
+			...(options?.avatarSelection ? { avatar_selection: options.avatarSelection } : {}),
+			...(options?.startingScenarioId ? { starting_scenario_id: options.startingScenarioId } : {}),
+		}),
+	});
+}
+
+/** List all character cards. */
+export function listCards(): Promise<ApiCharacterCard[]> {
+	return request<ApiCharacterCard[]>('/api/cards', {
+		method: 'GET',
+	});
+}
+
+/** Get a single character card by id. */
+export function getCard(id: string): Promise<ApiCharacterCard> {
+	return request<ApiCharacterCard>(`/api/cards/${encodeURIComponent(id)}`, {
+		method: 'GET',
 	});
 }
 

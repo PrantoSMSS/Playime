@@ -16,7 +16,7 @@ import {
   nextMessageSeq,
 } from './models/session.js';
 import type { CreateSessionInput, MessageRow, SessionRow } from './models/session.js';
-import { YEHWA_CARD } from './models/character.js';
+import { getCharacterCard, YEHWA_CARD } from './models/character.js';
 import { renderCharacterSystemPrompt } from './prompts/character.js';
 
 /** Working-context size — the last N turns go in verbatim (§3). */
@@ -93,6 +93,9 @@ export type { CreateSessionInput, SessionRow } from './models/session.js';
  * The system prompt for a session, by class. Phase 1 supports Character only
  * (hardcoded test card — checklist item 3); Story lands in Phase 4, where its
  * WorldCard renderer slots in here.
+ *
+ * If the session has a character_card_id, load the card from the database.
+ * If the session has a starting_scenario_snapshot, use its scenario text.
  */
 function systemPromptFor(session: SessionRow): string {
   if (session.class === 'story') {
@@ -102,7 +105,17 @@ function systemPromptFor(session: SessionRow): string {
       'Story sessions are not supported yet (Phase 4)',
     );
   }
-  return renderCharacterSystemPrompt(YEHWA_CARD);
+
+  // Use the card from the database if linked, otherwise fall back to the test card
+  const card = session.character_card_id
+    ? getCharacterCard(session.character_card_id)
+    : undefined;
+  const effectiveCard = card ?? YEHWA_CARD;
+
+  // Use the snapshot's scenario if available, otherwise the card's default
+  const startingScenario = session.starting_scenario_snapshot ?? undefined;
+
+  return renderCharacterSystemPrompt(effectiveCard, effectiveCard.relationship_state, startingScenario);
 }
 
 export interface StreamMessageHandle {

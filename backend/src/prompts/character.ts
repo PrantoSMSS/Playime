@@ -7,7 +7,7 @@
  * ("None yet") — the rolling timeline and RAG recall land in Phases 2 and 3
  * and fill those slots. Replaces the earlier placeholder constant.
  */
-import type { CharacterCard, RelationshipState } from '../models/character.js';
+import type { CharacterCard, RelationshipState, StartingScenario } from '../models/character.js';
 
 const DEFAULT_LENGTH_GUIDANCE = '1-3 sentences unless the moment calls for more';
 
@@ -33,12 +33,18 @@ export function relationshipProse(state: RelationshipState): string {
  * Render the full Character system prompt from card + relationship state.
  * `state` defaults to the card's starting state until Phase 2 wires up
  * per-session state extraction.
+ *
+ * If a `startingScenario` is provided, its `scenario` field is used instead
+ * of `card.scenario`. This ensures the selected starting scenario drives
+ * the prompt, not the card's legacy default.
  */
 export function renderCharacterSystemPrompt(
   card: CharacterCard,
   state: RelationshipState = card.relationship_state,
+  startingScenario?: StartingScenario,
 ): string {
   const flags = state.flags.length > 0 ? state.flags.join(', ') : 'none';
+  const scenarioText = startingScenario?.scenario ?? card.scenario;
   return [
     `You are ${card.name}. ${card.tagline}`,
     '',
@@ -52,7 +58,7 @@ export function renderCharacterSystemPrompt(
     card.likes_and_dislikes,
     '',
     '## Scenario',
-    card.scenario,
+    scenarioText,
     '',
     '## Relationship state (authoritative, current)',
     `- Affection: ${state.affection}/100`,

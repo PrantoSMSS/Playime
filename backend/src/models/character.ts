@@ -16,6 +16,37 @@ import { getDb } from '../db.js';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
+/**
+ * Avatar option for a card — a selectable visual representation.
+ * Cards can define multiple avatars; the user picks one at New Play time.
+ */
+export interface AvatarOption {
+  /** Stable identifier — never an array index. */
+  id: string;
+  /** Display name (optional). */
+  name?: string | undefined;
+  /** Image path or data URI. */
+  image: string;
+}
+
+/**
+ * Starting scenario — a distinct opening context with its own scenario text
+ * and first message. Different from alternate_greetings (same scenario,
+ * different greeting) — a scenario represents a different starting context.
+ */
+export interface StartingScenario {
+  /** Stable identifier. */
+  id: string;
+  /** Display name. */
+  name: string;
+  /** Optional description shown in the picker. */
+  description?: string | undefined;
+  /** The scenario text injected into the prompt. */
+  scenario: string;
+  /** The opening/first message for this scenario. */
+  first_message: string;
+}
+
 export interface RelationshipState {
   /** 0..100, moves only via Phase 2 structured extraction deltas. */
   affection: number;
@@ -66,6 +97,10 @@ export interface CharacterCard {
   relationship_state: RelationshipState;
   length_guidance: string | null;
 
+  // Multiple avatars and starting scenarios
+  avatars: AvatarOption[];
+  starting_scenarios: StartingScenario[];
+
   // Tavern V2/V3 compatibility
   alternate_greetings: string[];
   mes_example: string | null;
@@ -113,6 +148,8 @@ interface CharacterCardRow {
   first_message: string | null;
   relationship_state: string;
   length_guidance: string | null;
+  avatars: string;
+  starting_scenarios: string;
   alternate_greetings: string;
   mes_example: string | null;
   system_prompt: string | null;
@@ -150,6 +187,8 @@ function rowToCard(row: CharacterCardRow): CharacterCard {
       flags: [],
     }),
     length_guidance: row.length_guidance,
+    avatars: parseJson<AvatarOption[]>(row.avatars, []),
+    starting_scenarios: parseJson<StartingScenario[]>(row.starting_scenarios, []),
     alternate_greetings: parseJson<string[]>(row.alternate_greetings, []),
     mes_example: row.mes_example,
     system_prompt: row.system_prompt,
@@ -174,14 +213,66 @@ function rowToCard(row: CharacterCardRow): CharacterCard {
   };
 }
 
+/**
+ * Normalize a card's avatars field — if empty, build a default from the legacy
+ * `avatar` field. This ensures backward compatibility: cards without explicit
+ * avatars still have a usable default option.
+ */
+export function normalizeAvatars(card: CharacterCard): AvatarOption[] {
+  if (card.avatars.length > 0) return card.avatars;
+  if (card.avatar) {
+    return [{ id: 'default', name: 'Default', image: card.avatar }];
+  }
+  return [];
+}
+
+/**
+ * Normalize a card's starting_scenarios field — if empty, build a default from
+ * the legacy `scenario` and `first_message` fields.
+ */
+export function normalizeStartingScenarios(card: CharacterCard): StartingScenario[] {
+  if (card.starting_scenarios.length > 0) return card.starting_scenarios;
+  if (card.scenario || card.first_message) {
+    return [{
+      id: 'default',
+      name: 'Default',
+      scenario: card.scenario,
+      first_message: card.first_message ?? '',
+    }];
+  }
+  return [];
+}
+
+/**
+ * Resolve an avatar option by ID from a card. Returns undefined if the ID
+ * doesn't match any avatar.
+ */
+export function resolveAvatar(card: CharacterCard, avatarId: string): AvatarOption | undefined {
+  const avatars = normalizeAvatars(card);
+  return avatars.find((a) => a.id === avatarId);
+}
+
+/**
+ * Resolve a starting scenario by ID from a card. Returns undefined if the ID
+ * doesn't match any scenario.
+ */
+export function resolveStartingScenario(
+  card: CharacterCard,
+  scenarioId: string,
+): StartingScenario | undefined {
+  const scenarios = normalizeStartingScenarios(card);
+  return scenarios.find((s) => s.id === scenarioId);
+}
+
 /** Columns returned by SELECT queries (matches `CharacterCardRow`). */
 const SELECT_COLS = [
   'id', 'name', 'avatar', 'tagline', 'personality', 'speech_style',
   'likes_and_dislikes', 'scenario', 'first_message', 'relationship_state',
-  'length_guidance', 'alternate_greetings', 'mes_example', 'system_prompt',
-  'post_history_instructions', 'creator', 'creator_notes', 'character_version',
-  'world_info', 'extensions', 'cover_image', 'creator_name', 'tags',
-  'description', 'prologue_preview', 'stats', 'created_at', 'updated_at',
+  'length_guidance', 'avatars', 'starting_scenarios', 'alternate_greetings',
+  'mes_example', 'system_prompt', 'post_history_instructions', 'creator',
+  'creator_notes', 'character_version', 'world_info', 'extensions',
+  'cover_image', 'creator_name', 'tags', 'description', 'prologue_preview',
+  'stats', 'created_at', 'updated_at',
 ].join(', ');
 
 /** List all character cards, newest first. */
@@ -212,6 +303,8 @@ export interface CreateCharacterCardInput {
   first_message?: string | undefined;
   relationship_state?: RelationshipState | undefined;
   length_guidance?: string | undefined;
+  avatars?: AvatarOption[] | undefined;
+  starting_scenarios?: StartingScenario[] | undefined;
   alternate_greetings?: string[] | undefined;
   mes_example?: string | undefined;
   system_prompt?: string | undefined;
@@ -238,15 +331,28 @@ export function createCharacterCard(input: CreateCharacterCardInput): CharacterC
   const rel = input.relationship_state ?? { affection: 0, trust: 0, flags: [] };
   const stats = input.stats ?? { replay_count: 0, like_count: 0, comment_count: 0 };
 
+  // Build default avatars and starting_scenarios from legacy fields if not provided
+  const avatars = input.avatars ?? (input.avatar
+    ? [{ id: 'default', name: 'Default', image: input.avatar }]
+    : []);
+  const startingScenarios = input.starting_scenarios ?? (input.scenario || input.first_message
+    ? [{
+        id: 'default',
+        name: 'Default',
+        scenario: input.scenario ?? '',
+        first_message: input.first_message ?? '',
+      }]
+    : []);
+
   db.prepare(
     `INSERT INTO character_card (
       id, name, avatar, tagline, personality, speech_style, likes_and_dislikes,
       scenario, first_message, relationship_state, length_guidance,
-      alternate_greetings, mes_example, system_prompt, post_history_instructions,
-      creator, creator_notes, character_version, world_info, extensions,
-      cover_image, creator_name, tags, description, prologue_preview, stats,
-      created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      avatars, starting_scenarios, alternate_greetings, mes_example,
+      system_prompt, post_history_instructions, creator, creator_notes,
+      character_version, world_info, extensions, cover_image, creator_name,
+      tags, description, prologue_preview, stats, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     input.name,
@@ -259,6 +365,8 @@ export function createCharacterCard(input: CreateCharacterCardInput): CharacterC
     input.first_message ?? null,
     JSON.stringify(rel),
     input.length_guidance ?? null,
+    JSON.stringify(avatars),
+    JSON.stringify(startingScenarios),
     JSON.stringify(input.alternate_greetings ?? []),
     input.mes_example ?? null,
     input.system_prompt ?? null,
@@ -293,6 +401,8 @@ export interface UpdateCharacterCardInput {
   first_message?: string | null | undefined;
   relationship_state?: RelationshipState | undefined;
   length_guidance?: string | null | undefined;
+  avatars?: AvatarOption[] | undefined;
+  starting_scenarios?: StartingScenario[] | undefined;
   alternate_greetings?: string[] | undefined;
   mes_example?: string | null | undefined;
   system_prompt?: string | null | undefined;
@@ -312,8 +422,8 @@ export interface UpdateCharacterCardInput {
 
 /** Columns whose JSON values need `JSON.stringify` when patching. */
 const JSON_COLUMNS = new Set([
-  'relationship_state', 'alternate_greetings', 'world_info', 'extensions',
-  'tags', 'stats',
+  'relationship_state', 'avatars', 'starting_scenarios', 'alternate_greetings',
+  'world_info', 'extensions', 'tags', 'stats',
 ]);
 
 /**
@@ -398,6 +508,8 @@ export const YEHWA_CARD: CharacterCard = {
     'Care to explain where you were — or should I make you run the mountain steps tomorrow?"',
   relationship_state: { affection: 35, trust: 45, flags: [] },
   length_guidance: '1-3 sentences unless the moment calls for more.',
+  avatars: [],
+  starting_scenarios: [],
   alternate_greetings: [],
   mes_example: null,
   system_prompt: null,

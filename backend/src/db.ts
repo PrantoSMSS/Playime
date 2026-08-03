@@ -34,7 +34,43 @@ export function openDb(dbPath: string = defaultDbPath()): DatabaseSync {
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec(readFileSync(SCHEMA_PATH, 'utf8'));
+  runMigrations(db);
   return db;
+}
+
+/**
+ * Run schema migrations for columns added after the initial schema.
+ * Each ALTER TABLE is wrapped in a try/catch — if the column already exists,
+ * the error is silently ignored (SQLite doesn't support IF NOT EXISTS on
+ * ALTER TABLE).
+ */
+function runMigrations(db: DatabaseSync): void {
+  const sessionColumns: [string, string][] = [
+    ['character_card_id', 'TEXT REFERENCES character_card(id)'],
+    ['avatar_selection', 'TEXT'],
+    ['starting_scenario_id', 'TEXT'],
+    ['avatar_snapshot', 'TEXT'],
+    ['starting_scenario_snapshot', 'TEXT'],
+  ];
+  for (const [col, typedef] of sessionColumns) {
+    try {
+      db.exec(`ALTER TABLE session ADD COLUMN ${col} ${typedef}`);
+    } catch {
+      // Column already exists — ignore.
+    }
+  }
+
+  const cardColumns: [string, string][] = [
+    ['avatars', "TEXT NOT NULL DEFAULT '[]'"],
+    ['starting_scenarios', "TEXT NOT NULL DEFAULT '[]'"],
+  ];
+  for (const [col, typedef] of cardColumns) {
+    try {
+      db.exec(`ALTER TABLE character_card ADD COLUMN ${col} ${typedef}`);
+    } catch {
+      // Column already exists — ignore.
+    }
+  }
 }
 
 let singleton: DatabaseSync | undefined;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { activeSession, chat } from '$lib/state/chat.svelte';
+	import { activeSession, chat, openCardInfoModal } from '$lib/state/chat.svelte';
 	import Avatar from './Avatar.svelte';
 	import Icon from './Icon.svelte';
 
@@ -22,6 +22,15 @@
 		document.addEventListener('click', onDocClick);
 		return () => document.removeEventListener('click', onDocClick);
 	});
+
+	function handleMenuAction(label: string): void {
+		titleMenuOpen = false;
+		if (label === 'New Play') {
+			// For now, open the modal with the Yehwa test card
+			// In the future, this should use the session's card_id
+			void openCardInfoModal('yehwa');
+		}
+	}
 </script>
 
 <header class="top-bar">
@@ -44,7 +53,7 @@
 		{#if titleMenuOpen}
 			<div class="dropdown" role="menu">
 				{#each ['Play Guide', 'Character Card', 'New Play'] as label}
-					<button class="dropdown__item" role="menuitem" onclick={() => (titleMenuOpen = false)}>
+					<button class="dropdown__item" role="menuitem" onclick={() => handleMenuAction(label)}>
 						{label}
 					</button>
 				{/each}

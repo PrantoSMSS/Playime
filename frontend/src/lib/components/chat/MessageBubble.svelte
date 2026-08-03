@@ -82,7 +82,6 @@
 	}
 	.bubble__seg--dialogue {
 		color: var(--ai-dialogue);
-		font-weight: var(--font-weight-bold);
 		font-style: normal;
 	}
 
