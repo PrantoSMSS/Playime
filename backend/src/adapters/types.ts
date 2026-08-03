@@ -76,17 +76,19 @@ export type StreamChunk =
  * file). Discriminated on `id`; fields are what each adapter needs to
  * open its connection. Holds no runtime state.
  */
+export type OpenCodeAdapterConfig = {
+  id: 'opencode';
+  /** e.g. `http://127.0.0.1:4096` */
+  baseUrl?: string;
+  /** `OPENCODE_SERVER_PASSWORD`, if the server requires one. */
+  serverPassword?: string;
+  defaultModel?: string;
+  /** Cheap model for bookkeeping calls (summarize / state extraction). */
+  smallModel?: string;
+};
+
 export type AdapterConfig =
-  | {
-      id: 'opencode';
-      /** e.g. `http://127.0.0.1:4096` */
-      baseUrl?: string;
-      /** `OPENCODE_SERVER_PASSWORD`, if the server requires one. */
-      serverPassword?: string;
-      defaultModel?: string;
-      /** Cheap model for bookkeeping calls (summarize / state extraction). */
-      smallModel?: string;
-    }
+  | OpenCodeAdapterConfig
   | {
       id: 'openai-compatible';
       /** Base URL of an OpenAI-compatible `/v1` endpoint (Ollama, LM Studio, vLLM). */
