@@ -32,7 +32,6 @@
 				<span
 					class="bubble__seg"
 					class:bubble__seg--dialogue={seg.type === 'dialogue'}
-					class:bubble__seg--action={seg.type === 'action'}
 				>{seg.text}</span>
 			{/each}
 		{/if}
@@ -62,7 +61,8 @@
 
 	/* One block for the whole message — mirrors the user pill's shape and
 	 * padding, but with its own color (--assistant-bg / --assistant-border).
-	 * Narration, action, and dialogue all live inside this single bubble. */
+	 * Narration (including stage directions) and dialogue live inside this
+	 * single bubble. */
 	.bubble__box {
 		background: var(--assistant-bg);
 		border: 1px solid var(--assistant-border);
@@ -73,17 +73,17 @@
 		line-height: 1.55;
 	}
 
+	/* Everything that isn't speech — narration and stage directions alike —
+	 * reads italic + muted. Dialogue is the only bold segment (bold,
+	 * full-contrast), so spoken lines lead the reading. */
 	.bubble__seg {
 		color: var(--ai-narration);
-		font-weight: var(--font-weight-regular);
+		font-style: italic;
 	}
 	.bubble__seg--dialogue {
 		color: var(--ai-dialogue);
 		font-weight: var(--font-weight-bold);
-	}
-	.bubble__seg--action {
-		font-style: italic;
-		color: var(--ai-action);
+		font-style: normal;
 	}
 
 	/* Typing indicator: the live streaming placeholder shows animated dots

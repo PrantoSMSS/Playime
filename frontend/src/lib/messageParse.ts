@@ -1,18 +1,19 @@
 /**
  * Splits an assistant message into visually-distinct segments for the
- * MessageBubble: quoted lines render as dialogue, `*…*` spans as action,
- * everything else as narration (docs/PLAYIME_PROMPT_SPEC §1 + the shell's
- * message-styling rules).
+ * MessageBubble (docs/PLAYIME_PROMPT_SPEC §1 + the shell's message-styling
+ * rules).
+ *
+ * There are exactly two kinds of text: spoken and not-spoken.
  *
  * - `"…"` / `“…”` → dialogue   (bold, full-contrast; the surrounding
  *                                quotation marks are stripped from view)
- * - `*…*`          → action     (italic narration, e.g. stage direction;
- *                                the surrounding `*` are stripped from view)
- * - anything else  → narration  (muted, regular weight)
+ * - anything else  → narration  (italic, muted). This includes `*…*` spans —
+ *   the asterisks are a stage-direction markup convention and are stripped
+ *   from view, but the text is the same category as any other description:
+ *   scene-setting, not speech.
  */
 export type MessageSegment =
 	| { type: 'narration'; text: string }
-	| { type: 'action'; text: string }
 	| { type: 'dialogue'; text: string };
 
 const TOKEN = /"([^"\\]|\\.)*"|“([^“”])*?”|\*[^*\n]+\*/g;
@@ -32,9 +33,9 @@ export function parseMessage(content: string): MessageSegment[] {
 			// styling still marks it as dialogue.
 			segments.push({ type: 'dialogue', text: token.slice(1, -1) });
 		} else {
-			// The surrounding asterisks are a markup convention, not part of
-			// the text — drop them so the stage direction reads plainly.
-			segments.push({ type: 'action', text: token.slice(1, -1) });
+			// `*…*` is a stage-direction markup convention — the asterisks are
+			// dropped so the text reads plainly, but it's still narration.
+			pushNarration(token.slice(1, -1));
 		}
 		last = match.index + token.length;
 	}

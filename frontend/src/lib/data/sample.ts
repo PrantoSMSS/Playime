@@ -4,9 +4,11 @@
  * Stands in for the backend until item 5 wires the real API. Only one test
  * character exists for now — Yehwa — so every session here is a past
  * conversation with that card (no story sessions yet, no other characters).
- * The messages exercise the narration / dialogue / action rendering: quoted
- * lines (`"..."`) render as bold dialogue, `*...*` as italic action,
- * everything else as muted narration (see `$lib/messageParse.ts`).
+ * The messages exercise the narration / dialogue rendering: quoted lines
+ * (`"..."`) render as bold dialogue; everything else — narration and `*...*`
+ * stage directions alike — renders as italic narration (see
+ * `$lib/messageParse.ts`). The opening message of each session is the
+ * character's first line, so it is quoted dialogue.
  */
 import type { ChatMessage, ChatSession } from '../types/chat';
 
@@ -48,7 +50,7 @@ export const SAMPLE_MESSAGES_BY_SESSION: Record<string, ChatMessage[]> = {
 	'yehwa-evening': [
 		msg(
 			'assistant',
-			'The evening air on the training pavilion is crisp, and you have been loitering at the edge of the practice yard for the better part of an hour, Junior.',
+			'"The evening air on the training pavilion is crisp, and you have been loitering at the edge of the practice yard for the better part of an hour, Junior."',
 			14,
 		),
 		msg('assistant', '"Finally decided to show your face, did you?"', 13),
@@ -74,7 +76,7 @@ export const SAMPLE_MESSAGES_BY_SESSION: Record<string, ChatMessage[]> = {
 		),
 	],
 	'yehwa-plum': [
-		msg('assistant', 'You are quiet today, Junior. Even for you.', 40),
+		msg('assistant', '"You are quiet today, Junior. Even for you."', 40),
 		msg('user', 'Just thinking, Senior. Nothing important.', 39),
 		msg(
 			'assistant',
@@ -83,7 +85,7 @@ export const SAMPLE_MESSAGES_BY_SESSION: Record<string, ChatMessage[]> = {
 		),
 	],
 	'yehwa-night-watch': [
-		msg('assistant', 'The east wall is quiet tonight. Too quiet for a full moon.', 300),
+		msg('assistant', '"The east wall is quiet tonight. Too quiet for a full moon."', 300),
 		msg('user', 'Do you expect trouble, Senior?', 299),
 		msg(
 			'assistant',

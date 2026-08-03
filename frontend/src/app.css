@@ -35,8 +35,7 @@
 	--assistant-border: #264b43; /* AI message bubble border */
 
 	--ai-dialogue: #f4fbf9; /* AI quoted dialogue — strongest reading */
-	--ai-narration: #bcd1cc; /* AI narration — readable but secondary */
-	--ai-action: #abc5bf; /* AI stage direction / OOC note */
+	--ai-narration: #bcd1cc; /* AI non-dialogue text (narration + stage direction) */
 
 	--icon: #94aeaa; /* default icon color */
 	--icon-hover: #d5e6e2; /* icon on hover */

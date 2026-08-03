@@ -5,8 +5,8 @@
 
 	// An OOC/stage-direction note (*…*) renders italic + muted to read as
 	// meta, not dialogue — the same distinction the backend draws. The
-	// surrounding asterisks are stripped from view, matching the assistant
-	// action segments.
+	// surrounding asterisks are stripped from view, matching how the
+	// assistant renderer treats *…* (italic narration).
 	const isOoc = $derived(
 		message.content.length > 2 &&
 			message.content.startsWith('*') &&

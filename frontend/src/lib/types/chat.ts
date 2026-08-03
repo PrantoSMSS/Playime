@@ -21,7 +21,8 @@ export interface ChatSession {
 }
 
 /** One turn in the message list. `content` is the raw text; the renderer
- *  splits narration / dialogue / action styling (see `$lib/messageParse.ts`). */
+ *  splits narration (incl. stage directions) / dialogue styling (see
+ *  `$lib/messageParse.ts`). */
 export interface ChatMessage {
 	id: string;
 	role: 'assistant' | 'user';
