@@ -10,7 +10,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 
 - [x] Backend language/framework decided: Node.js + TypeScript, Fastify — `CLAUDE.md` and `PLAYIME_ROADMAP.md` updated
 - [x] Init repo with `backend/` and `frontend/` skeletons per the structure in `CLAUDE.md`
-- [ ] `npm init` backend, add TypeScript + Fastify, confirm `tsc`/dev server run clean
+- [x] `npm init` backend, add TypeScript + Fastify, confirm `tsc`/dev server run clean
 - [ ] Install `opencode`, run `opencode serve --port 4096` locally
 - [ ] Connect opencode to at least one local provider (Ollama or LM Studio) and confirm a manual `curl`/request round-trips
 - [ ] Define the LM adapter interface: `generate(messages, system, stream) -> tokens`
@@ -97,5 +97,6 @@ Use this space to record decisions as you make them, so the reasoning doesn't ge
 
 - Backend: Node.js + TypeScript + Fastify (chosen over Python/FastAPI for a single-language stack alongside SvelteKit)
 - Skeleton uses `.gitkeep` + README placeholders only — actual tooling (npm init, tsconfig, Fastify app) lands with the next checklist item, per the "don't scaffold ahead of need" rule.
+- Backend toolchain: ESM (`"type": "module"`), TypeScript 7 (native `tsc`), Fastify 5, `tsx` for dev watch. Scripts: `dev` = `tsx watch src/index.ts`, `build` = `tsc`, `start` = `node dist/index.js`. Health check at `GET /health`, default port 3000 (`PORT`/`HOST` env overridable).
 -
 -
