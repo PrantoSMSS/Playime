@@ -38,7 +38,10 @@ playime/
     db/                 # sqlite schema + migrations
   frontend/
     src/
-      components/chat/  # shared shell used by both classes
+      lib/
+        components/chat/  # shared chat shell used by both classes ($lib alias)
+        data/             # sample/seed data
+        state/            # shared runes state (chat.svelte.ts)
       routes/character/
       routes/story/
   docs/
