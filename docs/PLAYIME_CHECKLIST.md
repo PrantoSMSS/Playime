@@ -28,11 +28,16 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 - [x] Frontend: minimal chat shell (message list + input box)
 - [x] Wire frontend → backend → adapter end to end, non-streaming first
 - [x] Add SSE/streaming token-by-token output
-- [ ] Sanity check: 20+ turn conversation stays coherent and doesn't crash on context length
+- [x] Sanity check: 20+ turn conversation stays coherent and doesn't crash on context length
 
 ## Phase 2 — Character class MVP
 
 - [ ] `CharacterCard` schema + DB table (personality, speech_style, scenario, first_message, relationship_state) — the key-event timeline is per-session rows, not a card field (see `AGENTS.md` memory system layer 2)
+- [ ] `CharacterCard` gains the Tavern V2/V3-compatible fields: `alternate_greetings`, `mes_example`, `system_prompt`/`post_history_instructions`, `creator`/`creator_notes`/`character_version`, `world_info`, `extensions` passthrough — see `PLAYIME_ROADMAP.md` §3
+- [ ] SillyTavern-compatible card import: parse a PNG's embedded `chara` tEXt chunk (base64 V1/V2 JSON) and `ccv3` chunk (V3, superset — backfill V2 shape from it when present) as well as standalone `.json` cards
+- [ ] Map imported V2/V3 fields onto `CharacterCard`; anything unmapped goes into `extensions`, never silently dropped
+- [ ] Import a card's `character_book` into Playime's `world_info` entries (schema lands in Phase 2.5 below — import can land the raw parse now and wire it up once that schema exists)
+- [ ] Test: import 5–10 real cards from Chub.ai or another public source, confirm fields + embedded lorebook survive the round-trip (spot-check against the source JSON)
 - [ ] Add card-browser metadata fields (`cover_image`, `creator_name`, `tags`, `description`, `prologue_preview`, local `stats`, `last_updated`) — see `AGENTS.md` UI reference
 - [ ] Support multiple avatar options + multiple starting scenarios per card
 - [ ] `CardInfoModal` component (reusable for Character and Story): cover, tags, description, prologue preview, avatar picker, starting-scenario picker, "New Play" CTA
@@ -46,6 +51,19 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 - [ ] Sidebar UI: character card + relationship meter, updates live
 - [ ] Test: relationship state visibly and correctly evolves over a long session
 
+## Phase 2.5 — World Info / lorebook layer
+
+Keyword-triggered, deterministic — distinct from Phase 3's embedding-based RAG. See `AGENTS.md` "Memory system" layer 2.5 and `PLAYIME_ROADMAP.md` §4.
+
+- [ ] `WorldInfoEntry` schema + DB table (`keys`, `secondary_keys`, `selective`, `selective_logic`, `constant`, `content`, `insertion_order`, `priority`, `position`, `case_sensitive`, `enabled`), attached to Character and World cards alike
+- [ ] Book-level settings (`scan_depth`, `token_budget`, `recursive_scanning`) stored on the card
+- [ ] Keyword scan over the last `scan_depth` turns → matching entries rendered into their own system block (`before_char`/`after_char` relative to the main prompt)
+- [ ] Token-budget enforcement: drop lowest-`priority` entries first when over budget
+- [ ] `constant` entries always included; `selective` entries require a `secondary_keys` match per `selective_logic`
+- [ ] Recursive scanning toggle (entry content can trigger other entries) — off by default
+- [ ] Wire Phase 2's `character_book` import into this schema so imported cards' lorebooks work immediately
+- [ ] Test: import a real community card with an embedded lorebook, chat until a keyword hits, confirm the matching entry actually surfaces in the reply
+
 ## Phase 3 — Long-term memory (RAG)
 
 - [ ] Pick embedding source (local model via adapter, or in-process `sentence-transformers`)
@@ -57,14 +75,19 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 
 ## Phase 4 — Story class MVP
 
-- [ ] `WorldCard` schema + DB table (locations, npcs, protagonist, plot_flags, current_scene, chapter_log)
+Story Cards are Playime's flagship, most-unique feature — see `PLAYIME_ROADMAP.md` §0.5. `StoryCard` gets the same first-class treatment as `CharacterCard`, not a lesser sibling.
+
+- [ ] `StoryCard` schema + DB table (locations, npcs, protagonist, plot_flags, quest_log, current_scene, chapter_log) — see `PLAYIME_ROADMAP.md` §3 for exact shape
+- [ ] `NpcCard` schema: each NPC in `npcs[]` carries its own `relationship_state` (`{affection, trust, flags}`, same shape as `CharacterCard`'s) — tracked independently per NPC, not shared across the cast
+- [ ] `QuestEntry` schema: structured `quest_log` (id/title/status/objective, optional `triggers_on` condition against `plot_flags`) — distinct from the free-form `plot_flags` bag
 - [ ] Reuse card-browser metadata + `CardInfoModal` from Phase 2 (parameterize by card type, don't rebuild)
-- [ ] World/story creation form
+- [ ] Story creation form
 - [ ] DM-style system prompt: multi-NPC narration + choice generation instructions
-- [ ] Reuse Phase 2/3 memory engine, generalized to plot_flags + chapter summaries instead of relationship_state
-- [ ] Chapter summarization job (parallel to rolling summary, chapter-scoped)
-- [ ] Sidebar UI: current scene, protagonist stats, chapter log
+- [ ] Reuse Phase 2/3 memory engine, generalized to plot_flags/quest_log + chapter summaries; per-NPC relationship deltas use the same structured-extraction call pattern Phase 2 built for `relationship_state`
+- [ ] Chapter summarization job (parallel to rolling summary, chapter-scoped); `chapter_log` entries can be flagged as checkpoints (`checkpoint_id`) for Phase 5's fork/branch feature
+- [ ] Sidebar UI: current scene, protagonist stats, quest log, chapter log
 - [ ] Test: player choices measurably branch later narration (not just cosmetic)
+- [ ] Test: quest status auto-updates correctly when a `triggers_on` condition is met by a `plot_flags` change
 
 ## Phase 5 — Shared UI polish
 
@@ -73,12 +96,16 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 - [ ] Message regeneration (re-roll last AI turn)
 - [ ] Message editing (edit a past turn, truncate/replay from there)
 - [ ] Checkpoint/branch: save a state snapshot, try an alternate choice, switch between branches
+- [ ] Story mode checkpoint-as-fork: a `chapter_log` checkpoint can spin off a new, independently shareable `StoryCard` variant (alternate timeline) rather than just a session-local snapshot — see `PLAYIME_ROADMAP.md` §0.5
 - [ ] In-session right sidebar (persistent panel, not a popover): card avatar/name header + `Play Guide` + `Avatars` (switch mid-session) + `Memories` (read-only viewer rendering the Phase 2 timeline directly) + `Situation Image` toggle (no-op until Phase 7 lands) + `Receive Messages` toggle (no-op until Phase 7's proactive messaging lands) — explicitly skip a credit/currency section, it's monetization plumbing with no place here
 - [ ] Pass: does the UI stay clear when switching between Character and Story mid-session?
 
 ## Phase 6 — Creation & sharing tools
 
 - [ ] Export CharacterCard/WorldCard to a single JSON file
+- [ ] PNG export: embed the card JSON as a `chara` tEXt chunk (base64, V2 shape) so exported cards round-trip with SillyTavern/RisuAI/Chub.ai, not just Playime-to-Playime — Phase 2 already built the read side, this is the write side (`cards/pngText.ts`)
+- [ ] (Optional) also emit a `ccv3` chunk alongside the V2 chunk for V3-aware importers
+- [ ] **Story Card portable export**: bundle a `StoryCard` (world, `NpcCard[]` incl. relationship_state templates, starting `quest_log`, `world_info`) into one shareable JSON — Playime's own format, no SillyTavern equivalent; the concrete payoff of the flagship-feature bet (see `PLAYIME_ROADMAP.md` §0.5). Can slip to a "Phase 6.5" if the rest of Phase 6 is done first, but shouldn't be dropped.
 - [ ] Import a JSON card, validate schema, handle version mismatches gracefully
 - [ ] Local gallery/list view of saved characters and stories
 - [ ] (Optional) basic search/filter in the gallery
@@ -91,6 +118,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 - [ ] Proactive/idle messaging: character sends an unprompted message after some elapsed time — wires up the Phase 5 `Receive Messages` toggle
 - [ ] Per-session model override (pick a different model for a specific character/story)
 - [ ] Cost/token usage display per session (useful once cloud providers are in the mix)
+- [ ] Regex output scripts (SillyTavern/RisuAI-style): per-card find/replace rules run on AI output before render — not core, but cheap once the pipeline exists
 
 ## Phase 8 — Packaging
 
@@ -128,3 +156,5 @@ Use this space to record decisions as you make them, so the reasoning doesn't ge
 - **SSE streaming shipped** (item 6). New route `POST /api/sessions/:id/messages/stream` streams the reply as `text/event-stream` with named frames `delta {text}` → `done {user_message, message}` → `error {code, message}`. The reply is persisted **after** the stream completes (single insert, same as `sendMessage`), and `done` carries both stored rows so the UI can swap its optimistic turns for real ids. To share context assembly between the streaming and non-streaming paths with zero duplication, `chat.ts` gained two extracted helpers — `prepareTurn(input)` (validate session, trim/empty check, OOC detection, persist user turn, assemble system + last-12-turns context → `{userMessage, request}`) and `persistAssistantReply(sessionId, text)` — and `sendMessage` now composes them (`prepareTurn` → `generate()` → `persistAssistantReply`); public API unchanged, `smoke:chat` regression confirms behavior is preserved. Client disconnect cancels the adapter stream: the abort controller is wired to the **response**'s close event with a `writableEnded` guard (the request stream's own `close` fires as soon as its body is consumed via `autoDestroy`, which would abort immediately — this bug was caught and fixed during dev). The opencode adapter also now folds an aborted `reader.read()` (raw DOMException `AbortError`) into its stable `LmError('cancelled', …)` contract. Frontend: `ChatMessage` gained a UI-only `streaming?` marker; `api/chat.ts` added `streamMessage()` (fetch POST + manual SSE parse — EventSource can't POST; reuses the backend's parse shape) with `onDelta`/`onDone`/`onError` handlers; the store's `sendMessage` pushes an optimistic user turn **and** a live streaming placeholder, appends each delta to the placeholder (`m.content += text`), swaps both for the persisted rows on `done`, and drops the placeholder + surfaces `chat.error` on failure (user text kept for retry). UI: `MessageBubble` renders animated dots inside the box while `streaming && content === ''` (replacing the old standalone "is writing" block — the placeholder bubble now handles it), and `MessageList`'s auto-scroll effect reads the last message's content so it re-runs per delta, jumping instantly while sending. **CORS verified on the streamed response** (origin-reflecting `access-control-allow-origin` + `Vary: Origin` do apply to the SSE body, no manual headers needed). **Verified**: backend `typecheck`, `smoke:chat` (regression), new `smoke:stream` (session create → stream → asserts deltas are a non-empty prefix of `done.message.content`, `done.user_message` echoes the sent turn, 2 turns persisted, unknown session → JSON 404) — clean exits; live CORS round-trip on the stream route; frontend `svelte-check` 0 errors/warnings + `build` clean. Note: deepseek-v4-flash-free emits its reply in a single `text.ended` event (no `text.delta`), so "token-by-token" here is live SSE delivery of the chunks opencode produces — models that emit deltas will stream incrementally; the mechanism supports both.
 
 
+- **Prior-art pass: SillyTavern-ecosystem research folded in** (research task, not a checklist item). Added SillyTavern/RisuAI/Agnai/Chub.ai/TavernAI/kobold.cpp comparison to `PLAYIME_ROADMAP.md` §0.5. Two concrete adoptions threaded through the docs: (1) **Tavern V2/V3 card-format import/export compatibility** (PNG `chara`/`ccv3` tEXt chunks + standalone JSON), landing on the Phase 2 import side and Phase 6 export side, so the existing Chub.ai card library works in Playime without hand-authoring; (2) a new **Phase 2.5 — World Info / lorebook layer**: keyword-triggered, deterministic lore injection (SillyTavern's `character_book`), inserted as its own memory tier between rolling summary and RAG in `AGENTS.md`/`PLAYIME_ROADMAP.md`'s memory-system sections, since it's what an imported card's lorebook actually needs and it's cheaper than embeddings. Explicitly declined to adopt: Agnai's multi-user/shared-server model (Playime stays single-local-user) and RisuAI's hosted-subscription push. Regex output-scripts noted as an optional Phase 7 item, not core.
+- **`WorldCard` renamed to `StoryCard`; Story Cards designated Playime's flagship, most-unique feature** (product decision, not a checklist item). Rationale, backed by a 2026 research pass on SillyTavern's actual weaknesses (not just its strengths, per `PLAYIME_ROADMAP.md` §0.5): independent reviews confirm even SillyTavern's memory tooling (lorebooks, Summarize extension, vector storage) mitigates the context-window problem rather than solving it, since nothing outside prompt text tracks state as real data — which is exactly the gap Playime's "own memory/state, not the LLM's" architecture already closes. SillyTavern also has no first-class "story" object at all — World Info is config bolted onto a character card or a standalone lorebook file, not something browsable/shareable with its own quest and NPC-relationship state. Three schema additions land the positioning concretely (full shapes in `PLAYIME_ROADMAP.md` §3, checklist items added to Phase 4/5/6 above): **`quest_log`** (structured `QuestEntry[]`, distinct from the free-form `plot_flags` bag — turns "the AI forgot the quest" into a queryable fact); **`NpcCard.relationship_state`** (every NPC gets the same `{affection, trust, flags}` shape `CharacterCard` uses, tracked independently — a direct fix for the relationship-drift problem SillyTavern group chats are known for); **`chapter_log[].checkpoint_id`** (a checkpoint can fork into a new, independently shareable `StoryCard` variant — SillyTavern's only branching mechanism today is swipe-to-regenerate or manually duplicating a chat). No phase numbers changed; this is scope refinement within existing Phase 4/5/6, plus one new optional Phase 6 item (Story Card portable JSON export/import bundle).
