@@ -24,15 +24,13 @@
 		<span class="bubble__name">{name}</span>
 	</header>
 
-	<div class="bubble__body">
+	<div class="bubble__box">
 		{#each segments as seg, i (i)}
-			<p
+			<span
 				class="bubble__seg"
 				class:bubble__seg--dialogue={seg.type === 'dialogue'}
 				class:bubble__seg--action={seg.type === 'action'}
-			>
-				{seg.text}
-			</p>
+			>{seg.text}</span>
 		{/each}
 	</div>
 </div>
@@ -44,7 +42,6 @@
 		gap: var(--space-2);
 		max-width: 72%;
 		align-self: flex-start;
-		/* AI messages intentionally have NO visible bubble background. */
 	}
 
 	.bubble__header {
@@ -59,24 +56,26 @@
 		color: var(--text-secondary);
 	}
 
-	.bubble__body {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-		padding: 0 2px;
-	}
-	.bubble__seg {
-		margin: 0;
+	/* One block for the whole message — mirrors the user pill's shape and
+	 * padding, but with its own color (--assistant-bg / --assistant-border).
+	 * Narration, action, and dialogue all live inside this single bubble. */
+	.bubble__box {
+		background: var(--assistant-bg);
+		border: 1px solid var(--assistant-border);
+		border-radius: var(--radius-lg);
+		padding: var(--space-3) var(--space-4);
+		color: var(--text);
 		font-size: var(--font-size-base);
 		line-height: 1.55;
+	}
+
+	.bubble__seg {
 		color: var(--ai-narration);
 		font-weight: var(--font-weight-regular);
 	}
 	.bubble__seg--dialogue {
 		color: var(--ai-dialogue);
 		font-weight: var(--font-weight-bold);
-		font-size: var(--font-size-lg);
-		line-height: 1.4;
 	}
 	.bubble__seg--action {
 		font-style: italic;

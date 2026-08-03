@@ -42,15 +42,17 @@ export function parseMessage(content: string): MessageSegment[] {
 	if (last < content.length) pushNarration(content.slice(last));
 	return mergeAdjacent(segments);
 
+	// Preserve whitespace (including space-only runs between tokens) so the
+	// segments can be rendered inline — one flowing block — without losing
+	// the original word spacing.
 	function pushNarration(text: string): void {
-		if (text.trim().length > 0) segments.push({ type: 'narration', text });
+		if (text.length > 0) segments.push({ type: 'narration', text });
 	}
 }
 
-/** Collapse consecutive same-type segments so the bubble doesn't stack a
- *  run of identical styling lines for adjacent tokens. Join with a space —
- *  adjacent tokens are only separated by whitespace, so the join preserves
- *  the original spacing. */
+/** Collapse consecutive same-type segments. Adjacent same-type segments are
+ *  only separated by whitespace, so a single space join preserves spacing;
+ *  HTML collapses any leftover runs. */
 function mergeAdjacent(segments: MessageSegment[]): MessageSegment[] {
 	const out: MessageSegment[] = [];
 	for (const seg of segments) {

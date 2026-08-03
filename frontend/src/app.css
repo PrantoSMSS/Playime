@@ -28,6 +28,9 @@
 	--user-bg: #123a35; /* user message pill */
 	--user-border: #1c554e; /* user message pill border */
 
+	--assistant-bg: #162b28; /* AI message bubble — mirrors the user pill shape, distinct color */
+	--assistant-border: #1d3935; /* AI message bubble border */
+
 	--ai-dialogue: #f1faf7; /* AI quoted dialogue */
 	--ai-narration: #91aaa5; /* AI narration */
 
