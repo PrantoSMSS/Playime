@@ -8,7 +8,8 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
-    "smoke:opencode": "tsx scripts/smoke-opencode.ts"
+    "smoke:opencode": "tsx scripts/smoke-opencode.ts",
+    "db:check": "tsx scripts/db-check.ts"
   },
   "keywords": [],
   "author": "",
