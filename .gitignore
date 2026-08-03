@@ -25,3 +25,6 @@ Thumbs.db
 *.db
 *.db-shm
 *.db-wal
+
+# Reference projects
+references/

@@ -34,9 +34,9 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 
 - [x] `CharacterCard` schema + DB table (personality, speech_style, scenario, first_message, relationship_state) — the key-event timeline is per-session rows, not a card field (see `AGENTS.md` memory system layer 2)
 - [x] `CharacterCard` gains the Tavern V2/V3-compatible fields: `alternate_greetings`, `mes_example`, `system_prompt`/`post_history_instructions`, `creator`/`creator_notes`/`character_version`, `world_info`, `extensions` passthrough — see `PLAYIME_ROADMAP.md` §3
-- [ ] SillyTavern-compatible card import: parse a PNG's embedded `chara` tEXt chunk (base64 V1/V2 JSON) and `ccv3` chunk (V3, superset — backfill V2 shape from it when present) as well as standalone `.json` cards
-- [ ] Map imported V2/V3 fields onto `CharacterCard`; anything unmapped goes into `extensions`, never silently dropped
-- [ ] Import a card's `character_book` into Playime's `world_info` entries (schema lands in Phase 2.5 below — import can land the raw parse now and wire it up once that schema exists)
+- [x] SillyTavern-compatible card import: parse a PNG's embedded `chara` tEXt chunk (base64 V1/V2 JSON) and `ccv3` chunk (V3, superset — backfill V2 shape from it when present) as well as standalone `.json` cards — `cards/pngText.ts` (PNG parser) + `cards/sillytavern.ts` (V1/V2/V3/off-spec normalizer) + `POST /api/cards/import` route
+- [x] Map imported V2/V3 fields onto `CharacterCard`; anything unmapped goes into `extensions`, never silently dropped
+- [x] Import a card's `character_book` into Playime's `world_info` entries — `character_book.entries` mapped to `WorldInfoEntry[]` with full field parity (keys, secondary_keys, selective, selective_logic, constant, content, insertion_order, priority, position, case_sensitive, enabled)
 - [ ] Test: import 5–10 real cards from Chub.ai or another public source, confirm fields + embedded lorebook survive the round-trip (spot-check against the source JSON)
 - [x] Add card-browser metadata fields (`cover_image`, `creator_name`, `tags`, `description`, `prologue_preview`, local `stats`, `last_updated`) — see `AGENTS.md` UI reference
 - [ ] Support multiple avatar options + multiple starting scenarios per card
@@ -109,7 +109,7 @@ Story Cards are Playime's flagship, most-unique feature — see `PLAYIME_ROADMAP
 - [ ] PNG export: embed the card JSON as a `chara` tEXt chunk (base64, V2 shape) so exported cards round-trip with SillyTavern/RisuAI/Chub.ai, not just Playime-to-Playime — Phase 2 already built the read side, this is the write side (`cards/pngText.ts`)
 - [ ] (Optional) also emit a `ccv3` chunk alongside the V2 chunk for V3-aware importers
 - [ ] **Story Card portable export**: bundle a `StoryCard` (world, `NpcCard[]` incl. relationship_state templates, starting `quest_log`, `world_info`) into one shareable JSON — Playime's own format, no SillyTavern equivalent; the concrete payoff of the flagship-feature bet (see `PLAYIME_ROADMAP.md` §0.5). Can slip to a "Phase 6.5" if the rest of Phase 6 is done first, but shouldn't be dropped.
-- [ ] Import a JSON card, validate schema, handle version mismatches gracefully
+- [x] Import a JSON card, validate schema, handle version mismatches gracefully — `POST /api/cards/import` handles V1/V2/V3/off-spec with descriptive error codes
 - [ ] Local gallery/list view of saved characters and stories
 - [ ] (Optional) basic search/filter in the gallery
 
