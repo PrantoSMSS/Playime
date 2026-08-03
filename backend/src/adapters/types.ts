@@ -85,6 +85,12 @@ export type OpenCodeAdapterConfig = {
   defaultModel?: string;
   /** Cheap model for bookkeeping calls (summarize / state extraction). */
   smallModel?: string;
+  /**
+   * Working directory for the opencode agent session. Defaults to a neutral
+   * temp dir — NEVER the repo cwd — so the model doesn't pick up coding-agent
+   * context and break character (Playime owns all memory/state).
+   */
+  directory?: string;
 };
 
 export type AdapterConfig =

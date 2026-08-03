@@ -43,6 +43,9 @@ export interface LmAdapter {
 
   /** Token-by-token text deltas of the response. */
   stream(request: GenerateRequest, options?: GenerateOptions): AsyncIterable<StreamChunk>;
+
+  /** Release provider-side resources (e.g. opencode sessions). Best-effort. */
+  dispose(): Promise<void>;
 }
 
 export type { AdapterConfig, ChatMessage, ChatRole, GenerateOptions, GenerateRequest, GenerateResult, LmErrorCode, StreamChunk, TokenUsage } from './types.js';

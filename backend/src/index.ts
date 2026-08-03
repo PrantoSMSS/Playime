@@ -1,8 +1,11 @@
 import Fastify from 'fastify';
+import { chatRoutes } from './routes/chat.js';
 
 const app = Fastify({ logger: true });
 
 app.get('/health', async () => ({ status: 'ok' }));
+
+app.register(chatRoutes);
 
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? '127.0.0.1';

@@ -18,6 +18,9 @@
  * The adapter stores NO state in opencode's session history beyond the
  * prompt message; Playime owns all memory/state (AGENTS.md).
  */
+import { mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { renderOpencodePrompt } from '../prompt.js';
 import type {
   GenerateOptions,
@@ -53,6 +56,9 @@ export interface OpenCodeSessions {
 /** Config keys read from the environment (see docs/PLAYIME_ROADMAP.md §5). */
 const DEFAULT_OPCODE_BASE_URL = 'http://127.0.0.1:4096';
 
+/** Neutral working dir for agent sessions — see types.ts `directory`. */
+const DEFAULT_AGENT_DIRECTORY = join(tmpdir(), 'playime-opencode-agent');
+
 export class OpenCodeAdapter {
   readonly id = 'opencode';
 
@@ -61,6 +67,7 @@ export class OpenCodeAdapter {
   private readonly smallModel: string | undefined;
   private readonly serverPassword: string | undefined;
   private readonly authHeader: string | undefined;
+  private readonly directory: string;
   private sessions = new Map<string, string>();
   private smallSessions = new Map<string, string>();
 
@@ -71,6 +78,7 @@ export class OpenCodeAdapter {
     this.smallModel = config.smallModel ?? process.env.OPENCODE_SMALL_MODEL;
     this.serverPassword = config.serverPassword ?? process.env.OPENCODE_SERVER_PASSWORD;
     this.authHeader = this.serverPassword ? `Bearer ${this.serverPassword}` : undefined;
+    this.directory = config.directory ?? process.env.OPENCODE_DIRECTORY ?? DEFAULT_AGENT_DIRECTORY;
   }
 
   /** One complete response; resolves when the reply is fully received. */
@@ -121,13 +129,13 @@ export class OpenCodeAdapter {
     }
   }
 
-  /** Create an opencode session in the Playime project directory. */
-  async createSession(directory?: string): Promise<string> {
-    const location = directory ?? process.env.OPENCODE_DIRECTORY ?? process.cwd();
+  /** Create an opencode session in a neutral working directory. */
+  async createSession(directory: string = this.directory): Promise<string> {
+    mkdirSync(directory, { recursive: true });
     const res = await fetch(`${this.baseUrl}/api/session`, {
       method: 'POST',
       headers: this.headers('application/json'),
-      body: JSON.stringify({ location: { directory: location } }),
+      body: JSON.stringify({ location: { directory } }),
       signal: AbortSignal.timeout(15_000),
     });
 
