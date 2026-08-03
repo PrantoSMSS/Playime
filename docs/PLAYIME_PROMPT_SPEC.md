@@ -164,7 +164,7 @@ Rules:
 ## 6. Rolling summarization (every ~15–20 turns, small model)
 
 Builds the **append-only key-event timeline** — the confirmed format from the reference
-"Memories" screen (see `CLAUDE.md` "Memory system" and `PLAYIME_ROADMAP.md` §4). Each run
+"Memories" screen (see `AGENTS.md` "Memory system" and `PLAYIME_ROADMAP.md` §4). Each run
 extracts the key events since the last boundary and **appends** new rows; it never rewrites
 or collapses prior entries.
 

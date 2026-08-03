@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-Guidance for Claude Code (or any agent) working in this repo. Read this before making changes.
+Guidance for any agent working in this repo. Read this before making changes.
 
 ## Project
 

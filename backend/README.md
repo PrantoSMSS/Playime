@@ -1,6 +1,6 @@
 # Playime — Backend
 
-Node.js + TypeScript + Fastify. See `../CLAUDE.md` for the architecture and build order.
+Node.js + TypeScript + Fastify. See `../AGENTS.md` for the architecture and build order.
 
 ## Directory map
 
@@ -13,4 +13,4 @@ src/
 db/           SQLite schema + migrations
 ```
 
-This is a skeleton — directories are populated as their phases land (Phase 0 → 1 → 2, per the build order in `CLAUDE.md`).
+This is a skeleton — directories are populated as their phases land (Phase 0 → 1 → 2, per the build order in `AGENTS.md`).

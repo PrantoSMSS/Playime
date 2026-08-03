@@ -16,7 +16,7 @@
  * are dropped (see decisions log: never surface model reasoning).
  *
  * The adapter stores NO state in opencode's session history beyond the
- * prompt message; Playime owns all memory/state (CLAUDE.md).
+ * prompt message; Playime owns all memory/state (AGENTS.md).
  */
 import { renderOpencodePrompt } from '../prompt.js';
 import type {

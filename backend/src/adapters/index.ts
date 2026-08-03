@@ -3,7 +3,7 @@
  *
  * Every provider (opencode, Ollama, LM Studio, vLLM, ...) implements
  * exactly this contract. Business/route code depends only on `LmAdapter`;
- * it never sees a provider SDK (CLAUDE.md "Core architectural rule").
+ * it never sees a provider SDK (AGENTS.md "Core architectural rule").
  *
  * Correspondence with the Phase 0 checklist's `generate(messages, system,
  * stream) -> tokens`:

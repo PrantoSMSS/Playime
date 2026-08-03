@@ -1,6 +1,6 @@
 # Playime — Build Checklist
 
-Check items off as you finish them. Keep this file in the repo root (or `docs/`) and commit it alongside your code so progress state travels with the project. One phase should be fully checked before the next phase starts (see `CLAUDE.md` build order).
+Check items off as you finish them. Keep this file in the repo root (or `docs/`) and commit it alongside your code so progress state travels with the project. One phase should be fully checked before the next phase starts (see `AGENTS.md` build order).
 
 Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to use `[~]` as a mid-step marker.
 
@@ -8,8 +8,8 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 
 ## Phase 0 — Foundations
 
-- [x] Backend language/framework decided: Node.js + TypeScript, Fastify — `CLAUDE.md` and `PLAYIME_ROADMAP.md` updated
-- [x] Init repo with `backend/` and `frontend/` skeletons per the structure in `CLAUDE.md`
+- [x] Backend language/framework decided: Node.js + TypeScript, Fastify — `AGENTS.md` and `PLAYIME_ROADMAP.md` updated
+- [x] Init repo with `backend/` and `frontend/` skeletons per the structure in `AGENTS.md`
 - [x] `npm init` backend, add TypeScript + Fastify, confirm `tsc`/dev server run clean
 - [x] Install `opencode`, run `opencode serve --port 4096` locally
 - [x] Explore opencode's own HTTP API (`/doc` OpenAPI spec) — confirm session-create and message-send endpoints work via a manual `curl`/Postman round-trip
@@ -32,14 +32,14 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 
 ## Phase 2 — Character class MVP
 
-- [ ] `CharacterCard` schema + DB table (personality, speech_style, scenario, first_message, relationship_state) — the key-event timeline is per-session rows, not a card field (see `CLAUDE.md` memory system layer 2)
-- [ ] Add card-browser metadata fields (`cover_image`, `creator_name`, `tags`, `description`, `prologue_preview`, local `stats`, `last_updated`) — see `CLAUDE.md` UI reference
+- [ ] `CharacterCard` schema + DB table (personality, speech_style, scenario, first_message, relationship_state) — the key-event timeline is per-session rows, not a card field (see `AGENTS.md` memory system layer 2)
+- [ ] Add card-browser metadata fields (`cover_image`, `creator_name`, `tags`, `description`, `prologue_preview`, local `stats`, `last_updated`) — see `AGENTS.md` UI reference
 - [ ] Support multiple avatar options + multiple starting scenarios per card
 - [ ] `CardInfoModal` component (reusable for Character and Story): cover, tags, description, prologue preview, avatar picker, starting-scenario picker, "New Play" CTA
 - [ ] "New Play" flow: modal selections → create `Session` with `avatar_selection` + `starting_scenario_id`
 - [ ] Character creation form (frontend) + save/load
 - [ ] System prompt assembly: card fields → system prompt, reproducibly
-- [ ] Rolling summary job: every ~15–20 turns, background call compresses history into a timestamped key-event timeline (append-only rows, not a rewritten blob) — see `CLAUDE.md` memory system for the exact confirmed format
+- [ ] Rolling summary job: every ~15–20 turns, background call compresses history into a timestamped key-event timeline (append-only rows, not a rewritten blob) — see `AGENTS.md` memory system for the exact confirmed format
 - [ ] Swap raw-history-in-context for "recent turns + rolling summary" in the prompt
 - [ ] Structured-state extraction call after each AI turn (JSON mode / function-calling) → relationship deltas
 - [ ] Apply state deltas deterministically to `relationship_state`
@@ -114,6 +114,6 @@ Use this space to record decisions as you make them, so the reasoning doesn't ge
 - **Product decision: never surface model reasoning to the user.** Only the assistant's final text is shown. The `/event` stream carries `session.next.reasoning.*` events — the adapter/UI must filter those out and deliver only `session.next.text.*` content. This applies to any provider, not just opencode.
 - **Prompt architecture defined in `docs/PLAYIME_PROMPT_SPEC.md`** — the single source of truth for prompt assembly. Key choices: Character & Story system prompts are deterministic renderings of card + state + memory (no ad-hoc prose); working context = last 12 turns; OOC turns excluded from fiction and delivered as a separate system block; RAG block injected as its own system message above the main prompt (top-k = 5); state extraction and rolling summary run as separate small-model calls producing deterministic deltas (clamped 0–100) and an append-only key-event timeline respectively; system prompts explicitly require final-text-only output, backing up the adapter-level reasoning filtering.
 - **LM adapter interface defined** (`backend/src/adapters/index.ts` `LmAdapter` + `types.ts`). Design: `LmAdapter` exposes two methods — `stream(request, opts): AsyncIterable<StreamChunk>` (token deltas) and `generate(request, opts): Promise<GenerateResult>` (full text, may internally collect a stream) — which together satisfy the checklist's `generate(messages, system, stream) -> tokens`. `GenerateRequest` = assembled `{system, messages}` straight from the prompt assembler (adapters never assemble prompts). `StreamChunk` is a discriminated union (`text` delta | `usage` | `done`); `LmError` normalizes failures to stable codes (`config`/`provider`/`timeout`/`cancelled`/`context`/`not-implemented`). Contract guarantees: final-text-only, prompt-agnostic, streaming-native, cancellable via `AbortSignal`, failure-normalized. `AdapterConfig` is a discriminated union per provider (opencode / openai-compatible / ollama); a factory/registry lands with the first implementation.
-- The rolling-summary **format is confirmed as an append-only key-event timeline** (see `CLAUDE.md` "Memory system" and `PLAYIME_PROMPT_SPEC.md` §6) — not a single prose blob. Each run appends `{timestamp_range, entries: [str]}` rows; this same data feeds the prompt (`{memory_timeline}`) and renders verbatim in the user-facing Memories modal.
+- The rolling-summary **format is confirmed as an append-only key-event timeline** (see `AGENTS.md` "Memory system" and `PLAYIME_PROMPT_SPEC.md` §6) — not a single prose blob. Each run appends `{timestamp_range, entries: [str]}` rows; this same data feeds the prompt (`{memory_timeline}`) and renders verbatim in the user-facing Memories modal.
 - **`adapters/opencode.ts` implemented and smoke-tested against the live server on 4096.** Class `OpenCodeAdapter` implements the `LmAdapter` shape (`stream()` + `generate()`; the interface file in `index.ts` is an interface, the adapter is the concrete class). It: creates/reuses an opencode session (main + small tiers), renders the assembled `GenerateRequest` into opencode's single-text prompt shape (`src/prompt.ts` `renderOpencodePrompt` — System/User/Assistant sections in code fences), POSTs `/prompt`, then reads the `/event` SSE stream from the `admittedSeq` cursor. Event mapping: `session.next.text.delta`→`{type:'text',delta}` and `text.ended`→`{type:'text',text}` (dedup: this deepseek model emits ended-only, no deltas), `step.ended`→`{type:'usage'}` then stop. `session.next.reasoning.*` events are **never** surfaced (final-text-only requirement). Optional `options.model` → `POST /api/session/{id}/model` (204). Cancellation via `AbortSignal` (120s hard timeout), failures → `LmError` with stable codes, `dispose()` deletes tracked sessions. Env config: `OPENCODE_BASE_URL`, `OPENCODE_MODEL`, `OPENCODE_SMALL_MODEL`, `OPENCODE_SERVER_PASSWORD`. Smoke test: `npm run smoke:opencode` → stream and generate both returned exactly `ADAPTER-STREAM-OK`, usage reported, no reasoning leaked.
 

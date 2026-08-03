@@ -1,6 +1,6 @@
 # Playime — Frontend
 
-SvelteKit + Vite. See `../CLAUDE.md` for the architecture and build order.
+SvelteKit + Vite. See `../AGENTS.md` for the architecture and build order.
 
 ## Directory map
 
