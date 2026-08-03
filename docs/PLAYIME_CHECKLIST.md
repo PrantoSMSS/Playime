@@ -131,6 +131,8 @@ Story Cards are Playime's flagship, most-unique feature — see `PLAYIME_ROADMAP
 
 ## Notes / decisions log
 
+- **Product stance: Playime should feel like a real game, not a power-user control panel.** The technical depth stays available for creators and advanced users, but the default player path should hide prompt/provider/lorebook complexity behind clear game-like flows: choose a Character or Story Card, press "New Play", and enter the scene. UI defaults should prioritize approachable play, readable state, quest/relationship feedback, and progressive disclosure of advanced controls.
+
 Use this space to record decisions as you make them, so the reasoning doesn't get lost between sessions.
 
 - Backend: Node.js + TypeScript + Fastify (chosen over Python/FastAPI for a single-language stack alongside SvelteKit)

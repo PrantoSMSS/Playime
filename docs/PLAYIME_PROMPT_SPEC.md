@@ -118,21 +118,21 @@ You are the dungeon master of "{title}", a {genre} story.
 ## 3. Message assembly (working context)
 
 - Take the last **N = 12** turns (`user` + `assistant`), verbatim, oldest → newest, alternating roles, ending on the current user turn.
-- **OOC turns** (flagged `ooc`) are **excluded** from this fiction sequence.
+- **Out-of-character turns** (flagged `ooc`) are **excluded** from this fiction sequence.
 - When a rolling summary exists, turns older than the summary boundary are dropped from the prompt (kept in SQLite for export/reference).
 
-### OOC handling
+### Out-of-character handling
 
-An OOC message is out-of-fiction direction, not dialogue. Assembly:
+An out-of-character message is direction, not dialogue. Assembly:
 
 1. Do **not** append it to the fiction turns.
 2. Emit it as a separate short `system` block placed **after** the character system prompt:
    ```
    (Out-of-character note for {name}: {ooc_text})
    ```
-3. The character adjusts its next in-character reply accordingly but never acknowledges the note in-fiction, and the OOC block is never rendered as character dialogue.
+3. The character adjusts its next in-character reply accordingly but never acknowledges the note in-fiction, and the guidance block is never rendered as character dialogue.
 
-**Detection.** A message is OOC when the request sets `ooc: true` (the Phase 5 UI toggle) **or** when its text is wrapped in asterisks (`*then Miko bowed*`) — a plain-text stage-direction convention. The surrounding asterisks are stripped before the note is rendered (`{ooc_text}` never includes them); inline emphasis inside a normal turn (`Miko *smiles* warmly`) is NOT an OOC marker. `ooc_text` is exactly the stripped inner text.
+**Detection.** A message is out-of-character when the request sets `ooc: true` (the Phase 5 guidance toggle) **or** when its text is wrapped in asterisks (`*then Miko bowed*`) — a plain-text stage-direction convention. The surrounding asterisks are stripped before the note is rendered (`{ooc_text}` never includes them); inline emphasis inside a normal turn (`Miko *smiles* warmly`) is NOT an out-of-character marker. `ooc_text` is exactly the stripped inner text.
 
 ## 4. Memory block (RAG injection)
 
