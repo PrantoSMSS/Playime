@@ -97,7 +97,7 @@
 		flex-shrink: 0;
 		border-radius: 50%;
 		background: var(--accent);
-		color: #04201c;
+		color: var(--on-accent);
 		transition: background var(--transition-fast), transform var(--transition-fast);
 	}
 	.chat-input__send:hover:not(:disabled) {

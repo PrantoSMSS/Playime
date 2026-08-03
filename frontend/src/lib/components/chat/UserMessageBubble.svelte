@@ -25,7 +25,7 @@
 		border: 1px solid var(--user-border);
 		border-radius: var(--radius-lg);
 		padding: var(--space-3) var(--space-4);
-		color: var(--text);
+		color: var(--user-text);
 		font-size: var(--font-size-base);
 		line-height: 1.55;
 	}

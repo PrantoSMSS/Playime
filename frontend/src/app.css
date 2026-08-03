@@ -10,33 +10,37 @@
 
 :root {
 	/* ===== Color palette ===== */
-	--bg: #081313; /* app background */
-	--bg-raised: #0d1b1a; /* raised panels */
-	--surface: #112321; /* nav rail, panels */
-	--surface-elevated: #162b28; /* cards, input pill */
-	--border: #1d3935; /* hairline borders */
+	--bg: #071615; /* app background */
+	--bg-raised: #0d1e1c; /* raised panels, top bar */
+	--surface: #122523; /* nav rail, panels */
+	--surface-elevated: #19352f; /* cards, input pill */
+	--border: #264b43; /* hairline borders */
+	--border-subtle: #1c3933; /* softer hairlines (subtle dividers) */
 
-	--text: #e7f5f1; /* primary text */
-	--text-secondary: #91aaa5; /* secondary / muted-for-narration */
-	--text-muted: #607a75; /* faint hints */
+	--text: #edf8f5; /* primary text — warm off-white */
+	--text-secondary: #b5cbc6; /* secondary text / UI labels */
+	--text-muted: #9cb6b1; /* metadata — weakest, still readable */
 
 	--accent: #2dd4bf; /* primary accent */
 	--accent-hover: #5eead4; /* accent on hover */
-	--accent-muted: #164c46; /* accent tinted darker */
-	--accent-soft: #0f332f; /* accent-tinted background */
+	--accent-muted: #20665a; /* accent tinted darker (active tabs) */
+	--accent-soft: #164f47; /* accent-tinted background */
+	--on-accent: #04201c; /* text/icon on accent fills */
 
-	--user-bg: #123a35; /* user message pill */
-	--user-border: #1c554e; /* user message pill border */
+	--user-bg: #17483f; /* user message pill */
+	--user-border: #2a6a5e; /* user message pill border */
+	--user-text: #edf8f5; /* text inside the user pill */
 
-	--assistant-bg: #162b28; /* AI message bubble — mirrors the user pill shape, distinct color */
-	--assistant-border: #1d3935; /* AI message bubble border */
+	--assistant-bg: #1b3a33; /* AI message bubble — mirrors the user pill shape, distinct color */
+	--assistant-border: #264b43; /* AI message bubble border */
 
-	--ai-dialogue: #f1faf7; /* AI quoted dialogue */
-	--ai-narration: #91aaa5; /* AI narration */
+	--ai-dialogue: #f4fbf9; /* AI quoted dialogue — strongest reading */
+	--ai-narration: #bcd1cc; /* AI narration — readable but secondary */
+	--ai-action: #abc5bf; /* AI stage direction / OOC note */
 
-	--icon: #78928d; /* default icon color */
-	--icon-hover: #c1d7d2; /* icon on hover */
-	--icon-active: #2dd4bf; /* active / selected icon */
+	--icon: #94aeaa; /* default icon color */
+	--icon-hover: #d5e6e2; /* icon on hover */
+	--icon-active: #5eead4; /* active / selected icon */
 
 	/* ===== Spacing scale ===== */
 	--space-1: 4px;

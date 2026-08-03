@@ -79,6 +79,6 @@
 	}
 	.bubble__seg--action {
 		font-style: italic;
-		color: var(--text-muted);
+		color: var(--ai-action);
 	}
 </style>
