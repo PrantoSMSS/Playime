@@ -115,6 +115,7 @@ export class OpenCodeAdapter {
       } else if (event.type === 'session.next.step.ended') {
         const usage = this.usageFromEvent(event);
         if (usage) yield { type: 'usage', usage };
+        yield { type: 'done' };
         return;
       }
     }
