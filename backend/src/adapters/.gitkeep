@@ -1,0 +1,2 @@
+# LM provider adapters: opencode.ts, ollama.ts, openaiCompatible.ts
+# All implement one shared generate(messages, system, stream) interface (Phase 0).

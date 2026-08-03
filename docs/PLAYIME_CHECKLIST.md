@@ -9,7 +9,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 ## Phase 0 — Foundations
 
 - [x] Backend language/framework decided: Node.js + TypeScript, Fastify — `CLAUDE.md` and `PLAYIME_ROADMAP.md` updated
-- [~] Init repo with `backend/` and `frontend/` skeletons per the structure in `CLAUDE.md`
+- [x] Init repo with `backend/` and `frontend/` skeletons per the structure in `CLAUDE.md`
 - [ ] `npm init` backend, add TypeScript + Fastify, confirm `tsc`/dev server run clean
 - [ ] Install `opencode`, run `opencode serve --port 4096` locally
 - [ ] Connect opencode to at least one local provider (Ollama or LM Studio) and confirm a manual `curl`/request round-trips
@@ -96,5 +96,6 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 Use this space to record decisions as you make them, so the reasoning doesn't get lost between sessions.
 
 - Backend: Node.js + TypeScript + Fastify (chosen over Python/FastAPI for a single-language stack alongside SvelteKit)
+- Skeleton uses `.gitkeep` + README placeholders only — actual tooling (npm init, tsconfig, Fastify app) lands with the next checklist item, per the "don't scaffold ahead of need" rule.
 -
 -
