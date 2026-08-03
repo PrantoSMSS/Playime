@@ -121,7 +121,7 @@ Four layers, matching how the original claims "deep memory":
      - Abyss Weiss and Emma met for the first time in their new shared home.
      - Emma expressed immediate disdain for the new family situation.
    - 2023-10-27 11:00–12:00
-     - Abyss Weiss and Emma had an argument after Abyss Weiss entered without knocking.
+     - Abyss Weiss and Emma had an argument after Abyss Weiss kicked Emma's cat.
    ```
    Store as structured rows (`timestamp_range`, `entries: [str]`) rather than one growing blob of prose — this doubles as both the mid-term memory fed back into prompts *and* the exact content rendered in the user-facing memory viewer, so it needs to read cleanly on its own.
 3. **Long-term recall (RAG)** — embed every summary chunk + key moments. On each new user turn, embed the user's message, pull top-k similar memories, inject as a short "relevant memories" block above the system prompt.
