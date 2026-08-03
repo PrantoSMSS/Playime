@@ -85,9 +85,11 @@ interface SillyTavernLorebookEntry {
   id?: number | undefined;
   comment?: string | undefined;
   selective?: boolean | undefined;
+  selectiveLogic?: number | undefined;
   constant?: boolean | undefined;
   position?: string | undefined;
   use_regex?: boolean | undefined;
+  probability?: number | undefined;
 }
 
 interface SillyTavernAsset {
@@ -149,13 +151,11 @@ function mapSelectiveLogic(val: unknown): 'AND' | 'NOT' | undefined {
 
 /** Convert a SillyTavern lorebook entry to Playime's WorldInfoEntry. */
 function convertLoreEntry(entry: SillyTavernLorebookEntry): WorldInfoEntry {
-  const ext = entry.extensions ?? {};
-
   return {
     keys: entry.keys ?? [],
     secondary_keys: entry.secondary_keys,
     selective: entry.selective,
-    selective_logic: mapSelectiveLogic(ext['selectiveLogic']),
+    selective_logic: mapSelectiveLogic(entry.selectiveLogic),
     constant: entry.constant,
     content: entry.content ?? '',
     insertion_order: entry.insertion_order ?? 0,
