@@ -1,9 +1,15 @@
+import cors from '@fastify/cors';
 import Fastify from 'fastify';
 import { chatRoutes } from './routes/chat.js';
 
 const app = Fastify({ logger: true });
 
 app.get('/health', async () => ({ status: 'ok' }));
+
+// Local-first single-user tool: reflect any request origin (the SvelteKit dev
+// server and any packaged frontend both need to reach us cross-origin; there's
+// no auth to protect). Override with CORS_ORIGIN when that stops being true.
+await app.register(cors, { origin: process.env.CORS_ORIGIN ?? true });
 
 app.register(chatRoutes);
 

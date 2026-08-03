@@ -2,10 +2,10 @@
 	import ChatInput from '$lib/components/chat/ChatInput.svelte';
 	import ChatTopBar from '$lib/components/chat/ChatTopBar.svelte';
 	import MessageList from '$lib/components/chat/MessageList.svelte';
-	import { addMessage } from '$lib/state/chat.svelte';
+	import { chat, sendMessage } from '$lib/state/chat.svelte';
 
 	function handleSend(text: string): void {
-		addMessage(text, 'user');
+		void sendMessage(text);
 	}
 </script>
 
@@ -13,7 +13,7 @@
 	<ChatTopBar />
 	<MessageList />
 	<div class="chat__composer">
-		<ChatInput onSend={handleSend} />
+		<ChatInput onSend={handleSend} disabled={chat.sending} />
 	</div>
 </div>
 

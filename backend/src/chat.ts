@@ -78,6 +78,8 @@ export interface SendMessageInput {
 }
 
 export interface SendMessageResult {
+  /** The persisted user turn — lets the UI render exactly what was stored. */
+  user_message: MessageRow;
   /** The persisted assistant reply (what the UI renders). */
   message: MessageRow;
   usage?: TokenUsage;
@@ -172,6 +174,7 @@ export async function sendMessage(
   });
 
   return {
+    user_message: userMsg,
     message: reply,
     ...(result.usage ? { usage: result.usage } : {}),
     ...(result.model ? { model: result.model } : {}),

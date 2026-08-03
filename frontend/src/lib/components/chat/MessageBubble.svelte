@@ -7,12 +7,14 @@
 		message,
 		name,
 		initials,
-		hue
+		hue,
+		children
 	}: {
 		message: ChatMessage;
 		name: string;
 		initials: string;
 		hue: number;
+		children?: import('svelte').Snippet;
 	} = $props();
 
 	const segments = $derived(parseMessage(message.content));
@@ -32,6 +34,7 @@
 				class:bubble__seg--action={seg.type === 'action'}
 			>{seg.text}</span>
 		{/each}
+		{@render children?.()}
 	</div>
 </div>
 

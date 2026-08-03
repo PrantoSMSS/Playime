@@ -35,6 +35,7 @@ interface SessionResponse {
 }
 
 interface MessageResponse {
+  user_message: { id: string; role: string; content: string; seq: number };
   message: { id: string; role: string; content: string; seq: number };
 }
 
@@ -96,7 +97,10 @@ async function main(): Promise<void> {
     payload: { content: "Hi! What's your name?" },
   });
   assert(first.statusCode === 201, `first message status ${first.statusCode}`);
-  const firstReply = (first.json() as MessageResponse).message;
+  const firstRes = first.json() as MessageResponse;
+  assert(firstRes.user_message.role === 'user', 'response echoes the stored user turn');
+  assert(firstRes.user_message.content === "Hi! What's your name?", 'user_message matches what was sent');
+  const firstReply = firstRes.message;
   assert(firstReply.role === 'assistant', 'first reply is assistant');
   assert(firstReply.content.trim().length > 0, 'first reply non-empty');
   assert(isInCharacter(firstReply.content), `first reply in character: '${firstReply.content}'`);
@@ -194,7 +198,11 @@ async function main(): Promise<void> {
   console.log('SMOKE CHAT PASSED');
 }
 
-main().catch((err) => {
-  console.error('SMOKE CHAT FAILED:', err);
-  process.exit(1);
-});
+// Explicit exit: the adapter's opencode SSE connection keeps the event loop
+// alive after main() finishes, so a script must exit itself or it hangs.
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('SMOKE CHAT FAILED:', err);
+    process.exit(1);
+  });

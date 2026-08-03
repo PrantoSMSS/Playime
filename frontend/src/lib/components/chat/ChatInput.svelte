@@ -1,12 +1,20 @@
 <script lang="ts">
 	import Icon from './Icon.svelte';
 
-	let { onSend }: { onSend?: (text: string) => void } = $props();
+	let {
+		onSend,
+		disabled
+	}: {
+		onSend?: (text: string) => void;
+		/** Disables the send button while a reply is pending. */
+		disabled?: boolean;
+	} = $props();
 
 	let text = $state('');
 
 	function submit(e: SubmitEvent): void {
 		e.preventDefault();
+		if (disabled) return;
 		const value = text.trim();
 		if (!value) return;
 		onSend?.(value);
@@ -36,7 +44,7 @@
 		class="chat-input__send"
 		title="Send"
 		aria-label="Send"
-		disabled={!text.trim()}
+		disabled={disabled || !text.trim()}
 	>
 		<Icon name="send" size={17} />
 	</button>
