@@ -76,6 +76,34 @@ export interface ApiCharacterCard {
 	updated_at: number;
 }
 
+/** Input for creating a new character card. Only `name` is required. */
+export interface CreateCardInput {
+	name: string;
+	avatar?: string | null;
+	tagline?: string;
+	personality?: string;
+	speech_style?: string;
+	likes_and_dislikes?: string;
+	scenario?: string;
+	first_message?: string;
+	description?: string;
+	tags?: string[];
+}
+
+/** Partial patch for updating a character card. */
+export interface UpdateCardInput {
+	name?: string;
+	avatar?: string | null;
+	tagline?: string;
+	personality?: string;
+	speech_style?: string;
+	likes_and_dislikes?: string;
+	scenario?: string;
+	first_message?: string | null;
+	description?: string | null;
+	tags?: string[];
+}
+
 /** A row from the backend `session` table. */
 export interface ApiSession {
 	id: string;
@@ -278,6 +306,29 @@ export function listCards(): Promise<ApiCharacterCard[]> {
 export function getCard(id: string): Promise<ApiCharacterCard> {
 	return request<ApiCharacterCard>(`/api/cards/${encodeURIComponent(id)}`, {
 		method: 'GET',
+	});
+}
+
+/** Create a new character card. */
+export function createCard(input: CreateCardInput): Promise<ApiCharacterCard> {
+	return request<ApiCharacterCard>('/api/cards', {
+		method: 'POST',
+		body: JSON.stringify(input),
+	});
+}
+
+/** Update an existing character card (partial patch). */
+export function updateCard(id: string, patch: UpdateCardInput): Promise<ApiCharacterCard> {
+	return request<ApiCharacterCard>(`/api/cards/${encodeURIComponent(id)}`, {
+		method: 'PATCH',
+		body: JSON.stringify(patch),
+	});
+}
+
+/** Delete a character card. */
+export async function deleteCard(id: string): Promise<void> {
+	await request<void>(`/api/cards/${encodeURIComponent(id)}`, {
+		method: 'DELETE',
 	});
 }
 
