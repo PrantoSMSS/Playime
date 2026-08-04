@@ -20,6 +20,7 @@ import type {
 } from '../api/chat';
 import { SAMPLE_MESSAGES_BY_SESSION, SAMPLE_SESSIONS } from '../data/sample';
 import type { ChatMessage, ChatSession } from '../types/chat';
+import { nav } from './nav.svelte';
 
 export type ResponseLength = 'Short' | 'Normal' | 'Long';
 
@@ -181,7 +182,7 @@ export async function startNewPlay(selections: {
 
 		// The session's avatarUrl is the CHARACTER's image (from CharacterCard.avatar),
 		// not the user's persona avatar.
-		const avatarUrl = modal.card.avatar ?? undefined;
+		const avatarUrl = modal.card.avatar ?? modal.card.cover_image ?? undefined;
 
 		const newSession: ChatSession = {
 			id: apiSession.id,
@@ -191,6 +192,10 @@ export async function startNewPlay(selections: {
 			initials: modal.card.name.slice(0, 2).toUpperCase(),
 			hue: 172,
 			cardId: modal.card.id,
+			personaId: selections.personaId,
+			personaSource: selections.personaSource,
+			playerName: selections.playerName,
+			startingScenarioId: selections.startingScenarioId,
 			avatarUrl,
 			createdAt: Date.now(),
 		};
@@ -214,6 +219,7 @@ export async function startNewPlay(selections: {
 		}
 
 		chat.activeSessionId = apiSession.id;
+		nav.activeView = 'conversation';
 		chat.cardInfoModal = null;
 	} catch (err) {
 		chat.error = err instanceof Error ? err.message : 'Failed to start new play';
