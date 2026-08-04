@@ -208,6 +208,10 @@ export async function startNewPlay(selections: {
 			startingScenarioId: selections.startingScenarioId,
 		});
 
+		// Register the backend session so sendMessage() can find it
+		// without creating a duplicate cardless session.
+		backendSessions[apiSession.id] = apiSession.id;
+
 		// The session's avatarUrl is the CHARACTER's image (from CharacterCard.avatar),
 		// not the user's persona avatar.
 		const avatarUrl = modal.card.avatar ?? modal.card.cover_image ?? undefined;
