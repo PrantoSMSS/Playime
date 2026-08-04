@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { activeSession, chat, openCardInfoModal } from '$lib/state/chat.svelte';
+	import { nav } from '$lib/state/nav.svelte';
 	import Avatar from './Avatar.svelte';
 	import Icon from './Icon.svelte';
 
@@ -27,7 +28,7 @@
 </script>
 
 <header class="top-bar">
-	<button class="icon-btn" title="Back" onclick={() => history.back()}>
+	<button class="icon-btn" title="Back" onclick={() => (nav.activeView = 'chats')}>
 		<Icon name="chevron-left" size={22} />
 	</button>
 
