@@ -15,6 +15,39 @@ Both need: a persistent **state** object beyond raw chat history, a **memory** s
 
 Branding note: keep Playime's identity independent. Borrow broad interaction lessons from the wider genre, not names, copy, visual skin, or branded terminology from any single product.
 
+### Modular Character Cards — architectural direction
+
+Playime is moving toward **modular Character Cards**: Characters become reusable entities in a Character Pool, Stories compose Characters with worlds and scenarios, and Sessions instantiate those compositions for actual play.
+
+```
+CHARACTER POOL (reusable entities)
+│
+├── Character A
+├── Character B
+└── Character C
+        │
+        │ referenced by
+        ▼
+STORY CARD (composition)
+├── character references (with story-specific role/context)
+├── world, premise, plot
+└── starting scenarios
+        │
+        │ instantiated by
+        ▼
+SESSION (play instance)
+├── selected avatar + scenario
+├── message log
+├── relationship evolution
+└── key-event timeline
+```
+
+The central principle: **Characters are reusable building blocks. Stories are compositions of characters, worlds, and scenarios. Sessions are instances of those compositions.**
+
+A Story supports **multiple starting scenarios** — the same cast and world can have completely different starting situations. Instead of "one Story → one opening," a Story offers "one Story → multiple ways to begin." Each starting scenario defines its own context and first message; the selected one becomes session state.
+
+This architecture is **planned, not yet fully implemented**. The current codebase has `CharacterCard` as a standalone entity (which already supports multiple avatars and starting scenarios). The evolution toward Character Pool + Story Character references is documented in the data model (§3) and implementation checklist (§7).
+
 ---
 
 ## 0.5. Prior art: related open source projects
@@ -59,6 +92,8 @@ See §3 for the updated schema and §7 Phase 4/5/6 for where each lands.
 ┌───────────────▼───────────────┐
 │         Playime Backend       │
 │  - Session orchestrator       │  turn loop, prompt assembly
+│  - Character Pool             │  reusable Character entities (planned)
+│  - Story composer             │  resolves Character refs → prompts (planned)
 │  - Memory engine              │  summarization + vector recall
 │  - State engine               │  relationship/world state JSON
 │  - Persona/World store        │  SQLite (cards, sessions, memories)
@@ -71,6 +106,10 @@ See §3 for the updated schema and §7 Phase 4/5/6 for where each lands.
 │  Cloud API key (optional)  ┘   │
 └────────────────────────────────┘
 ```
+
+Key idea: **Playime owns memory/state; the LLM backend just generates text.** Don't try to make opencode's own session history double as your RPG state — it wasn't built for that (see §5).
+
+**Planned additions**: The **Character Pool** (reusable Character entities) and **Story composer** (resolves Character references when building prompts) are planned architectural components. The Story composer merges base Character data with Story-specific context during prompt assembly, so the prompt compiler resolves Character references rather than expecting Story Cards to contain duplicated Character data.
 
 Key idea: **Playime owns memory/state; the LLM backend just generates text.** Don't try to make opencode's own session history double as your RPG state — it wasn't built for that (see §5).
 
@@ -88,24 +127,61 @@ Key idea: **Playime owns memory/state; the LLM backend just generates text.** Do
 
 ## 3. Data model
 
+### Character Pool and modular architecture (planned)
+
+Characters are **reusable entities** owned by the Character Pool. A Character owns character-level information: identity, name, personality, appearance, speech style, general traits, avatars, and other character-specific data. A Character should **not** own information that exists only because it participates in a particular Story.
+
+**Currently implemented as**: `CharacterCard` — a standalone entity with full persona data, avatars, starting scenarios, and Tavern V2/V3 compatibility fields. The Character Pool concept is the planned evolution: Characters become first-class reusable entities referenced by Stories.
+
+A Story should **reference** Characters from the Character Pool rather than duplicating them. Conceptually:
+
+```ts
+type StoryCharacter = {
+    character_id: string;   // references a Character in the Pool
+
+    role?: string;               // role in this story
+    introduction?: string;       // how this character appears in this story
+    relationship_to_user?: string; // relationship to the player
+    story_notes?: string;        // story-specific notes about this character
+};
+```
+
+This is conceptual documentation — the actual type will use the project's established naming conventions. The important semantic distinction:
+
+- **Character** = "What is this character?" (identity, personality, appearance)
+- **Story Character Reference** = "Who is this character in this story?" (role, context, relationships)
+
+Story-specific information may include: role in the story, relationship to other characters, relationship to the player, story-specific traits, introduction/context, and other contextual overrides. **Avoid duplicating the entire base Character Card inside a Story.**
+
+**Live references vs snapshots**: During authoring, Story Character references should behave as **live references** to Character Pool entries — this allows a reusable Character to appear in multiple Stories. However, published/exported Stories may need a **snapshot/versioned representation** so that publishing can preserve the Character state used by that Story. This distinction is documented here as an architectural decision; the detailed versioning strategy is future work.
+
 ### Shared primitives
-- `Session` — id, class (`character`|`story`), created_at, provider/model config, message log ref.
+- `Session` — id, class (`character`|`story`), created_at, provider/model config, message log ref. **Session-specific state must not mutate reusable Character or Story definitions.** The session owns play-specific state: message log, relationship evolution, key-event timeline, and avatar/scenario selections.
 - `Message` — role, content, timestamp, session_id, `visible` flag (for hidden system/state-extraction turns), `ooc` flag (out-of-character aside vs in-fiction).
 - `MemoryEntry` — text, embedding, importance score, source turn ids, decay/last-recalled timestamp.
 - `Setting` — key/value app-level configuration (LM provider + models, memory tuning); the Config view's backing store. Env vars (e.g. `OPENCODE_MODEL`) remain the bootstrap default; once a `Setting` exists it wins.
 
 ### Character class
+
+A Character is a **reusable entity** in the Character Pool. It owns character-level identity, personality, appearance, speech style, avatars, starting scenarios, and world_info. It should **not** own story-specific context.
+
+**Currently implemented as** `CharacterCard` with full persona data + Tavern V2/V3 compatibility. The Character Pool concept (Characters as first-class reusable entities referenced by Stories) is planned.
+
 ```
 CharacterCard {
   name, avatar, tagline
   personality, speech_style, likes/dislikes
-  scenario (starting situation), first_message
+  scenario (starting situation), first_message     // legacy single scenario (kept for backward compat)
   relationship_state: { affection: int, trust: int, flags: [str] }
   // the running key-event timeline is per-session (see §4 layer 2), not on the card
 
+  // Multiple avatars and starting scenarios (implemented)
+  avatars: [AvatarOption]                          // selectable visual representations
+  starting_scenarios: [StartingScenario]            // distinct starting contexts
+
   // Tavern V2/V3 card-spec compatibility fields (see §0.5) — populated on import,
   // editable in the creation form, never silently dropped:
-  alternate_greetings: [str]        // multiple possible openers, picked at "New Play"
+  alternate_greetings: [str]        // multiple possible openers for the SAME scenario
   mes_example, system_prompt, post_history_instructions
   creator, creator_notes, character_version
   world_info: [WorldInfoEntry]      // imported from a card's `character_book`, see below
@@ -113,28 +189,115 @@ CharacterCard {
 }
 ```
 
+**`AvatarOption`** — a selectable visual representation. The Character owns the available avatar choices; a Story may optionally specify a preferred avatar without changing the Character globally.
+```
+AvatarOption {
+  id: str          // stable identifier — never an array index
+  name?: str       // display name (optional)
+  image: str       // image path or data URI
+}
+```
+
+**`StartingScenario`** — a distinct opening context with its own scenario text and first message. **Different from `alternate_greetings`**: a starting scenario represents a different starting context/premise, while an alternate greeting is a different opening message for the same scenario.
+```
+StartingScenario {
+  id: str          // stable identifier
+  name: str        // display name
+  description?: str // optional description shown in the picker
+  scenario: str    // the scenario text injected into the prompt
+  first_message: str // the opening/first message for this scenario
+}
+```
+
+**Normalization**: Cards without explicit `avatars` or `starting_scenarios` (legacy imports, older card formats) are normalized on import — a default avatar is built from the legacy `avatar` field, and a default starting scenario is built from the legacy `scenario`/`first_message` fields. This preserves backward compatibility.
+
 ### Story class
 
 `StoryCard` — renamed from `WorldCard`; this is Playime's flagship, most-unique feature (see §0.5). Structurally it's the Story-mode analog of `CharacterCard`, not a lesser cousin — same card-browser/`CardInfoModal`/import-export treatment.
+
+A Story is a **composition** of Characters + world + scenarios. It should **reference** Characters from the Character Pool rather than duplicating them. The same Character can appear in multiple Stories with different roles:
+
+```
+Yuna (Character in Pool)
+├── Story A: "Summer at the Academy" → role: childhood friend / classmate
+├── Story B: "Cyberpunk City" → role: underground resistance leader
+└── Story C: "Winter Festival" → role: romantic interest
+```
+
+The base Yuna Character remains reusable and independent.
+
+**Currently**: StoryCard contains inline `NpcCard[]` definitions. **Planned**: Story Character references will allow Stories to reference Characters from the Character Pool, with story-specific role/context. NpcCards may eventually be backed by Character Pool references.
 
 ```
 StoryCard {
   title, genre, premise, tone
   locations: [ {name, description} ]
-  npcs: [ NpcCard ]
+
+  // Character composition
+  character_references: [ StoryCharacter ]  // planned: references to Character Pool
+  npcs: [ NpcCard ]                         // currently: inline NPC definitions
+
   protagonist: { name, stats, inventory }
   plot_flags: { key: value }          // free-form branching state (booleans/counters)
   quest_log: [ QuestEntry ]           // structured objectives — distinct from plot_flags, see below
   current_scene: { location, present_npcs, summary }
   chapter_log: [ ChapterEntry ]       // compressed past chapters; entries can double as checkpoints
   world_info: [WorldInfoEntry]        // setting-wide lore, same shape as Character's
+
+  // Multiple starting scenarios — "one Story → multiple ways to begin"
+  // Same cast, same world, completely different starting situations.
+  // Each defines its own scenario text and first message.
+  // The selected scenario becomes session state, not story state.
+  starting_scenarios: [ StartingScenario ]  // planned
 }
+```
+
+**Story Character reference** (planned):
+```ts
+type StoryCharacter = {
+    character_id: string;   // references a Character in the Pool
+    role?: string;               // role in this story
+    introduction?: string;       // how this character appears in this story
+    relationship_to_user?: string;
+    story_notes?: string;
+    preferred_avatar_id?: string; // optional: preferred avatar for this story (contextual selection, not duplication)
+};
+```
+
+**Story starting scenarios** (planned): A Story supports **multiple starting scenarios** — the same cast and world can support completely different starting situations. Instead of "one Story → one opening," a Story offers "one Story → multiple ways to begin."
+
+```
+Story: "Summer at the Academy"
+├── Same Characters: Yuna, Akira, Ren
+├── Same World: campus, dorms, training grounds
+│
+├── Starting Scenario: "First Day"
+│   └── You arrive at the academy as a new transfer student.
+│       Yuna is assigned as your guide. Akira is your rival
+│       from day one. Ren is the senior who takes interest.
+│
+├── Starting Scenario: "Midterm Crisis"
+│   └── It's been three months. You've failed your midterm
+│       and face expulsion. Yuna offers to tutor you. Akira
+│       sees an opportunity. Ren intervenes from the shadows.
+│
+└── Starting Scenario: "Festival Eve"
+    └── The night before the annual festival. The campus is
+        alive with preparation. Yuna asks for your help with
+        decorations. Akira challenges you to a bet. Ren
+        invites you somewhere private.
+```
+
+Each starting scenario defines its own scenario text (the context injected into the prompt) and first message (the opening line). The selected scenario becomes **session state** — it is not burned into the Story definition. A Story may also define its own starting scenarios **in addition to** the Characters' individual starting scenarios; the interaction between these layers is resolved during session creation.
 
 NpcCard {
   name, avatar?, tagline?
   personality, speech_style
   relationship_state: { affection: int, trust: int, flags: [str] }  // same shape as CharacterCard's — tracked per NPC, not shared
 }
+// Planned: NpcCards may eventually be backed by Character Pool references
+// rather than inline definitions, allowing the same NPC to appear across
+// multiple Stories with different story-specific context.
 
 QuestEntry {
   id, title, objective
@@ -188,8 +351,15 @@ CardMeta {
 A card can also define **multiple** avatar options and **multiple** starting scenarios, chosen at "New Play" time. Store that choice on the `Session`, not the card — the card stays reusable across sessions with different settings:
 
 ```
-Session += { avatar_selection, starting_scenario_id }
+Session += {
+  avatar_selection: str,              // which avatar the user picked
+  starting_scenario_id: str,          // which starting scenario the user picked
+  avatar_snapshot: AvatarOption,      // snapshot of the selected avatar
+  starting_scenario_snapshot: StartingScenario  // snapshot of the selected scenario
+}
 ```
+
+**Clarification — alternate greetings vs starting scenarios**: An `alternate_greeting` is a different opening message for the **same** scenario/context (Tavern V2/V3 compatibility). A `starting_scenario` is a **different** starting context/premise with its own scenario text and first message. These are distinct concepts and should not be merged.
 
 ---
 
@@ -303,6 +473,7 @@ Match the *clarity*, not the chrome:
 - How aggressive should structured-state extraction be — every turn (more accurate, more LLM calls) vs. every few turns (cheaper, slightly laggy state)? Start with "every turn" using a small/cheap model, tune later.
 - Content moderation stance — you're building this yourself, so decide your own policy up front rather than inheriting one implicitly from whatever model you default to.
 - V2 vs V3 as the import/export target — recommend **read both, write V2**: V3 (`ccv3` chunk) is newer and less universally supported, while V2's `chara` chunk is what SillyTavern, RisuAI, and Chub.ai all reliably read today. Import should accept either (V3 is a superset, see §0.5); export should default to V2 for maximum compatibility, with a V3 chunk as an optional addition later if the ecosystem shifts.
+- **Live references vs snapshots for published/exported Stories**: During authoring, Story Character references behave as live references to Character Pool entries. But when exporting/publishing a Story, should the Character data be snapshotted (frozen at publish time) or remain a live reference? This affects how shared Stories behave when the original Character is edited. Recommend deferring to after the modular architecture is implemented — the right answer may depend on how the community uses Story sharing.
 
 ---
 
@@ -314,7 +485,7 @@ playime/
     src/
       adapters/        # opencode.ts, ollama.ts, openaiCompatible.ts
       memory/           # summarizer.ts, recall.ts, stateExtractor.ts, worldInfo.ts
-      models/           # character.ts, story.ts, session.ts
+      models/           # character.ts, story.ts, session.ts, characterPool.ts (planned)
       cards/            # sillytavern.ts (V2/V3 import+export), pngText.ts (tEXt chunk read/write)
       routes/
     db/                 # sqlite schema + migrations

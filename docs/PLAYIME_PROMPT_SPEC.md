@@ -204,5 +204,26 @@ The main generation call streams. The adapter surfaces `session.next.text.*` con
 | 0 | This spec; adapter interface `generate(messages, system, stream)` |
 | 1 | Character loop with a hardcoded card, using §1 + §3 only (no memory yet) |
 | 2 | Card CRUD; rolling summary (§6), relationship state + extraction (§5), sidebar |
+| 2.5 | World Info / lorebook layer |
 | 3 | RAG block (§4) |
 | 4 | Story DM prompt (§1), chapter-scoped summary, plot state deltas |
+| A–H | Modular Character Cards — Character Pool, Story Character references, prompt compiler resolves references (planned, see `PLAYIME_CHECKLIST.md`) |
+
+### Character reference resolution (planned)
+
+When the modular Character Card architecture is implemented, the prompt compiler must **resolve Character references** rather than expecting Story Cards to contain duplicated Character data. Conceptually:
+
+```
+Story
+├── story/world information
+│
+├── character_references: [ { character_id, role?, ... } ]
+│   │
+│   ├── resolve each character_id → Character Pool entry
+│   ├── merge base Character data (personality, speech_style, ...)
+│   └── apply Story-specific context (role, introduction, notes)
+│
+└── selected starting scenario
+```
+
+The prompt compiler resolves this into the same system prompt structure described in §1 — the Story DM prompt gains resolved Character definitions merged with their Story-specific context. **This does not create a second prompt assembly pipeline** — it extends the existing canonical pipeline to handle Character references.

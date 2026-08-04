@@ -132,12 +132,112 @@ Story Cards are Playime's flagship, most-unique feature — see `PLAYIME_ROADMAP
 
 ---
 
+## Modular Character Cards / Story Composition
+
+Characters are reusable building blocks. Stories are compositions of characters, worlds, and scenarios. Sessions are instances of those compositions. This feature set is **planned, not yet implemented** — the checklists below break the work into phases. See `AGENTS.md` "Modular Character Cards" and `PLAYIME_ROADMAP.md` §0 §3 for the architectural direction.
+
+### Phase A — Data Model
+
+- [ ] Define/review reusable Character entity model (Characters own identity, personality, appearance, speech style, avatars — not story-specific context)
+- [ ] Define/review Character Pool ownership (Characters are reusable entities, not embedded in Stories)
+- [ ] Add/review multiple avatar option model (`AvatarOption` with stable `id`, `name?`, `image`)
+- [ ] Define Story Character reference model (`character_id`, `role?`, `introduction?`, `relationship_to_user?`, `story_notes?`)
+- [ ] Define Story-specific character context (role, relationships, introduction, notes — distinct from base Character data)
+- [ ] Add/review multiple starting scenario model (`StartingScenario` with stable `id`, `name`, `description?`, `scenario`, `first_message`)
+- [ ] Preserve `alternate_greetings` as a separate concept (same scenario, different greeting — distinct from starting scenarios)
+- [ ] Determine live-reference representation (Story references Character Pool entries during authoring)
+- [ ] Determine snapshot/versioning strategy for published/exported Stories (future work — detailed versioning strategy deferred)
+
+### Phase B — Card Import / Normalization
+
+- [ ] Preserve existing Character Card compatibility (legacy cards with `avatar`, `scenario`, `first_mes`/`first_message` must continue to work)
+- [ ] Normalize legacy avatar data (build default `AvatarOption` from legacy `avatar` field when `avatars` is empty)
+- [ ] Normalize legacy scenario/first-message data (build default `StartingScenario` from legacy `scenario`/`first_message` when `starting_scenarios` is empty)
+- [ ] Preserve Tavern V2/V3 `alternate_greetings` (maintain as separate concept from starting scenarios)
+- [ ] Ensure imported cards can become reusable Character Pool entries (imported Characters work across multiple Stories)
+- [ ] Add tests for legacy cards (import V1/V2/V3 cards, verify normalization, verify backward compatibility)
+
+### Phase C — Story Composition
+
+- [ ] Allow Story Cards to reference Characters from Character Pool (via `character_id`)
+- [ ] Prevent unnecessary Character data duplication (Stories reference, not copy)
+- [ ] Support multiple Characters per Story
+- [ ] Support Story-specific Character roles (`role` field on Story Character reference)
+- [ ] Support Story-specific relationships/context (`relationship_to_user`, `story_notes`)
+- [ ] Support optional Story-specific preferred avatar (`preferred_avatar_id` — contextual selection, not duplication)
+- [ ] Support removing Character references from Stories
+- [ ] Support reusing one Character across multiple Stories (same Character, different roles/contexts)
+
+### Phase D — Story Editor
+
+- [ ] Add Character section to Story Editor UI
+- [ ] Browse Character Pool (list existing Characters)
+- [ ] Search Character Pool (find Characters by name/tag)
+- [ ] Add existing Character to Story (select from Pool, configure Story-specific context)
+- [ ] Create new Character from Story Editor (shortcut to Character creation, then link to Story)
+- [ ] Configure Story-specific role/context (role, introduction, relationship_to_user, story_notes)
+- [ ] Configure preferred avatar (select from Character's avatar options)
+- [ ] Remove Character from Story
+- [ ] Display Character avatar and summary in the Story Editor
+
+### Phase E — Starting Scenarios
+
+Stories support **multiple starting scenarios** — the same cast and world can have completely different starting situations. Instead of "one Story → one opening," a Story offers "one Story → multiple ways to begin." The selected scenario becomes session state.
+
+- [ ] Support multiple starting scenarios per Story (Story-level scenarios — same Characters, same World, different starting situations)
+- [ ] Give every scenario a stable ID (never use array indexes)
+- [ ] Add scenario name
+- [ ] Add scenario description (optional, shown in picker)
+- [ ] Add scenario context (`scenario` text injected into prompt)
+- [ ] Add scenario-specific first message
+- [ ] Allow selecting starting scenario during New Play
+- [ ] Keep alternate greetings separate (same scenario, different greeting — not a starting scenario)
+- [ ] Ensure selected scenario becomes session state (stored on Session, not Story)
+
+### Phase F — Sessions
+
+- [ ] Resolve Story Character references when creating a session (look up `character_id` → Character Pool entry)
+- [ ] Store selected starting scenario (on Session, not Story)
+- [ ] Preserve selected avatar (on Session, not Character)
+- [ ] Ensure session-specific state does not mutate reusable Character definitions (relationship evolution, key-event timeline are session-scoped)
+- [ ] Define session snapshot behavior (how session state is preserved/restored)
+- [ ] Ensure multiple sessions can use different Character/Scenario combinations
+- [ ] Ensure editing a Character does not unexpectedly mutate existing sessions (sessions store snapshots/references, not live Character state during play)
+
+### Phase G — Prompt Assembly
+
+- [ ] Resolve Character references through the canonical prompt pipeline (`docs/PLAYIME_PROMPT_SPEC.md`)
+- [ ] Merge base Character information with Story-specific context (personality + role, speech_style + notes, etc.)
+- [ ] Resolve selected starting scenario (inject scenario text + first message)
+- [ ] Use scenario-specific first message as the opening assistant turn
+- [ ] Ensure prompt assembly never depends on duplicated Story Character blobs (resolve references, not embed copies)
+- [ ] Add prompt compiler tests (verify Character + Story context merges correctly)
+
+### Phase H — Testing
+
+- [ ] One Character can be reused by multiple Stories (same Character, different roles)
+- [ ] A Story can contain multiple Characters
+- [ ] Story-specific roles do not mutate the base Character
+- [ ] Multiple avatar options work (Character owns choices, Story can prefer one)
+- [ ] Preferred Story avatar works (contextual selection, not global change)
+- [ ] Multiple starting scenarios work (per-Character and per-Story)
+- [ ] Alternate greetings remain compatible (separate from starting scenarios)
+- [ ] Legacy imported cards still work (V1/V2/V3 normalization)
+- [ ] Session isolation works (session state doesn't leak to Character/Story definitions)
+- [ ] Prompt assembly correctly combines Character + Story context
+- [ ] Invalid Character references are handled safely (missing `character_id` → graceful error)
+- [ ] Invalid scenario references are handled safely (missing scenario → graceful fallback)
+
+---
+
 ## Notes / decisions log
 
 - **Product stance: one app, two audiences — the default must be playable instantly, the full depth must be reachable when wanted.** Playime is not just a game and not just a control panel; it serves both. The out-of-box path is game-like: choose a Character or Story Card, press "New Play", and enter the scene — no prompts, providers, or lorebook settings required, and nothing technical blocks the way. The same app exposes everything for power users: providers, models, prompt assembly, lorebooks, and memory tuning are all changeable (through the Config view and per-card/per-session surfaces), never walled off. A general user runs it from the get-go; a power user changes what they want. The design rule is *progressive disclosure* — hide complexity by default, never remove it.
 - **Config as the single home for app-level configuration.** All app-global settings (LM provider + models, memory tuning, defaults) live in one **Config** view, opened from a button in the lower-left corner of the app — a tucked-away entry point, not a prominent top-level tab, so the default play path stays game-clean (see the product stance). Backed by a `Setting` store; env vars are the bootstrap default and lose to stored values. Per-card and per-session settings deliberately stay where they are (on the card / on the Session) — Config is app-global, not a dumping ground for everything.
 
 Use this space to record decisions as you make them, so the reasoning doesn't get lost between sessions.
+
+- **Modular Character Cards — architectural direction.** Characters are reusable entities in a Character Pool. Stories compose Characters with worlds and scenarios via references, not duplication. Sessions instantiate those compositions for play. The central principle: Characters are reusable building blocks; Stories are compositions; Sessions are instances. This is planned architecture, not yet fully implemented — the current `CharacterCard` entity already supports multiple avatars and starting scenarios, and the evolution toward Character Pool + Story Character references is documented in `AGENTS.md`, `PLAYIME_ROADMAP.md` §3, and the Phases A–H checklists above. Key decisions: (1) Characters own identity/personality/appearance; Stories own world/role/context; (2) Story Character references use stable `character_id`, never array indexes; (3) `alternate_greetings` is a separate concept from `starting_scenarios`; (4) live references during authoring, snapshots for published/exported Stories (detailed versioning deferred); (5) prompt assembly resolves Character references through the canonical pipeline.
 
 - Backend: Node.js + TypeScript + Fastify (chosen over Python/FastAPI for a single-language stack alongside SvelteKit)
 - Skeleton uses `.gitkeep` + README placeholders only — actual tooling (npm init, tsconfig, Fastify app) lands with the next checklist item, per the "don't scaffold ahead of need" rule.
