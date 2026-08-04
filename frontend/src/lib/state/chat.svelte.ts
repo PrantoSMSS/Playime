@@ -156,9 +156,37 @@ export function deleteSession(sessionId: string): void {
 	}
 }
 
-/** Clear all messages in a session. */
+/** Reset a session: clear messages and re-trigger the character's first message. */
 export function resetSession(sessionId: string): void {
+	const session = chat.sessions.find((s) => s.id === sessionId);
+	if (!session || !session.cardId) return;
+
+	// Clear all messages
 	chat.messagesBySession[sessionId] = [];
+
+	// Find the card to get the first message
+	const card = chat.cards.find((c) => c.id === session.cardId);
+	if (!card) return;
+
+	// Resolve first message: from scenario, then from card default
+	const scenario = session.startingScenarioId
+		? card.starting_scenarios.find((s) => s.id === session.startingScenarioId)
+		: undefined;
+	const firstMessage = scenario?.first_message ?? card.first_message;
+
+	if (firstMessage) {
+		chat.messagesBySession[sessionId].push({
+			id: crypto.randomUUID(),
+			role: 'assistant',
+			content: firstMessage,
+			createdAt: Date.now(),
+		});
+		session.preview = firstMessage;
+	}
+
+	// Navigate to the conversation
+	nav.activeView = 'conversation';
+	chat.activeSessionId = sessionId;
 }
 
 /** Start a new play session from the card info modal selections. */
