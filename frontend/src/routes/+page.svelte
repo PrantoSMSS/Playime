@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CharacterGrid from '$lib/components/chat/CharacterGrid.svelte';
 	import ChatInput from '$lib/components/chat/ChatInput.svelte';
 	import ChatTopBar from '$lib/components/chat/ChatTopBar.svelte';
 	import MessageList from '$lib/components/chat/MessageList.svelte';
@@ -9,13 +10,17 @@
 	}
 </script>
 
-<div class="chat">
-	<ChatTopBar />
-	<MessageList />
-	<div class="chat__composer">
-		<ChatInput onSend={handleSend} disabled={chat.sending} />
+{#if chat.nav === 'character'}
+	<CharacterGrid />
+{:else}
+	<div class="chat">
+		<ChatTopBar />
+		<MessageList />
+		<div class="chat__composer">
+			<ChatInput onSend={handleSend} disabled={chat.sending} />
+		</div>
 	</div>
-</div>
+{/if}
 
 <style>
 	.chat {

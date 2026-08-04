@@ -2,10 +2,29 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import CardInfoModal from '$lib/components/chat/CardInfoModal.svelte';
+	import CharacterFormModal from '$lib/components/chat/CharacterFormModal.svelte';
+	import ImportCardModal from '$lib/components/chat/ImportCardModal.svelte';
 	import NavRail from '$lib/components/chat/NavRail.svelte';
-	import { chat, closeCardInfoModal, startNewPlay } from '$lib/state/chat.svelte';
+	import {
+		chat, closeCardInfoModal, startNewPlay,
+		closeCharacterFormModal, closeImportCardModal, loadCards,
+	} from '$lib/state/chat.svelte';
+	import type { ApiCharacterCard } from '$lib/api/chat';
 
 	let { children } = $props();
+
+	// Load cards on mount
+	$effect(() => {
+		void loadCards();
+	});
+
+	function handleCardSaved(_card: ApiCharacterCard): void {
+		closeCharacterFormModal();
+	}
+
+	function handleCardImported(_card: ApiCharacterCard): void {
+		closeImportCardModal();
+	}
 </script>
 
 <svelte:head>
@@ -25,6 +44,22 @@
 		card={chat.cardInfoModal.card}
 		onclose={closeCardInfoModal}
 		onstartplay={startNewPlay}
+	/>
+{/if}
+
+{#if chat.characterFormModal}
+	<CharacterFormModal
+		mode={chat.characterFormModal.mode}
+		card={chat.characterFormModal.card}
+		onclose={closeCharacterFormModal}
+		onsave={handleCardSaved}
+	/>
+{/if}
+
+{#if chat.importCardModal}
+	<ImportCardModal
+		onclose={closeImportCardModal}
+		onimported={handleCardImported}
 	/>
 {/if}
 
