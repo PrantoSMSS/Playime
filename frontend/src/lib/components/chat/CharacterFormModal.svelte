@@ -84,27 +84,27 @@
 			if (mode === 'create') {
 				const input: CreateCardInput = {
 					name: name.trim(),
-					avatar: avatarPreview,
+					...(avatarPreview ? { avatar: avatarPreview } : {}),
 					tagline: tagline.trim(),
 					personality: personality.trim(),
 					speech_style: speechStyle.trim(),
 					likes_and_dislikes: likesAndDislikes.trim(),
 					scenario: scenario.trim(),
-					first_message: firstMessage.trim(),
-					description: description.trim() || null,
+					...(firstMessage.trim() ? { first_message: firstMessage.trim() } : {}),
+					...(description.trim() ? { description: description.trim() } : {}),
 				};
 				result = await saveCard('create', input);
 			} else {
 				const input: UpdateCardInput = {
 					name: name.trim(),
-					avatar: avatarPreview,
+					...(avatarPreview ? { avatar: avatarPreview } : {}),
 					tagline: tagline.trim(),
 					personality: personality.trim(),
 					speech_style: speechStyle.trim(),
 					likes_and_dislikes: likesAndDislikes.trim(),
 					scenario: scenario.trim(),
-					first_message: firstMessage.trim() || null,
-					description: description.trim() || null,
+					...(firstMessage.trim() ? { first_message: firstMessage.trim() } : {}),
+					...(description.trim() ? { description: description.trim() } : {}),
 				};
 				result = await saveCard('edit', input, card?.id);
 			}
