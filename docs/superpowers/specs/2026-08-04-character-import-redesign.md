@@ -71,84 +71,101 @@ export function openImportCardModal(onparsed: (data: Partial<CreateCardInput>) =
 
 **Changes:**
 - Change callback signature from `onimported: (card: ApiCharacterCard) => void` to `onparsed: (data: Partial<CreateCardInput>) => void`
-- For JSON files: parse client-side, call `onparsed` directly
-- For PNG files: send to new `/api/cards/parse-png` endpoint, call `onparsed` with response
+- Both PNG and JSON files are sent to the new `/api/cards/parse` endpoint for consistent parsing
 - Update modal title to "Import Character Data"
 
-**JSON Import (client-side):**
+**Import flow (both PNG and JSON):**
 ```typescript
-function importJsonText(): void {
-    const parsed = JSON.parse(jsonText);
-    const cardData = normalizeJsonToCardInput(parsed);
-    onparsed(cardData);
-}
-```
-
-**PNG Import (via backend):**
-```typescript
-async function sendParsePng(base64: string): Promise<void> {
-    const res = await fetch(`${BASE}/api/cards/parse-png`, {
+async function sendParse(body: unknown): Promise<void> {
+    const res = await fetch(`${BASE}/api/cards/parse`, {
         method: 'POST',
-        body: JSON.stringify({ data: base64 }),
+        body: JSON.stringify(body),
     });
+    if (!res.ok) {
+        // handle error
+        return;
+    }
     const data = await res.json();
     onparsed(data);
 }
+
+// For PNG files: send { data: "<base64>" }
+// For JSON files: send the parsed JSON object directly
 ```
 
 ### 4. Backend Parse Endpoint
 
-**New endpoint: `POST /api/cards/parse-png`**
+**New endpoint: `POST /api/cards/parse`**
 
 Location: `backend/src/routes/character.ts`
 
+This unified endpoint handles both PNG and JSON imports:
+- **PNG**: `{ "data": "<base64 PNG>" }` - extracts card data from tEXt chunks, uses PNG as avatar
+- **JSON**: Card JSON object directly - parses using SillyTavern normalizer
+
 ```typescript
-app.post('/api/cards/parse-png', {
+app.post('/api/cards/parse', {
     schema: {
         body: {
             type: 'object',
-            properties: { data: { type: 'string' } },
-            required: ['data'],
+            properties: {
+                data: { type: 'string' },  // For PNG: base64 data
+            },
+            additionalProperties: true,  // For JSON: card object passed directly
         },
     },
 }, async (request, reply) => {
-    const { data } = request.body as { data: string };
+    const body = request.body as Record<string, unknown>;
     
-    // Decode base64 PNG
-    const decoded = Buffer.from(data, 'base64');
+    let rawJson: Record<string, unknown> | null = null;
+    let avatarDataUri: string | null = null;
     
-    // Validate PNG signature
-    const isPng = decoded.length > 8 &&
-        decoded[0] === 0x89 && decoded[1] === 0x50 &&
-        decoded[2] === 0x4e && decoded[3] === 0x47;
-    
-    if (!isPng) {
+    // Case 1: PNG import (body has `data` field with base64)
+    if (typeof body['data'] === 'string') {
+        const decoded = Buffer.from(body['data'] as string, 'base64');
+        
+        // Validate PNG signature
+        const isPng = decoded.length > 8 &&
+            decoded[0] === 0x89 && decoded[1] === 0x50 &&
+            decoded[2] === 0x4e && decoded[3] === 0x47;
+        
+        if (!isPng) {
+            return reply.code(400).send({
+                error: { code: 'invalid_data', message: 'Data is not a valid PNG file' },
+            });
+        }
+        
+        // Extract card JSON from tEXt chunks
+        const jsonStr = extractCardJsonFromPng(decoded);
+        if (!jsonStr) {
+            return reply.code(400).send({
+                error: { code: 'no_card_data', message: 'PNG does not contain character card data' },
+            });
+        }
+        
+        rawJson = JSON.parse(jsonStr);
+        avatarDataUri = `data:image/png;base64,${body['data']}`;
+    }
+    // Case 2: JSON import (body IS the card object)
+    else if (typeof body['name'] === 'string' || typeof body['spec'] === 'string') {
+        rawJson = body;
+    }
+    else {
         return reply.code(400).send({
-            error: { code: 'invalid_png', message: 'Data is not a valid PNG file' },
+            error: { code: 'invalid_body', message: 'Expected PNG data or card JSON object' },
         });
     }
     
-    // Extract card JSON from tEXt chunks
-    const jsonStr = extractCardJsonFromPng(decoded);
-    if (!jsonStr) {
-        return reply.code(400).send({
-            error: { code: 'no_card_data', message: 'PNG does not contain character card data' },
-        });
+    // Parse using SillyTavern normalizer
+    const card = parseSillyTavernCard(rawJson!);
+    
+    // If we have an avatar from PNG, override the parsed avatar
+    if (avatarDataUri) {
+        card.avatar = avatarDataUri;
+        card.avatars = [{ id: 'imported', name: 'Imported', image: avatarDataUri }];
     }
     
-    // Parse the card JSON
-    const rawJson = JSON.parse(jsonStr);
-    const card = parseSillyTavernCard(rawJson);
-    
-    // Convert PNG to data URI for avatar
-    const avatarDataUri = `data:image/png;base64,${data}`;
-    
-    // Return parsed data with avatar
-    return reply.send({
-        ...card,
-        avatar: avatarDataUri,
-        avatars: [{ id: 'imported', name: 'Imported', image: avatarDataUri }],
-    });
+    return reply.send(card);
 });
 ```
 
@@ -233,10 +250,10 @@ if (mode === 'create') {
 | File | Changes |
 |------|---------|
 | `frontend/src/lib/components/chat/CharacterGrid.svelte` | Rename "Upload" to "Import" |
-| `frontend/src/lib/components/chat/ImportCardModal.svelte` | Change callback to `onparsed`, add PNG parse endpoint call |
+| `frontend/src/lib/components/chat/ImportCardModal.svelte` | Change callback to `onparsed`, use unified `/api/cards/parse` endpoint |
 | `frontend/src/lib/components/chat/CharacterFormModal.svelte` | Add `importedData` prop, pre-fill form fields |
 | `frontend/src/lib/state/chat.svelte.ts` | Add `importedCardData` state, update modal open functions |
-| `backend/src/routes/character.ts` | Add `/api/cards/parse-png` endpoint |
+| `backend/src/routes/character.ts` | Add `/api/cards/parse` endpoint (unified PNG/JSON) |
 
 ---
 
