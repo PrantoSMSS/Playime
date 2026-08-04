@@ -1,7 +1,7 @@
 /**
  * Shared chat-shell state (Svelte 5 runes, module-level).
  *
- * Items 4/5: the History list and message threads start from
+ * Items 4/5: the Chats list and message threads start from
  * `$lib/data/sample.ts` (styling demos — there's no "New Play" flow until
  * Phase 2, so samples are the only way to open a chat). The first real send
  * in a session lazily creates a matching backend session
@@ -21,18 +21,12 @@ import type {
 import { SAMPLE_MESSAGES_BY_SESSION, SAMPLE_SESSIONS } from '../data/sample';
 import type { ChatMessage, ChatSession } from '../types/chat';
 
-export type NavId = 'search' | 'story' | 'character' | 'history' | 'my-titles' | 'notifications';
-
 export type ResponseLength = 'Short' | 'Normal' | 'Long';
 
 export const chat = $state({
-	/** Active nav-rail item. */
-	nav: 'character' as NavId,
-	/** Active History tab. */
-	historyTab: 'character' as 'story' | 'character',
 	/** Currently-open session. */
 	activeSessionId: '' as string,
-	/** Past sessions for the History list. */
+	/** Past sessions for the Chats list. */
 	sessions: [...SAMPLE_SESSIONS],
 	/** Per-session message threads. */
 	messagesBySession: structuredClone(SAMPLE_MESSAGES_BY_SESSION) as Record<string, ChatMessage[]>,
