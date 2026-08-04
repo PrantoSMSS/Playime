@@ -22,6 +22,8 @@ export interface ChatSession {
 	cardId?: string;
 	/** Avatar image URL from the selected avatar option. */
 	avatarUrl?: string;
+	/** Timestamp when the session was created (ms since epoch). */
+	createdAt: number;
 }
 
 /** One turn in the message list. `content` is the raw text; the renderer

@@ -24,6 +24,7 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 		initials: 'YE',
 		hue: 172,
 		avatarUrl: 'https://i.pravatar.cc/300?img=32',
+		createdAt: now - 2 * MINUTE,
 	},
 	{
 		id: 'yehwa-plum',
@@ -33,6 +34,7 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 		initials: 'YE',
 		hue: 172,
 		avatarUrl: 'https://i.pravatar.cc/300?img=32',
+		createdAt: now - 37 * MINUTE,
 	},
 	{
 		id: 'yehwa-night-watch',
@@ -42,6 +44,7 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 		initials: 'YE',
 		hue: 172,
 		avatarUrl: 'https://i.pravatar.cc/300?img=32',
+		createdAt: now - 3 * 60 * MINUTE,
 	},
 	{
 		id: 'miko-test',
@@ -52,6 +55,7 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 		hue: 320,
 		cardId: '215fb191-9d97-45eb-8029-394ab92fe0d7',
 		avatarUrl: 'https://i.pravatar.cc/300?img=1',
+		createdAt: now - 24 * 60 * MINUTE,
 	},
 ];
 

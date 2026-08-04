@@ -21,7 +21,7 @@ import type {
 import { SAMPLE_MESSAGES_BY_SESSION, SAMPLE_SESSIONS } from '../data/sample';
 import type { ChatMessage, ChatSession } from '../types/chat';
 
-export type NavId = 'search' | 'story' | 'character' | 'my-titles' | 'notifications';
+export type NavId = 'search' | 'story' | 'character' | 'history' | 'my-titles' | 'notifications';
 
 export type ResponseLength = 'Short' | 'Normal' | 'Long';
 
@@ -31,7 +31,7 @@ export const chat = $state({
 	/** Active History tab. */
 	historyTab: 'character' as 'story' | 'character',
 	/** Currently-open session. */
-	activeSessionId: SAMPLE_SESSIONS[0]?.id ?? '',
+	activeSessionId: '' as string,
 	/** Past sessions for the History list. */
 	sessions: [...SAMPLE_SESSIONS],
 	/** Per-session message threads. */
@@ -152,6 +152,20 @@ export function closeImportCardModal(): void {
 	chat.importCardModal = false;
 }
 
+/** Delete a session and its messages. */
+export function deleteSession(sessionId: string): void {
+	chat.sessions = chat.sessions.filter((s) => s.id !== sessionId);
+	delete chat.messagesBySession[sessionId];
+	if (chat.activeSessionId === sessionId) {
+		chat.activeSessionId = '';
+	}
+}
+
+/** Clear all messages in a session. */
+export function resetSession(sessionId: string): void {
+	chat.messagesBySession[sessionId] = [];
+}
+
 /** Start a new play session from the card info modal selections. */
 export async function startNewPlay(selections: {
 	personaId?: string;
@@ -184,6 +198,7 @@ export async function startNewPlay(selections: {
 			hue: 172,
 			cardId: modal.card.id,
 			avatarUrl,
+			createdAt: Date.now(),
 		};
 
 		chat.sessions.unshift(newSession);
