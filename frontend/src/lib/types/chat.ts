@@ -7,7 +7,7 @@
  * already consume `ChatMessage[]`.
  */
 
-/** A past session shown in the nav rail History list. */
+/** A past session shown in the nav rail Chats list. */
 export interface ChatSession {
 	id: string;
 	title: string;
@@ -20,6 +20,14 @@ export interface ChatSession {
 	hue: number;
 	/** Character card ID this session was created from (set on New Play). */
 	cardId?: string;
+	/** Persona ID used when creating this session. */
+	personaId?: string;
+	/** Whether the persona was default or custom. */
+	personaSource?: 'default' | 'custom';
+	/** Player name for the persona. */
+	playerName?: string;
+	/** Starting scenario ID used when creating this session. */
+	startingScenarioId?: string;
 	/** Avatar image URL from the selected avatar option. */
 	avatarUrl?: string;
 	/** Timestamp when the session was created (ms since epoch). */
