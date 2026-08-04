@@ -76,34 +76,6 @@ export interface ApiCharacterCard {
 	updated_at: number;
 }
 
-/** Input for creating a new character card. Only `name` is required. */
-export interface CreateCardInput {
-	name: string;
-	avatar?: string | null;
-	tagline?: string;
-	personality?: string;
-	speech_style?: string;
-	likes_and_dislikes?: string;
-	scenario?: string;
-	first_message?: string;
-	description?: string;
-	tags?: string[];
-}
-
-/** Partial patch for updating a character card. */
-export interface UpdateCardInput {
-	name?: string;
-	avatar?: string | null;
-	tagline?: string;
-	personality?: string;
-	speech_style?: string;
-	likes_and_dislikes?: string;
-	scenario?: string;
-	first_message?: string | null;
-	description?: string | null;
-	tags?: string[];
-}
-
 /** A row from the backend `session` table. */
 export interface ApiSession {
 	id: string;
@@ -309,6 +281,42 @@ export function getCard(id: string): Promise<ApiCharacterCard> {
 	});
 }
 
+// ── Character Card CRUD ──────────────────────────────────────────────────
+
+/** Input for creating a new character card. Only `name` is required. */
+export interface CreateCardInput {
+	name: string;
+	avatar?: string | null;
+	tagline?: string;
+	personality?: string;
+	speech_style?: string;
+	likes_and_dislikes?: string;
+	scenario?: string;
+	first_message?: string | null;
+	relationship_state?: { affection: number; trust: number; flags: string[] };
+	length_guidance?: string | null;
+	avatars?: ApiAvatarOption[];
+	starting_scenarios?: ApiStartingScenario[];
+	default_persona?: ApiDefaultPersona | null;
+	alternate_greetings?: string[];
+	mes_example?: string | null;
+	system_prompt?: string | null;
+	post_history_instructions?: string | null;
+	creator?: string | null;
+	creator_notes?: string | null;
+	character_version?: string | null;
+	world_info?: unknown[];
+	extensions?: Record<string, unknown>;
+	cover_image?: string | null;
+	creator_name?: string | null;
+	tags?: string[];
+	description?: string | null;
+	prologue_preview?: string | null;
+}
+
+/** Partial patch for updating a character card. */
+export interface UpdateCardInput extends Partial<CreateCardInput> {}
+
 /** Create a new character card. */
 export function createCard(input: CreateCardInput): Promise<ApiCharacterCard> {
 	return request<ApiCharacterCard>('/api/cards', {
@@ -317,7 +325,7 @@ export function createCard(input: CreateCardInput): Promise<ApiCharacterCard> {
 	});
 }
 
-/** Update an existing character card (partial patch). */
+/** Update an existing character card. */
 export function updateCard(id: string, patch: UpdateCardInput): Promise<ApiCharacterCard> {
 	return request<ApiCharacterCard>(`/api/cards/${encodeURIComponent(id)}`, {
 		method: 'PATCH',
@@ -327,9 +335,7 @@ export function updateCard(id: string, patch: UpdateCardInput): Promise<ApiChara
 
 /** Delete a character card. */
 export async function deleteCard(id: string): Promise<void> {
-	await request<void>(`/api/cards/${encodeURIComponent(id)}`, {
-		method: 'DELETE',
-	});
+	await request<void>(`/api/cards/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 /** Send a user turn and resolve with the persisted turn + assistant reply. */

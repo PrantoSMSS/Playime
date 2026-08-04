@@ -44,7 +44,9 @@ SESSION (play instance)
 
 The central principle: **Characters are reusable building blocks. Stories are compositions of characters, worlds, and scenarios. Sessions are instances of those compositions.**
 
-A Story supports **multiple starting scenarios** — the same cast and world can have completely different starting situations. Instead of "one Story → one opening," a Story offers "one Story → multiple ways to begin." Each starting scenario defines its own context and first message; the selected one becomes session state.
+A Story Card controls its cast through a single **`cast_mode`** field — not separate toggles. Three modes exist (`fixed`, `selectable`, `open`) and determine how players interact with the author's character selections. This is a Story-level concern, distinct from a Character Card's own native starting scenarios.
+
+A Story also supports **multiple starting scenarios** — the same cast and world can have completely different starting situations. Instead of "one Story → one opening," a Story offers "one Story → multiple ways to begin." Each starting scenario defines its own context and first message; the selected one becomes session state.
 
 This architecture is **planned, not yet fully implemented**. The current codebase has `CharacterCard` as a standalone entity (which already supports multiple avatars and starting scenarios). The evolution toward Character Pool + Story Character references is documented in the data model (§3) and implementation checklist (§7).
 
@@ -233,6 +235,9 @@ StoryCard {
   title, genre, premise, tone
   locations: [ {name, description} ]
 
+  // Cast configuration
+  cast_mode: 'fixed' | 'selectable' | 'open'  // default: 'selectable'
+
   // Character composition
   character_references: [ StoryCharacter ]  // planned: references to Character Pool
   npcs: [ NpcCard ]                         // currently: inline NPC definitions
@@ -289,6 +294,52 @@ Story: "Summer at the Academy"
 ```
 
 Each starting scenario defines its own scenario text (the context injected into the prompt) and first message (the opening line). The selected scenario becomes **session state** — it is not burned into the Story definition. A Story may also define its own starting scenarios **in addition to** the Characters' individual starting scenarios; the interaction between these layers is resolved during session creation.
+
+### Cast modes
+
+A Story Card uses a single **`cast_mode`** field to determine how the character cast is composed. This is NOT separate toggles — it is one field with three possible values.
+
+```
+cast_mode: 'fixed' | 'selectable' | 'open'
+```
+
+**`fixed`** — Author completely controls the cast. The Story uses exactly the Characters the author specified. No removal, no substitution, no custom characters. Use this when the narrative depends on specific character dynamics and the author wants to preserve that integrity.
+
+**`selectable`** — Author provides a pool of Characters; the player chooses which of those Characters participate in the Story. The player **cannot** add custom characters from their own library. **This is the default and recommended mode** — it gives players agency over cast composition while keeping the author's vision intact.
+
+**`open`** — The author's Characters are available, **and** the player can add custom Characters from their own library. This is the sandbox/open-ended mode, best for sandbox play or stories designed to accommodate unexpected character additions.
+
+Example:
+```
+Story: "Cyberpunk City"
+  cast_mode: 'selectable'
+  character_references: [
+    { character_id: "yuna",  role: "fixer" },
+    { character_id: "akira", role: "netrunner" },
+    { character_id: "ren",   role: "corpo agent" }
+  ]
+  // Player can choose which of Yuna, Akira, Ren participate.
+  // Player cannot add their own characters.
+```
+
+### Distinction from native Character Card scenarios
+
+Character Cards have **native starting scenarios** (independent, character-level). Story Cards have **cast configuration** (controls which Characters participate and how). These are separate concepts:
+
+| Concern | Lives on | Scope |
+|---|---|---|
+| Starting scenario (premise, first message) | **Character Card** | Independent — the Character's own opening contexts |
+| Cast mode (fixed/selectable/open) | **Story Card** | Story-level — governs which Characters the player can use |
+
+A Story's `cast_mode` does **NOT** replace or override a Character Card's native starting scenarios. Both layers coexist and are resolved during session creation. A Character's own starting scenarios remain available to that Character regardless of which Story cast mode is active.
+
+### Import/export and Character Card reusability
+
+Character Card import/export workflows (§2, §6) remain fully supported. When a Story Card is exported, its **character references** (pointers to Character Pool entries) are preserved — not duplicated Character data. This means:
+
+- Character Cards remain independent, importable, exportable entities.
+- A Character Card that participates in multiple Story Cards does not need to be re-exported per Story.
+- Story Card portable export (§6) includes the `cast_mode` and `character_references` so the receiving user can reconstruct the cast configuration.
 
 NpcCard {
   name, avatar?, tagline?
@@ -442,7 +493,7 @@ Match the *clarity*, not the chrome:
 - Recall injection into prompts; test coherence over 100+ turn sessions.
 
 **Phase 4 — Story class MVP**
-- `StoryCard`/scene/protagonist schema (including `quest_log` and per-NPC `relationship_state` via `NpcCard`), DM-style system prompt design (multi-NPC narration, choice generation).
+- `StoryCard`/scene/protagonist schema (including `cast_mode`, `quest_log` and per-NPC `relationship_state` via `NpcCard`), DM-style system prompt design (multi-NPC narration, choice generation).
 - Plot flags + quest_log + chapter summarization (reuse the memory engine from Phase 2/3, generalized — per-NPC relationship deltas use the same structured-extraction call pattern as Character mode).
 - Story-specific sidebar (scene state, stats, quest log, chapter log).
 
@@ -454,7 +505,7 @@ Match the *clarity*, not the chrome:
 **Phase 6 — Creation & sharing tools**
 - Import/export cards and worlds as JSON files (community sharing without needing a backend service).
 - **PNG export**: embed a card's JSON as a `chara` tEXt chunk (and optionally a `ccv3` chunk) so exported cards round-trip with SillyTavern, RisuAI, and Chub.ai — not just Playime-to-Playime. Import already landed in Phase 2; this is the reverse direction.
-- **Story Card portable export** — bundle a `StoryCard` (world, NPCs + their `relationship_state` templates, starting `quest_log`, `world_info`) into one shareable JSON. No PNG embed here (a story isn't a portrait); this is Playime's own format with no SillyTavern equivalent — the concrete payoff of §0.5's flagship-feature bet. Can slip to a Phase 6.5 if Phase 6 is otherwise done, but shouldn't be dropped.
+- **Story Card portable export** — bundle a `StoryCard` (world, cast_mode, character references, NPCs + their `relationship_state` templates, starting `quest_log`, `world_info`) into one shareable JSON. No PNG embed here (a story isn't a portrait); this is Playime's own format with no SillyTavern equivalent — the concrete payoff of §0.5's flagship-feature bet. Can slip to a Phase 6.5 if Phase 6 is otherwise done, but shouldn't be dropped.
 - Optional local gallery of saved characters/stories.
 
 **Phase 7 — Nice-to-haves**

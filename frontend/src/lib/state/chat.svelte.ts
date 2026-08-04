@@ -10,8 +10,14 @@
  * the thread. Components only read/mutate this module, so the wiring stays
  * contained.
  */
-import { createSession, getCard, listCards, listPersonas, streamMessage } from '../api/chat';
-import type { ApiCharacterCard, ApiMessage, ApiPersona } from '../api/chat';
+import {
+	createSession, getCard, listCards, listPersonas, streamMessage,
+	createCard, updateCard, deleteCard,
+} from '../api/chat';
+import type {
+	ApiCharacterCard, ApiMessage, ApiPersona,
+	CreateCardInput, UpdateCardInput,
+} from '../api/chat';
 import { SAMPLE_MESSAGES_BY_SESSION, SAMPLE_SESSIONS } from '../data/sample';
 import type { ChatMessage, ChatSession } from '../types/chat';
 
@@ -40,6 +46,15 @@ export const chat = $state({
 	cardInfoModal: null as { card: ApiCharacterCard } | null,
 	/** Available personas for the New Play persona picker. */
 	personas: [] as ApiPersona[],
+	/** All loaded character cards. */
+	cards: [] as ApiCharacterCard[],
+	/** Character form modal state (create or edit). */
+	characterFormModal: null as {
+		mode: 'create' | 'edit';
+		card?: ApiCharacterCard;
+	} | null,
+	/** Import card modal visibility. */
+	importCardModal: false as boolean,
 });
 
 /** Display session id → backend session id, for sessions made real on demand. */
@@ -67,6 +82,74 @@ export async function openCardInfoModal(cardId: string): Promise<void> {
 /** Close the card info modal. */
 export function closeCardInfoModal(): void {
 	chat.cardInfoModal = null;
+}
+
+/** Load all character cards from the backend. */
+export async function loadCards(): Promise<void> {
+	try {
+		chat.cards = await listCards();
+	} catch (err) {
+		chat.error = err instanceof Error ? err.message : 'Failed to load cards';
+	}
+}
+
+/** Create or update a character card. Returns the saved card. */
+export async function saveCard(
+	mode: 'create' | 'edit',
+	input: CreateCardInput | UpdateCardInput,
+	existingId?: string,
+): Promise<ApiCharacterCard | null> {
+	try {
+		let card: ApiCharacterCard;
+		if (mode === 'edit' && existingId) {
+			card = await updateCard(existingId, input as UpdateCardInput);
+		} else {
+			card = await createCard(input as CreateCardInput);
+		}
+		// Refresh the list
+		chat.cards = await listCards();
+		return card;
+	} catch (err) {
+		chat.error = err instanceof Error ? err.message : 'Failed to save card';
+		return null;
+	}
+}
+
+/** Delete a character card. */
+export async function removeCard(id: string): Promise<boolean> {
+	try {
+		await deleteCard(id);
+		chat.cards = chat.cards.filter((c) => c.id !== id);
+		return true;
+	} catch (err) {
+		chat.error = err instanceof Error ? err.message : 'Failed to delete card';
+		return false;
+	}
+}
+
+/** Open the character form modal for creating a new card. */
+export function openCreateCardModal(): void {
+	chat.characterFormModal = { mode: 'create' };
+}
+
+/** Open the character form modal for editing an existing card. */
+export function openEditCardModal(card: ApiCharacterCard): void {
+	chat.characterFormModal = { mode: 'edit', card };
+}
+
+/** Close the character form modal. */
+export function closeCharacterFormModal(): void {
+	chat.characterFormModal = null;
+}
+
+/** Open the import card modal. */
+export function openImportCardModal(): void {
+	chat.importCardModal = true;
+}
+
+/** Close the import card modal. */
+export function closeImportCardModal(): void {
+	chat.importCardModal = false;
 }
 
 /** Start a new play session from the card info modal selections. */

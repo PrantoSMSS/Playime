@@ -125,6 +125,8 @@ You are the dungeon master of "{title}", a {genre} story.
 - **recalled_memories** — plain lines `· {text}`, top-k = 5, no importance stars, no timestamps unless the memory entry carries a useful one.
 - **length_guidance** — a per-card setting with a sane default; never hardcoded per model.
 - Every placeholder above resolves from a card + state object (Character: `CharacterCard` + `relationship_state` + optional `Persona`; Story: `WorldCard` + `current_scene`/`plot_flags`/`chapter_log`). No free-form text from the request may leak into the system prompt.
+- **Cast mode** (`cast_mode`: `"fixed"` | `"selectable"` | `"open"`) — controls which Characters from the Character Pool are available for a Story. The prompt compiler resolves the active cast based on `cast_mode` and player selections before assembling the Story DM prompt. **`selectable` is the default and recommended mode.** See §8 for details.
+- **Character reference resolution** — when a Story references Characters, the prompt compiler resolves each reference by merging base Character data with Story-specific context (role, introduction, notes). The resolved Characters populate the Story DM prompt's NPC/character sections. See §8 for the full resolution flow.
 - **Player Persona section** — included only when the session has a non-"Myself" persona. When present, it appears after the Scenario section and before Relationship state. The section includes a behavioral guidance paragraph instructing the model to use the Persona's identity, pronouns, background, personality, appearance, and role to shape the Character's behavior naturally — without reciting facts or forcing every attribute into every response. The persona source can be:
   - **Default** (`persona_source: "default"`): resolved from `CharacterCard.default_persona` + player-provided name. The card author predefined the narrative identity; the player only supplies their name.
   - **Custom** (`persona_source: "custom"`): a reusable identity from the user's Persona library.
@@ -223,22 +225,45 @@ The main generation call streams. The adapter surfaces `session.next.text.*` con
 | 3 | RAG block (§4) |
 | 4 | Story DM prompt (§1), chapter-scoped summary, plot state deltas |
 | A–H | Modular Character Cards — Character Pool, Story Character references, prompt compiler resolves references (planned, see `PLAYIME_CHECKLIST.md`) |
+| A–H | Story Card character cast — `cast_mode` (fixed/selectable/open), player cast selection at New Play, prompt compiler resolves active cast (planned, see §8 below) |
 
-### Character reference resolution (planned)
+### Story Card character cast (planned)
 
-When the modular Character Card architecture is implemented, the prompt compiler must **resolve Character references** rather than expecting Story Cards to contain duplicated Character data. Conceptually:
+When the modular Character Card architecture is implemented, Story Cards reference Characters from the Character Pool rather than duplicating them. The prompt compiler must resolve these references and apply the Story's **cast mode** to determine which Characters participate.
+
+#### Cast mode
+
+Each Story Card carries a single `cast_mode` field with one of three values:
+
+| Value | Behavior |
+|---|---|
+| `"selectable"` *(default, recommended)* | The Story defines a set of character references; the player can toggle which ones are active before starting the session. Unselected Characters are excluded from the prompt. |
+| `"fixed"` | All character references in the Story are always active. The player cannot add or remove Characters. Use when the story requires its full cast. |
+| `"open"` | The player can freely add Characters from their own Character Pool to the Story, in addition to the Story's defined references. Enables user-curated casts. |
+
+The prompt compiler resolves the active cast based on `cast_mode` and player selections at New Play time, then assembles the prompt accordingly.
+
+#### Character reference resolution flow
+
+When a Story references Characters, the prompt compiler resolves each reference:
 
 ```
 Story
 ├── story/world information
 │
+├── cast_mode: "selectable" | "fixed" | "open"
 ├── character_references: [ { character_id, role?, ... } ]
 │   │
 │   ├── resolve each character_id → Character Pool entry
 │   ├── merge base Character data (personality, speech_style, ...)
-│   └── apply Story-specific context (role, introduction, notes)
+│   ├── apply Story-specific context (role, introduction, notes)
+│   └── (selectable/open) filter by player selections
 │
 └── selected starting scenario
 ```
 
 The prompt compiler resolves this into the same system prompt structure described in §1 — the Story DM prompt gains resolved Character definitions merged with their Story-specific context. **This does not create a second prompt assembly pipeline** — it extends the existing canonical pipeline to handle Character references.
+
+#### Key distinction: cast vs. native scenarios
+
+Story Card cast configuration controls **which Characters participate** in the story. It does **not** replace, remove, or redefine native Character Card scenarios. Character Cards have their own independent `starting_scenarios` — these are authored per-Character and define the Character's own starting situations. A Story's cast is a separate concern: it specifies which Characters appear and in what roles, but each Character retains its own scenario authoring. The two systems compose: a Story picks Characters (via cast), and each Character brings its own scenarios (selected at New Play time).

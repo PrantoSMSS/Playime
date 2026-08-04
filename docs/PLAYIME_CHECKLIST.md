@@ -56,8 +56,8 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 - [x] Enhanced Player Persona prompt section with behavioral guidance
 - [x] Persona context injected into system prompt (Player Persona section)
 - [x] Session stores persona_snapshot at creation for historical consistency
-- [ ] Character creation form (frontend) + save/load
 - [x] System prompt assembly: card fields → system prompt, reproducibly
+- [ ] Character creation form (frontend) + save/load
 - [ ] Rolling summary job: every ~15–20 turns, background call compresses history into a timestamped key-event timeline (append-only rows, not a rewritten blob) — see `AGENTS.md` memory system for the exact confirmed format
 - [ ] Swap raw-history-in-context for "recent turns + rolling summary" in the prompt
 - [ ] Structured-state extraction call after each AI turn (JSON mode / function-calling) → relationship deltas
@@ -181,6 +181,23 @@ Characters are reusable building blocks. Stories are compositions of characters,
 - [ ] Support optional Story-specific preferred avatar (`preferred_avatar_id` — contextual selection, not duplication)
 - [ ] Support removing Character references from Stories
 - [ ] Support reusing one Character across multiple Stories (same Character, different roles/contexts)
+- [ ] Story Cards reference reusable Character Cards rather than unnecessarily duplicating character definitions
+- [ ] Character Cards remain independent entities
+- [ ] A Character Card can be referenced by multiple Story Cards
+- [ ] Story Card character references remain compatible with the existing Character Card architecture
+- [ ] Story Cards use a single `cast_mode` field (not separate toggles)
+
+#### Cast Modes
+
+- [ ] `fixed` cast mode is supported
+- [ ] `selectable` cast mode is supported
+- [ ] `open` cast mode is supported
+- [ ] `selectable` is the default/recommended mode
+- [ ] Fixed mode prevents cast modification (no removal, no substitution, no custom characters)
+- [ ] Selectable mode allows choosing from the author's provided cast
+- [ ] Selectable mode prevents arbitrary custom Character Cards
+- [ ] Open mode allows user-owned/custom Character Cards
+- [ ] Author-defined characters remain distinguishable from user-added characters
 
 ### Phase D — Story Editor
 
@@ -207,6 +224,12 @@ Stories support **multiple starting scenarios** — the same cast and world can 
 - [x] Allow selecting starting scenario during New Play
 - [x] Keep alternate greetings separate (same scenario, different greeting — not a starting scenario)
 - [x] Ensure selected scenario becomes session state (stored on Session, not Story)
+
+#### Character Scenarios vs. Cast Configuration
+
+- [ ] Native Character Card scenarios remain supported
+- [ ] Story Card cast configuration does not replace native Character Card scenarios
+- [ ] Character Card scenarios remain independent from Story Card cast mode
 
 ### Phase F — Sessions
 
@@ -241,6 +264,21 @@ Stories support **multiple starting scenarios** — the same cast and world can 
 - [ ] Prompt assembly correctly combines Character + Story context
 - [ ] Invalid Character references are handled safely (missing `character_id` → graceful error)
 - [x] Invalid scenario references are handled safely (missing scenario → graceful fallback)
+
+#### Compatibility
+
+- [ ] Existing Character Card functionality remains unaffected
+- [ ] Existing Character Card import/export workflows remain supported
+- [ ] Story Card character references can be preserved through relevant import/export workflows
+- [ ] Character definitions are not duplicated unnecessarily when referenced by Story Cards
+
+#### Documentation
+
+- [ ] Architecture documentation updated (AGENTS.md, PLAYIME_ROADMAP.md §0/§3)
+- [ ] Roadmap updated (PLAYIME_ROADMAP.md cast modes, §0/§3)
+- [ ] Implementation checklist updated (this file)
+- [ ] Prompt specification updated (PLAYIME_PROMPT_SPEC.md cast mode and §8)
+- [ ] Previous conflicting cast-mode documentation removed or corrected
 
 ---
 
