@@ -20,6 +20,8 @@ import {
 } from '../chat.js';
 import { getCharacterCard, resolveAvatar, resolveStartingScenario } from '../models/character.js';
 import type { AvatarOption, StartingScenario } from '../models/character.js';
+import { getPersona } from '../models/persona.js';
+import type { Persona } from '../models/persona.js';
 import type { SessionClass } from '../models/session.js';
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
@@ -40,6 +42,9 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
             card_id: { type: 'string' },
             avatar_selection: { type: 'string' },
             starting_scenario_id: { type: 'string' },
+            persona_id: { type: 'string' },
+            persona_source: { type: 'string', enum: ['default', 'custom'] },
+            player_name: { type: 'string' },
           },
           additionalProperties: false,
         },
@@ -51,32 +56,21 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         card_id?: string;
         avatar_selection?: string;
         starting_scenario_id?: string;
+        persona_id?: string;
+        persona_source?: 'default' | 'custom';
+        player_name?: string;
       } | undefined;
 
-      // If a card_id is provided, resolve and validate avatar/scenario selections
-      let avatarSnapshot: AvatarOption | undefined;
+      // If a card_id is provided, resolve and validate scenario selection
       let scenarioSnapshot: StartingScenario | undefined;
+      let card: ReturnType<typeof getCharacterCard> | undefined;
 
       if (body?.card_id) {
-        const card = getCharacterCard(body.card_id);
+        card = getCharacterCard(body.card_id);
         if (!card) {
           return reply.code(404).send({
             error: { code: 'card_not_found', message: `Card ${body.card_id} not found` },
           });
-        }
-
-        // Validate avatar_selection if provided
-        if (body.avatar_selection) {
-          const avatar = resolveAvatar(card, body.avatar_selection);
-          if (!avatar) {
-            return reply.code(400).send({
-              error: {
-                code: 'invalid_avatar',
-                message: `Avatar "${body.avatar_selection}" not found on card ${body.card_id}`,
-              },
-            });
-          }
-          avatarSnapshot = avatar;
         }
 
         // Validate starting_scenario_id if provided
@@ -94,13 +88,80 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
+      // Resolve persona based on persona_source
+      let personaSnapshot: Persona | undefined;
+      let personaSource: string | undefined;
+
+      if (body?.persona_source === 'default') {
+        // Default persona: resolve from card's default_persona + player_name
+        personaSource = 'default';
+        if (!body.player_name || body.player_name.trim().length === 0) {
+          return reply.code(400).send({
+            error: {
+              code: 'missing_player_name',
+              message: 'player_name is required when persona_source is "default"',
+            },
+          });
+        }
+        if (!card?.default_persona) {
+          return reply.code(400).send({
+            error: {
+              code: 'no_default_persona',
+              message: 'Character does not define a default persona',
+            },
+          });
+        }
+        // Resolve: merge card default_persona with player-provided name
+        const dp = card!.default_persona!;
+        personaSnapshot = {
+          id: `default_${card!.id}`,
+          name: body.player_name.trim(),
+          avatar: null,
+          description: dp.role ?? '',
+          appearance: dp.appearance ?? '',
+          personality: dp.personality ?? '',
+          pronouns: dp.pronouns ?? '',
+          created_at: 0,
+          updated_at: 0,
+        };
+      } else if (body?.persona_source === 'custom') {
+        // Custom persona: load from persona library
+        personaSource = 'custom';
+        if (!body.persona_id) {
+          return reply.code(400).send({
+            error: {
+              code: 'missing_persona_id',
+              message: 'persona_id is required when persona_source is "custom"',
+            },
+          });
+        }
+        const persona = getPersona(body.persona_id);
+        if (!persona) {
+          return reply.code(400).send({
+            error: {
+              code: 'invalid_persona',
+              message: `Persona "${body.persona_id}" not found`,
+            },
+          });
+        }
+        personaSnapshot = persona;
+      } else if (body?.persona_id) {
+        // Legacy path: persona_id without persona_source (backward compat)
+        const persona = getPersona(body.persona_id);
+        if (persona) {
+          personaSnapshot = persona;
+          personaSource = 'custom';
+        }
+      }
+
       const session = createSession({
         class: body?.class,
         character_card_id: body?.card_id,
-        avatar_selection: body?.avatar_selection,
         starting_scenario_id: body?.starting_scenario_id,
-        avatar_snapshot: avatarSnapshot,
         starting_scenario_snapshot: scenarioSnapshot,
+        persona_id: body?.persona_id,
+        persona_snapshot: personaSnapshot,
+        persona_source: personaSource,
       });
       return reply.code(201).send(session);
     },

@@ -38,6 +38,7 @@
 				name={session?.title ?? ''}
 				initials={session?.initials ?? '?'}
 				hue={session?.hue ?? 170}
+				avatarUrl={session?.avatarUrl}
 			/>
 		{:else}
 			<UserMessageBubble message={msg} />

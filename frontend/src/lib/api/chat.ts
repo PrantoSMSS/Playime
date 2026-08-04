@@ -20,6 +20,18 @@ export interface ApiAvatarOption {
 	image: string;
 }
 
+/** Character/Story-level default persona with predefined narrative details. */
+export interface ApiDefaultPersona {
+	label?: string;
+	name: string;
+	role?: string;
+	background?: string;
+	personality?: string;
+	appearance?: string;
+	pronouns?: string;
+	details?: string;
+}
+
 /** Starting scenario from the backend. */
 export interface ApiStartingScenario {
 	id: string;
@@ -44,6 +56,7 @@ export interface ApiCharacterCard {
 	length_guidance: string | null;
 	avatars: ApiAvatarOption[];
 	starting_scenarios: ApiStartingScenario[];
+	default_persona: ApiDefaultPersona | null;
 	alternate_greetings: string[];
 	mes_example: string | null;
 	system_prompt: string | null;
@@ -76,6 +89,22 @@ export interface ApiSession {
 	starting_scenario_id: string | null;
 	avatar_snapshot: ApiAvatarOption | null;
 	starting_scenario_snapshot: ApiStartingScenario | null;
+	persona_id: string | null;
+	persona_snapshot: ApiPersona | null;
+	persona_source: string | null;
+}
+
+/** A persona (user identity) from the backend. */
+export interface ApiPersona {
+	id: string;
+	name: string;
+	avatar: string | null;
+	description: string;
+	appearance: string;
+	personality: string;
+	pronouns: string;
+	created_at: number;
+	updated_at: number;
 }
 
 /** A row from the backend `message` table. */
@@ -220,7 +249,9 @@ async function errorFrom(res: Response): Promise<ApiError> {
 /** Create a Character session on the backend. */
 export function createSession(options?: {
 	cardId?: string;
-	avatarSelection?: string;
+	personaId?: string;
+	personaSource?: 'default' | 'custom';
+	playerName?: string;
 	startingScenarioId?: string;
 }): Promise<ApiSession> {
 	return request<ApiSession>('/api/sessions', {
@@ -228,7 +259,9 @@ export function createSession(options?: {
 		body: JSON.stringify({
 			class: 'character',
 			...(options?.cardId ? { card_id: options.cardId } : {}),
-			...(options?.avatarSelection ? { avatar_selection: options.avatarSelection } : {}),
+			...(options?.personaId ? { persona_id: options.personaId } : {}),
+			...(options?.personaSource ? { persona_source: options.personaSource } : {}),
+			...(options?.playerName ? { player_name: options.playerName } : {}),
 			...(options?.startingScenarioId ? { starting_scenario_id: options.startingScenarioId } : {}),
 		}),
 	});
@@ -254,4 +287,57 @@ export function postMessage(sessionId: string, content: string): Promise<SendMes
 		method: 'POST',
 		body: JSON.stringify({ content }),
 	});
+}
+
+// ── Persona API ─────────────────────────────────────────────────────────
+
+/** Input for creating a new persona. Only `name` is required. */
+export interface CreatePersonaInput {
+	name: string;
+	avatar?: string | null;
+	description?: string;
+	appearance?: string;
+	personality?: string;
+	pronouns?: string;
+}
+
+/** Partial patch for updating a persona. */
+export interface UpdatePersonaInput {
+	name?: string;
+	avatar?: string | null;
+	description?: string;
+	appearance?: string;
+	personality?: string;
+	pronouns?: string;
+}
+
+/** List all personas. */
+export function listPersonas(): Promise<ApiPersona[]> {
+	return request<ApiPersona[]>('/api/personas', { method: 'GET' });
+}
+
+/** Get a single persona by id. */
+export function getPersona(id: string): Promise<ApiPersona> {
+	return request<ApiPersona>(`/api/personas/${encodeURIComponent(id)}`, { method: 'GET' });
+}
+
+/** Create a new persona. */
+export function createPersona(input: CreatePersonaInput): Promise<ApiPersona> {
+	return request<ApiPersona>('/api/personas', {
+		method: 'POST',
+		body: JSON.stringify(input),
+	});
+}
+
+/** Update an existing persona. */
+export function updatePersona(id: string, patch: UpdatePersonaInput): Promise<ApiPersona> {
+	return request<ApiPersona>(`/api/personas/${encodeURIComponent(id)}`, {
+		method: 'PATCH',
+		body: JSON.stringify(patch),
+	});
+}
+
+/** Delete a persona. */
+export async function deletePersona(id: string): Promise<void> {
+	await request<void>(`/api/personas/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

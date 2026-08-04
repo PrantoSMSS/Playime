@@ -23,6 +23,7 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 		preview: 'Three incense-sticks late, Junior. Care to explain where you were?',
 		initials: 'YE',
 		hue: 172,
+		avatarUrl: 'https://i.pravatar.cc/300?img=32',
 	},
 	{
 		id: 'yehwa-plum',
@@ -31,6 +32,7 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 		preview: 'You picked up the plum blossom tea again, I see.',
 		initials: 'YE',
 		hue: 172,
+		avatarUrl: 'https://i.pravatar.cc/300?img=32',
 	},
 	{
 		id: 'yehwa-night-watch',
@@ -39,6 +41,17 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 		preview: 'The east wall is quiet tonight, Senior.',
 		initials: 'YE',
 		hue: 172,
+		avatarUrl: 'https://i.pravatar.cc/300?img=32',
+	},
+	{
+		id: 'miko-test',
+		title: 'Miko',
+		kind: 'character',
+		preview: 'Hey. You gonna let me in, or do I have to cry on your doorstep?',
+		initials: 'MI',
+		hue: 320,
+		cardId: '215fb191-9d97-45eb-8029-394ab92fe0d7',
+		avatarUrl: 'https://i.pravatar.cc/300?img=1',
 	},
 ];
 
@@ -91,6 +104,13 @@ export const SAMPLE_MESSAGES_BY_SESSION: Record<string, ChatMessage[]> = {
 			'assistant',
 			'"I expect the world to stay interesting." *Yehwa\'s hand rests on the hilt, easy and practiced.* "Keep your eyes open."',
 			298,
+		),
+	],
+	'miko-test': [
+		msg(
+			'assistant',
+			'*She stands in the doorway, soaked, hair clinging to her face — and smiles like no time has passed at all.* ...Hey. You gonna let me in, or do I have to cry on your doorstep?',
+			5,
 		),
 	],
 };

@@ -71,6 +71,34 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
             first_message: { type: 'string' },
             relationship_state: { type: 'object' },
             length_guidance: { type: 'string' },
+            avatars: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                  image: { type: 'string' },
+                },
+                required: ['id', 'image'],
+                additionalProperties: false,
+              },
+            },
+            starting_scenarios: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                  description: { type: 'string' },
+                  scenario: { type: 'string' },
+                  first_message: { type: 'string' },
+                },
+                required: ['id', 'name', 'scenario', 'first_message'],
+                additionalProperties: false,
+              },
+            },
             alternate_greetings: { type: 'array', items: { type: 'string' } },
             mes_example: { type: 'string' },
             system_prompt: { type: 'string' },
@@ -231,6 +259,34 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
             first_message: { type: ['string', 'null'] },
             relationship_state: { type: 'object' },
             length_guidance: { type: ['string', 'null'] },
+            avatars: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                  image: { type: 'string' },
+                },
+                required: ['id', 'image'],
+                additionalProperties: false,
+              },
+            },
+            starting_scenarios: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                  description: { type: 'string' },
+                  scenario: { type: 'string' },
+                  first_message: { type: 'string' },
+                },
+                required: ['id', 'name', 'scenario', 'first_message'],
+                additionalProperties: false,
+              },
+            },
             alternate_greetings: { type: 'array', items: { type: 'string' } },
             mes_example: { type: ['string', 'null'] },
             system_prompt: { type: ['string', 'null'] },
@@ -246,6 +302,7 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
             description: { type: ['string', 'null'] },
             prologue_preview: { type: ['string', 'null'] },
             stats: { type: 'object' },
+            default_persona: { type: ['object', 'null'] },
           },
           additionalProperties: false,
         },

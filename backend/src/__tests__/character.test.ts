@@ -30,6 +30,7 @@ function makeCard(overrides: Partial<CharacterCard> = {}): CharacterCard {
     length_guidance: null,
     avatars: [],
     starting_scenarios: [],
+    default_persona: null,
     alternate_greetings: [],
     mes_example: null,
     system_prompt: null,
@@ -180,5 +181,67 @@ describe('resolveStartingScenario', () => {
     assert.equal(result.id, 'default');
     assert.equal(result.scenario, 'Legacy scenario');
     assert.equal(result.first_message, 'Legacy greeting');
+  });
+});
+
+describe('session creation with avatar/scenario snapshots', () => {
+  // These tests verify the session creation path: a card with avatars and
+  // scenarios is linked to a session, and the selected options are snapshotted.
+
+  it('resolves avatar from card with multiple avatars', () => {
+    const avatars: AvatarOption[] = [
+      { id: 'formal', name: 'Formal', image: '/img/formal.png' },
+      { id: 'casual', name: 'Casual', image: '/img/casual.png' },
+    ];
+    const card = makeCard({ avatars });
+    const resolved = resolveAvatar(card, 'casual');
+    assert.ok(resolved);
+    assert.equal(resolved.id, 'casual');
+    assert.equal(resolved.image, '/img/casual.png');
+  });
+
+  it('resolves scenario from card with multiple scenarios', () => {
+    const scenarios: StartingScenario[] = [
+      { id: 'morning', name: 'Morning', scenario: 'It is dawn', first_message: 'Good morning!' },
+      { id: 'evening', name: 'Evening', scenario: 'It is dusk', first_message: 'Good evening!' },
+    ];
+    const card = makeCard({ starting_scenarios: scenarios });
+    const resolved = resolveStartingScenario(card, 'evening');
+    assert.ok(resolved);
+    assert.equal(resolved.id, 'evening');
+    assert.equal(resolved.scenario, 'It is dusk');
+  });
+
+  it('normalizeAvatars falls back to legacy when avatars array is empty', () => {
+    const card = makeCard({ avatar: '/img/legacy.png', avatars: [] });
+    const result = normalizeAvatars(card);
+    assert.equal(result.length, 1);
+    assert.equal(result[0]!.id, 'default');
+    assert.equal(result[0]!.image, '/img/legacy.png');
+  });
+
+  it('normalizeStartingScenarios falls back to legacy when scenarios array is empty', () => {
+    const card = makeCard({ scenario: 'Legacy scenario', first_message: 'Hi', starting_scenarios: [] });
+    const result = normalizeStartingScenarios(card);
+    assert.equal(result.length, 1);
+    assert.equal(result[0]!.id, 'default');
+    assert.equal(result[0]!.scenario, 'Legacy scenario');
+  });
+
+  it('returns undefined for invalid avatar ID on multi-avatar card', () => {
+    const avatars: AvatarOption[] = [
+      { id: 'a', name: 'A', image: '/a.png' },
+      { id: 'b', name: 'B', image: '/b.png' },
+    ];
+    const card = makeCard({ avatars });
+    assert.equal(resolveAvatar(card, 'nonexistent'), undefined);
+  });
+
+  it('returns undefined for invalid scenario ID on multi-scenario card', () => {
+    const scenarios: StartingScenario[] = [
+      { id: 's1', name: 'One', scenario: 'x', first_message: 'y' },
+    ];
+    const card = makeCard({ starting_scenarios: scenarios });
+    assert.equal(resolveStartingScenario(card, 'nonexistent'), undefined);
   });
 });

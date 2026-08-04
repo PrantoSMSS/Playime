@@ -8,6 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db.js';
 import type { AvatarOption, StartingScenario } from './character.js';
+import type { Persona } from './persona.js';
 
 export type SessionClass = 'character' | 'story';
 
@@ -23,6 +24,10 @@ export interface SessionRow {
   starting_scenario_id: string | null;
   avatar_snapshot: AvatarOption | null;
   starting_scenario_snapshot: StartingScenario | null;
+  persona_id: string | null;
+  persona_snapshot: Persona | null;
+  /** "default" = resolved from card's default_persona + player_name; "custom" = from persona library. */
+  persona_source: string | null;
 }
 
 export interface MessageRow {
@@ -49,6 +54,12 @@ export interface CreateSessionInput {
   avatar_snapshot?: AvatarOption | undefined;
   /** Snapshot of the selected starting scenario. */
   starting_scenario_snapshot?: StartingScenario | undefined;
+  /** Which persona (user identity) the user picked. */
+  persona_id?: string | undefined;
+  /** Snapshot of the resolved Persona (either from scenario default or custom). */
+  persona_snapshot?: Persona | undefined;
+  /** "default" = resolved from card's default_persona; "custom" = from persona library. */
+  persona_source?: string | undefined;
 }
 
 /** Create a session row; the id is generated here, not by SQLite. */
@@ -59,8 +70,8 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
   const sessionClass: SessionClass = input.class ?? 'character';
   const provider = input.provider ?? 'opencode';
   db.prepare(
-    `INSERT INTO session (id, class, created_at, provider, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO session (id, class, created_at, provider, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     sessionClass,
@@ -71,6 +82,9 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
     input.starting_scenario_id ?? null,
     input.avatar_snapshot ? JSON.stringify(input.avatar_snapshot) : null,
     input.starting_scenario_snapshot ? JSON.stringify(input.starting_scenario_snapshot) : null,
+    input.persona_id ?? null,
+    input.persona_snapshot ? JSON.stringify(input.persona_snapshot) : null,
+    input.persona_source ?? null,
   );
   return {
     id,
@@ -84,13 +98,16 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
     starting_scenario_id: input.starting_scenario_id ?? null,
     avatar_snapshot: input.avatar_snapshot ?? null,
     starting_scenario_snapshot: input.starting_scenario_snapshot ?? null,
+    persona_id: input.persona_id ?? null,
+    persona_snapshot: input.persona_snapshot ?? null,
+    persona_source: input.persona_source ?? null,
   };
 }
 
 export function getSession(id: string): SessionRow | undefined {
   const row = getDb()
     .prepare(
-      'SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot FROM session WHERE id = ?',
+      'SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source FROM session WHERE id = ?',
     )
     .get(id) as unknown as SessionRowRaw | undefined;
   if (!row) return undefined;
@@ -98,6 +115,7 @@ export function getSession(id: string): SessionRow | undefined {
     ...row,
     avatar_snapshot: parseJson<AvatarOption | null>(row.avatar_snapshot, null),
     starting_scenario_snapshot: parseJson<StartingScenario | null>(row.starting_scenario_snapshot, null),
+    persona_snapshot: parseJson<Persona | null>(row.persona_snapshot, null),
   };
 }
 
@@ -114,6 +132,9 @@ interface SessionRowRaw {
   starting_scenario_id: string | null;
   avatar_snapshot: string | null;
   starting_scenario_snapshot: string | null;
+  persona_id: string | null;
+  persona_snapshot: string | null;
+  persona_source: string | null;
 }
 
 /** Parse a JSON column, returning a fallback on null/empty/malformed. */

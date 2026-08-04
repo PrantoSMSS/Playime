@@ -7,12 +7,14 @@
 		message,
 		name,
 		initials,
-		hue
+		hue,
+		avatarUrl
 	}: {
 		message: ChatMessage;
 		name: string;
 		initials: string;
 		hue: number;
+		avatarUrl?: string;
 	} = $props();
 
 	const segments = $derived(parseMessage(message.content));
@@ -20,7 +22,11 @@
 
 <div class="bubble">
 	<header class="bubble__header">
-		<Avatar {initials} {hue} size={28} />
+		<Avatar {initials} {hue} size={28}>
+			{#if avatarUrl}
+				<img src={avatarUrl} alt={name} />
+			{/if}
+		</Avatar>
 		<span class="bubble__name">{name}</span>
 	</header>
 

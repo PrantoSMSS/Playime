@@ -51,6 +51,9 @@ function runMigrations(db: DatabaseSync): void {
     ['starting_scenario_id', 'TEXT'],
     ['avatar_snapshot', 'TEXT'],
     ['starting_scenario_snapshot', 'TEXT'],
+    ['persona_id', 'TEXT'],
+    ['persona_snapshot', 'TEXT'],
+    ['persona_source', 'TEXT'],
   ];
   for (const [col, typedef] of sessionColumns) {
     try {
@@ -63,6 +66,7 @@ function runMigrations(db: DatabaseSync): void {
   const cardColumns: [string, string][] = [
     ['avatars', "TEXT NOT NULL DEFAULT '[]'"],
     ['starting_scenarios', "TEXT NOT NULL DEFAULT '[]'"],
+    ['default_persona', 'TEXT'],
   ];
   for (const [col, typedef] of cardColumns) {
     try {
@@ -70,6 +74,23 @@ function runMigrations(db: DatabaseSync): void {
     } catch {
       // Column already exists — ignore.
     }
+  }
+
+  // Persona table — created via schema.sql, but ensure it exists for older DBs
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS persona (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      avatar TEXT,
+      description TEXT NOT NULL DEFAULT '',
+      appearance TEXT NOT NULL DEFAULT '',
+      personality TEXT NOT NULL DEFAULT '',
+      pronouns TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`);
+  } catch {
+    // Table already exists — ignore.
   }
 }
 

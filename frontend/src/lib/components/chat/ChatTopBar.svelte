@@ -7,29 +7,22 @@
 
 	const session = $derived(activeSession());
 
-	let titleMenuOpen = $state(false);
 	let lengthOpen = $state(false);
-	let titleMenuEl = $state<HTMLDivElement | undefined>();
 	let lengthEl = $state<HTMLDivElement | undefined>();
 
-	// Close any open dropdown when the user clicks outside it.
+	// Close dropdown when clicking outside.
 	$effect(() => {
 		function onDocClick(e: MouseEvent): void {
 			const target = e.target as Node;
-			if (titleMenuEl && !titleMenuEl.contains(target)) titleMenuOpen = false;
 			if (lengthEl && !lengthEl.contains(target)) lengthOpen = false;
 		}
 		document.addEventListener('click', onDocClick);
 		return () => document.removeEventListener('click', onDocClick);
 	});
 
-	function handleMenuAction(label: string): void {
-		titleMenuOpen = false;
-		if (label === 'New Play') {
-			// For now, open the modal with the Yehwa test card
-			// In the future, this should use the session's card_id
-			void openCardInfoModal('yehwa');
-		}
+	function handleTitleClick(): void {
+		const cardId = session?.cardId ?? 'yehwa';
+		void openCardInfoModal(cardId);
 	}
 </script>
 
@@ -38,28 +31,14 @@
 		<Icon name="chevron-left" size={22} />
 	</button>
 
-	<div class="title-wrap" bind:this={titleMenuEl}>
-		<button
-			class="title-btn"
-			aria-haspopup="menu"
-			aria-expanded={titleMenuOpen}
-			onclick={() => (titleMenuOpen = !titleMenuOpen)}
-		>
-			<Avatar initials={session?.initials ?? '?'} hue={session?.hue ?? 170} size={28} />
-			<span class="title-btn__text">{session?.title ?? 'Playime'}</span>
-			<span class="title-btn__chevron"><Icon name="chevron-down" size={15} /></span>
-		</button>
-
-		{#if titleMenuOpen}
-			<div class="dropdown" role="menu">
-				{#each ['Play Guide', 'Character Card', 'New Play'] as label}
-					<button class="dropdown__item" role="menuitem" onclick={() => handleMenuAction(label)}>
-						{label}
-					</button>
-				{/each}
-			</div>
-		{/if}
-	</div>
+	<button class="title-btn" onclick={handleTitleClick}>
+		<Avatar initials={session?.initials ?? '?'} hue={session?.hue ?? 170} size={28}>
+			{#if session?.avatarUrl}
+				<img src={session.avatarUrl} alt={session.title} />
+			{/if}
+		</Avatar>
+		<span class="title-btn__text">{session?.title ?? 'Playime'}</span>
+	</button>
 
 	<div class="spacer"></div>
 
@@ -142,10 +121,7 @@
 		border: 2px solid var(--bg-raised);
 	}
 
-	/* ---- Title (avatar + name + breadcrumb chevron) ---- */
-	.title-wrap {
-		position: relative;
-	}
+	/* ---- Title (avatar + name, click opens card) ---- */
 	.title-btn {
 		display: flex;
 		align-items: center;
@@ -162,15 +138,12 @@
 		font-weight: var(--font-weight-semibold);
 		color: var(--text);
 	}
-	.title-btn__chevron {
-		color: var(--text-muted);
-	}
 
 	.spacer {
 		flex: 1;
 	}
 
-	/* ---- Right dropdowns ---- */
+	/* ---- Right dropdown ---- */
 	.length-wrap {
 		position: relative;
 	}
@@ -194,7 +167,7 @@
 	.dropdown {
 		position: absolute;
 		top: calc(100% + 6px);
-		left: 0;
+		right: 0;
 		min-width: 170px;
 		padding: var(--space-1);
 		background: var(--surface-elevated);
@@ -204,10 +177,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
-	}
-	.dropdown--right {
-		left: auto;
-		right: 0;
 	}
 	.dropdown__item {
 		text-align: left;

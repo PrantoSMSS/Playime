@@ -8,6 +8,7 @@
  * and fill those slots. Replaces the earlier placeholder constant.
  */
 import type { CharacterCard, RelationshipState, StartingScenario } from '../models/character.js';
+import type { Persona } from '../models/persona.js';
 
 const DEFAULT_LENGTH_GUIDANCE = '1-3 sentences unless the moment calls for more';
 
@@ -37,15 +38,21 @@ export function relationshipProse(state: RelationshipState): string {
  * If a `startingScenario` is provided, its `scenario` field is used instead
  * of `card.scenario`. This ensures the selected starting scenario drives
  * the prompt, not the card's legacy default.
+ *
+ * If a `persona` is provided, a "Player Persona" section is injected so
+ * the AI knows who the user is roleplaying as. This is player identity,
+ * NOT a character avatar — see AGENTS.md "Persona".
  */
 export function renderCharacterSystemPrompt(
   card: CharacterCard,
   state: RelationshipState = card.relationship_state,
   startingScenario?: StartingScenario,
+  persona?: Persona,
 ): string {
   const flags = state.flags.length > 0 ? state.flags.join(', ') : 'none';
   const scenarioText = startingScenario?.scenario ?? card.scenario;
-  return [
+
+  const lines: string[] = [
     `You are ${card.name}. ${card.tagline}`,
     '',
     '## Personality',
@@ -59,6 +66,30 @@ export function renderCharacterSystemPrompt(
     '',
     '## Scenario',
     scenarioText,
+  ];
+
+  // Player Persona section — who the user is roleplaying as
+  if (persona && persona.name !== 'Myself') {
+    lines.push('');
+    lines.push('## Player Persona');
+    lines.push('This describes the identity of the player character the AI Character is');
+    lines.push('currently interacting with.');
+    lines.push('');
+    lines.push("Use the Persona's relevant identity, pronouns, background, personality,");
+    lines.push('appearance, role, and other provided information to shape the Character\'s');
+    lines.push('behavior, attitude, trust, fear, respect, familiarity, and dialogue');
+    lines.push('when appropriate. Use this information naturally — do not repeatedly');
+    lines.push('recite Persona facts or force every attribute into every response.');
+    lines.push('');
+    lines.push(`Name: ${persona.name}`);
+    if (persona.pronouns) lines.push(`Pronouns: ${persona.pronouns}`);
+    // description doubles as role for resolved default personas
+    if (persona.description) lines.push(`Role: ${persona.description}`);
+    if (persona.appearance) lines.push(`Appearance: ${persona.appearance}`);
+    if (persona.personality) lines.push(`Personality: ${persona.personality}`);
+  }
+
+  lines.push(
     '',
     '## Relationship state (authoritative, current)',
     `- Affection: ${state.affection}/100`,
@@ -80,5 +111,7 @@ export function renderCharacterSystemPrompt(
     '- Let the relationship state and memories shape your tone and attitude. Refer to shared past naturally — never by listing it.',
     `- Keep responses ${card.length_guidance ?? DEFAULT_LENGTH_GUIDANCE}.`,
     "- Never re-describe your own card, scenario, or the scene's premise.",
-  ].join('\n');
+  );
+
+  return lines.join('\n');
 }

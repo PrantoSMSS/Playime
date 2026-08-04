@@ -115,7 +115,10 @@ function systemPromptFor(session: SessionRow): string {
   // Use the snapshot's scenario if available, otherwise the card's default
   const startingScenario = session.starting_scenario_snapshot ?? undefined;
 
-  return renderCharacterSystemPrompt(effectiveCard, effectiveCard.relationship_state, startingScenario);
+  // Use the persona snapshot if available (user identity, not character avatar)
+  const persona = session.persona_snapshot ?? undefined;
+
+  return renderCharacterSystemPrompt(effectiveCard, effectiveCard.relationship_state, startingScenario, persona);
 }
 
 export interface StreamMessageHandle {

@@ -1,6 +1,7 @@
 <script lang="ts">
-	import type { ApiAvatarOption, ApiCharacterCard, ApiStartingScenario } from '$lib/api/chat';
+	import type { ApiCharacterCard, ApiStartingScenario, ApiPersona, ApiDefaultPersona } from '$lib/api/chat';
 	import { parseMessage } from '$lib/messageParse';
+	import { chat } from '$lib/state/chat.svelte';
 
 	let {
 		card,
@@ -10,20 +11,14 @@
 		card: ApiCharacterCard;
 		onclose: () => void;
 		onstartplay: ( selections: {
-			avatarSelection?: string;
+			personaId?: string;
+			personaSource?: 'default' | 'custom';
+			playerName?: string;
 			startingScenarioId?: string;
 		}) => void;
 	} = $props();
 
-	// Normalized avatars and scenarios (with defaults for legacy cards)
-	const avatars: ApiAvatarOption[] = $derived(
-		card.avatars.length > 0
-			? card.avatars
-			: card.avatar
-				? [{ id: 'default', name: 'Default', image: card.avatar }]
-				: []
-	);
-
+	// ── Normalized scenarios ──────────────────────────────────────────────
 	const scenarios: ApiStartingScenario[] = $derived(
 		card.starting_scenarios.length > 0
 			? card.starting_scenarios
@@ -37,40 +32,121 @@
 				: []
 	);
 
-	let selectedAvatarId = $state<string | null>(null);
+	// ── Modal-local state ─────────────────────────────────────────────────
 	let selectedScenarioId = $state<string | null>(null);
+	let personaSelectValue = $state('myself');
+	let playerName = $state('');
+	let showPersonaInfo = $state(false);
 
-	$effect(() => {
-		if (avatars.length === 1 && selectedAvatarId === null) {
-			selectedAvatarId = avatars[0]!.id;
+	// ── Derived values ────────────────────────────────────────────────────
+	const selectedScenario = $derived(
+		selectedScenarioId ? scenarios.find((s) => s.id === selectedScenarioId) : undefined
+	);
+
+	// Derived persona state from select value
+	const selectedPersonaType = $derived<'default' | 'custom' | 'myself'>(
+		personaSelectValue === 'default' ? 'default'
+		: personaSelectValue.startsWith('custom:') ? 'custom'
+		: 'myself'
+	);
+	const selectedCustomPersonaId = $derived<string | null>(
+		personaSelectValue.startsWith('custom:') ? personaSelectValue.slice(7) : null
+	);
+
+	// Default persona belongs to the Character/Story, not the Scenario
+	const hasDefaultPersona = $derived(
+		!!card.default_persona
+	);
+
+	// The persona label shown in the dropdown for the card's default persona
+	const defaultPersonaLabel = $derived(() => {
+		const dp = card.default_persona;
+		if (!dp) return 'Default Persona';
+		return dp.label || 'Default Persona';
+	});
+
+	// Description shown below the dropdown for the current selection
+	const personaDescription = $derived(() => {
+		if (personaSelectValue === 'myself') return 'Just be yourself';
+		if (personaSelectValue === 'default') {
+			const dp = card.default_persona;
+			if (!dp) return '';
+			return [dp.role, dp.background].filter(Boolean).join(' — ') || '';
 		}
+		if (personaSelectValue.startsWith('custom:')) {
+			const id = personaSelectValue.slice(7);
+			const p = chat.personas.find((x) => x.id === id);
+			return p?.description || '';
+		}
+		return '';
+	});
+
+	function handlePersonaSelect(e: Event) {
+		personaSelectValue = (e.target as HTMLSelectElement).value;
+	}
+
+	// Play button enabled state
+	const canPlay = $derived(() => {
+		if (!selectedScenarioId) return false;
+		if (selectedPersonaType === 'default') {
+			return playerName.trim().length > 0;
+		}
+		// custom or myself
+		return true;
+	});
+
+	// First message preview segments
+	const introSegments = $derived(() => {
+		const msg = selectedScenario?.first_message ?? scenarios[0]?.first_message ?? card.first_message;
+		if (!msg) return [];
+		return parseMessage(msg);
+	});
+
+	// The avatar image to show — first from the avatars array, or card default
+	const displayImage = $derived(() => {
+		if (card.avatars.length > 0) return card.avatars[0]!.image;
+		return card.avatar ?? card.cover_image ?? null;
+	});
+
+	// ── Effects ───────────────────────────────────────────────────────────
+
+	// Auto-select default persona when card has one
+	$effect(() => {
+		if (card.default_persona) {
+			personaSelectValue = 'default';
+		}
+	});
+
+	// Auto-select if only one scenario
+	$effect(() => {
 		if (scenarios.length === 1 && selectedScenarioId === null) {
 			selectedScenarioId = scenarios[0]!.id;
 		}
 	});
 
-	// The avatar image to show (selected one, or first, or card default)
-	const displayImage = $derived(() => {
-		if (selectedAvatarId) {
-			const found = avatars.find((a) => a.id === selectedAvatarId);
-			if (found) return found.image;
-		}
-		if (avatars.length > 0) return avatars[0]!.image;
-		return card.avatar ?? card.cover_image ?? null;
-	});
-
-	// First message preview segments (parsed for narration/dialogue styling)
-	const introSegments = $derived(() => {
-		const msg = scenarios.length > 0 ? scenarios[0]!.first_message : card.first_message;
-		if (!msg) return [];
-		return parseMessage(msg);
-	});
+	// ── Handlers ──────────────────────────────────────────────────────────
 
 	function handleStartPlay(): void {
-		onstartplay({
-			avatarSelection: selectedAvatarId ?? undefined,
-			startingScenarioId: selectedScenarioId ?? undefined,
-		});
+		if (!canPlay()) return;
+
+		if (selectedPersonaType === 'default') {
+			onstartplay({
+				personaSource: 'default',
+				playerName: playerName.trim(),
+				startingScenarioId: selectedScenarioId ?? undefined,
+			});
+		} else if (selectedPersonaType === 'custom' && selectedCustomPersonaId) {
+			onstartplay({
+				personaId: selectedCustomPersonaId,
+				personaSource: 'custom',
+				startingScenarioId: selectedScenarioId ?? undefined,
+			});
+		} else {
+			// "Myself" — no persona, no player name
+			onstartplay({
+				startingScenarioId: selectedScenarioId ?? undefined,
+			});
+		}
 	}
 
 	function handleBackdropClick(e: MouseEvent): void {
@@ -133,7 +209,7 @@
 					<!-- Hashtag-style tags -->
 					{#if card.tags.length > 0}
 						<p class="modal__hashtags">
-							{#each card.tags as tag, i}{#if i > 0} {/if}#{tag}{/each}
+							{#each card.tags as tag, i (tag)}{i > 0 ? ' ' : ''}#{tag}{/each}
 						</p>
 					{/if}
 
@@ -163,28 +239,97 @@
 				</div>
 			{/if}
 
-			<!-- Settings: Avatar selector (only when multiple) -->
-			{#if avatars.length > 1}
-				<div class="modal__section">
-					<h3 class="modal__section-title">Settings</h3>
-					<p class="modal__section-subtitle">Avatar Settings</p>
-					<div class="modal__dropdown">
-						<select
-							class="modal__select"
-							value={selectedAvatarId ?? avatars[0]!.id}
-							onchange={(e) => {
-								const val = (e.target as HTMLSelectElement).value;
-								selectedAvatarId = val;
-							}}
-						>
-							{#each avatars as avatar}
-								<option value={avatar.id}>{avatar.name ?? 'Avatar'}</option>
-							{/each}
-						</select>
-						<svg class="modal__select-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+			<!-- ═══ PERSONA PICKER (always visible, first) ═══ -->
+			<div class="modal__section">
+				<div class="modal__persona-header">
+					<h3 class="modal__section-title">Your Persona</h3>
+					<!-- Info button -->
+					<button
+						class="modal__info-btn"
+						onclick={() => (showPersonaInfo = !showPersonaInfo)}
+						aria-label="What is a Persona?"
+					>
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="12" cy="12" r="10"/>
+							<path d="M12 16v-4M12 8h.01"/>
+						</svg>
+					</button>
+				</div>
+
+				{#if showPersonaInfo}
+					<div class="modal__info-tooltip">
+						<p><strong>Persona is who you are in the story.</strong></p>
+						<p>It can affect how characters treat you, what they call you, and how they react to your background.</p>
+						<p><em>Example: a respected athlete might be treated with admiration, while someone with a feared reputation may be treated more cautiously.</em></p>
 					</div>
+				{/if}
+
+				<div class="modal__personas">
+					<select
+						class="modal__persona-select"
+						value={personaSelectValue}
+						onchange={handlePersonaSelect}
+					>
+						<option value="myself">Myself</option>
+						{#if hasDefaultPersona}
+							<option value="default">{defaultPersonaLabel()}</option>
+						{/if}
+						{#each chat.personas as persona (persona.id)}
+							<option value="custom:{persona.id}">
+								{persona.name}{persona.description ? ` — ${persona.description}` : ''}
+							</option>
+						{/each}
+					</select>
+
+					{#if personaDescription()}
+						<p class="modal__persona-selected-desc">{personaDescription()}</p>
+					{/if}
+				</div>
+			</div>
+
+			<!-- ═══ NAME FIELD (only when Default persona selected) ═══ -->
+			{#if selectedPersonaType === 'default' && hasDefaultPersona}
+				<div class="modal__section">
+					<h3 class="modal__section-title">What will be your name?</h3>
+					<input
+						class="modal__name-input"
+						type="text"
+						placeholder="Enter your name..."
+						bind:value={playerName}
+					/>
 				</div>
 			{/if}
+
+			<!-- ═══ SCENARIO PICKER (always visible) ═══ -->
+			<div class="modal__section">
+				<h3 class="modal__section-title">Starting Scenario</h3>
+				<p class="modal__section-subtitle">What situation is being played?</p>
+				{#if scenarios.length === 1}
+					<!-- Single scenario: show name only -->
+					<div class="modal__scenario-single">
+						<span class="modal__scenario-name">{scenarios[0]!.name}</span>
+						{#if scenarios[0]!.description}
+							<span class="modal__scenario-desc">{scenarios[0]!.description}</span>
+						{/if}
+					</div>
+				{:else}
+					<!-- Multiple scenarios: selectable buttons -->
+					<div class="modal__scenarios">
+						{#each scenarios as scenario}
+							<button
+								class="modal__scenario-btn"
+								class:modal__scenario-btn--selected={selectedScenarioId === scenario.id}
+								onclick={() => (selectedScenarioId = scenario.id)}
+							>
+								<span class="modal__scenario-name">{scenario.name}</span>
+								{#if scenario.description}
+									<span class="modal__scenario-desc">{scenario.description}</span>
+								{/if}
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
 
 			<!-- Intro Preview -->
 			{#if introSegments().length > 0}
@@ -201,34 +346,13 @@
 					</div>
 				</div>
 			{/if}
-
-			<!-- Scenario picker (only when multiple) -->
-			{#if scenarios.length > 1}
-				<div class="modal__section">
-					<h3 class="modal__section-title">Starting Scenario</h3>
-					<div class="modal__scenarios">
-						{#each scenarios as scenario}
-							<button
-								class="modal__scenario-btn"
-								class:modal__scenario-btn--selected={selectedScenarioId === scenario.id}
-								onclick={() => (selectedScenarioId = scenario.id)}
-							>
-								<span class="modal__scenario-name">{scenario.name}</span>
-								{#if scenario.description}
-									<span class="modal__scenario-desc">{scenario.description}</span>
-								{/if}
-							</button>
-						{/each}
-					</div>
-				</div>
-			{/if}
 		</div>
 
 		<!-- Sticky footer -->
 		<div class="modal__footer">
 			<button
 				class="modal__start-btn"
-				disabled={selectedScenarioId === null}
+				disabled={!canPlay()}
 				onclick={handleStartPlay}
 			>
 				New Play
@@ -419,54 +543,14 @@
 		line-height: 1.6;
 	}
 
-	/* Avatar dropdown */
-	.modal__dropdown {
-		position: relative;
-	}
-
-	.modal__select {
-		width: 100%;
-		padding: var(--space-3);
-		padding-right: var(--space-8);
-		background: var(--bg-raised);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		color: var(--text);
-		font-size: var(--font-size-sm);
-		appearance: none;
-		cursor: pointer;
-	}
-
-	.modal__select-icon {
-		position: absolute;
-		right: var(--space-3);
-		top: 50%;
-		transform: translateY(-50%);
-		color: var(--text-muted);
-		pointer-events: none;
-	}
-
-	/* Intro preview */
-	.modal__intro {
-		background: var(--bg-raised);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		padding: var(--space-4);
-		font-size: var(--font-size-sm);
-		line-height: 1.6;
-	}
-
-	.modal__intro-seg {
-		color: var(--ai-narration);
-		font-style: italic;
-	}
-	.modal__intro-seg--dialogue {
-		color: var(--ai-dialogue);
-		font-style: normal;
-		font-weight: var(--font-weight-semibold);
-	}
-
 	/* Scenario picker */
+	.modal__scenario-single {
+		padding: var(--space-3);
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+	}
+
 	.modal__scenarios {
 		display: flex;
 		flex-direction: column;
@@ -502,6 +586,134 @@
 		margin-top: 2px;
 		font-size: var(--font-size-xs);
 		color: var(--text-muted);
+	}
+
+	/* Persona header with info button */
+	.modal__persona-header {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-bottom: var(--space-3);
+	}
+
+	.modal__persona-header .modal__section-title {
+		margin: 0;
+	}
+
+	.modal__info-btn {
+		width: 24px;
+		height: 24px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: color var(--transition-fast), background var(--transition-fast);
+		flex-shrink: 0;
+	}
+	.modal__info-btn:hover {
+		color: var(--accent);
+		background: var(--accent-soft);
+	}
+
+	/* Info tooltip */
+	.modal__info-tooltip {
+		padding: var(--space-3);
+		margin-bottom: var(--space-3);
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		line-height: 1.5;
+	}
+	.modal__info-tooltip p {
+		margin: 0 0 var(--space-2);
+	}
+	.modal__info-tooltip p:last-child {
+		margin-bottom: 0;
+	}
+
+	/* Persona picker */
+	.modal__personas {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	.modal__persona-select {
+		width: 100%;
+		padding: var(--space-3);
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		color: var(--text);
+		font-size: var(--font-size-sm);
+		font-family: inherit;
+		outline: none;
+		cursor: pointer;
+		transition: border-color var(--transition-fast);
+		/* Custom dropdown arrow */
+		appearance: none;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239cb6b1' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+		background-repeat: no-repeat;
+		background-position: right var(--space-3) center;
+		padding-right: var(--space-8);
+	}
+	.modal__persona-select:focus {
+		border-color: var(--accent);
+	}
+	.modal__persona-select option {
+		background: var(--bg-raised);
+		color: var(--text);
+	}
+
+	.modal__persona-selected-desc {
+		margin: 0;
+		padding: var(--space-2) var(--space-3);
+		font-size: var(--font-size-xs);
+		color: var(--text-muted);
+	}
+
+	/* Name input */
+	.modal__name-input {
+		width: 100%;
+		padding: var(--space-3);
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		color: var(--text);
+		font-size: var(--font-size-sm);
+		outline: none;
+		transition: border-color var(--transition-fast);
+	}
+	.modal__name-input:focus {
+		border-color: var(--accent);
+	}
+	.modal__name-input::placeholder {
+		color: var(--text-muted);
+	}
+
+	/* Intro preview */
+	.modal__intro {
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		padding: var(--space-4);
+		font-size: var(--font-size-sm);
+		line-height: 1.6;
+	}
+
+	.modal__intro-seg {
+		color: var(--ai-narration);
+		font-style: italic;
+	}
+	.modal__intro-seg--dialogue {
+		color: var(--ai-dialogue);
+		font-style: normal;
+		font-weight: var(--font-weight-semibold);
 	}
 
 	/* Footer */

@@ -39,11 +39,25 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done — feel free to us
 - [x] Import a card's `character_book` into Playime's `world_info` entries — `character_book.entries` mapped to `WorldInfoEntry[]` with full field parity (keys, secondary_keys, selective, selective_logic, constant, content, insertion_order, priority, position, case_sensitive, enabled)
 - [x] Test: import 5–10 real cards from Chub.ai or another public source, confirm fields + embedded lorebook survive the round-trip (spot-check against the source JSON)
 - [x] Add card-browser metadata fields (`cover_image`, `creator_name`, `tags`, `description`, `prologue_preview`, local `stats`, `last_updated`) — see `AGENTS.md` UI reference
-- [ ] Support multiple avatar options + multiple starting scenarios per card
-- [ ] `CardInfoModal` component (reusable for Character and Story): cover, tags, description, prologue preview, avatar picker, starting-scenario picker, "New Play" CTA
-- [ ] "New Play" flow: modal selections → create `Session` with `avatar_selection` + `starting_scenario_id`
+- [x] Support multiple avatar options + multiple starting scenarios per card
+- [x] `CardInfoModal` component (reusable for Character and Story): cover, tags, description, prologue preview, scenario picker, persona picker, "New Play" CTA
+- [x] "New Play" flow: modal selections → create `Session` with `persona_id` + `starting_scenario_id`
+- [x] Persona system: user identity model (reusable Persona with name, avatar, appearance, personality, pronouns)
+- [x] Persona CRUD backend (model + routes + DB table)
+- [x] Character/Story-level Default Persona: card defines a predefined player identity with `{{player_name}}` placeholder and author-defined label
+- [x] `persona_source` field on Session: tracks "default" (from card) vs "custom" (from library)
+- [x] Session creation resolves Default Persona by merging card default_persona + player_name
+- [x] Persona selector always visible, appears before Scenario selector
+- [x] Persona and Scenario are independent — changing one does not reset the other
+- [x] Default persona shows "What will be your name?" input field
+- [x] Custom persona does not show name field
+- [x] Play button disabled until Scenario selected AND (custom persona OR (default + name entered))
+- [x] Persona info button with concise explanation
+- [x] Enhanced Player Persona prompt section with behavioral guidance
+- [x] Persona context injected into system prompt (Player Persona section)
+- [x] Session stores persona_snapshot at creation for historical consistency
 - [ ] Character creation form (frontend) + save/load
-- [ ] System prompt assembly: card fields → system prompt, reproducibly
+- [x] System prompt assembly: card fields → system prompt, reproducibly
 - [ ] Rolling summary job: every ~15–20 turns, background call compresses history into a timestamped key-event timeline (append-only rows, not a rewritten blob) — see `AGENTS.md` memory system for the exact confirmed format
 - [ ] Swap raw-history-in-context for "recent turns + rolling summary" in the prompt
 - [ ] Structured-state extraction call after each AI turn (JSON mode / function-calling) → relationship deltas
@@ -140,19 +154,19 @@ Characters are reusable building blocks. Stories are compositions of characters,
 
 - [ ] Define/review reusable Character entity model (Characters own identity, personality, appearance, speech style, avatars — not story-specific context)
 - [ ] Define/review Character Pool ownership (Characters are reusable entities, not embedded in Stories)
-- [ ] Add/review multiple avatar option model (`AvatarOption` with stable `id`, `name?`, `image`)
+- [x] Add/review multiple avatar option model (`AvatarOption` with stable `id`, `name?`, `image`)
 - [ ] Define Story Character reference model (`character_id`, `role?`, `introduction?`, `relationship_to_user?`, `story_notes?`)
 - [ ] Define Story-specific character context (role, relationships, introduction, notes — distinct from base Character data)
-- [ ] Add/review multiple starting scenario model (`StartingScenario` with stable `id`, `name`, `description?`, `scenario`, `first_message`)
+- [x] Add/review multiple starting scenario model (`StartingScenario` with stable `id`, `name`, `description?`, `scenario`, `first_message`)
 - [ ] Preserve `alternate_greetings` as a separate concept (same scenario, different greeting — distinct from starting scenarios)
 - [ ] Determine live-reference representation (Story references Character Pool entries during authoring)
 - [ ] Determine snapshot/versioning strategy for published/exported Stories (future work — detailed versioning strategy deferred)
 
 ### Phase B — Card Import / Normalization
 
-- [ ] Preserve existing Character Card compatibility (legacy cards with `avatar`, `scenario`, `first_mes`/`first_message` must continue to work)
-- [ ] Normalize legacy avatar data (build default `AvatarOption` from legacy `avatar` field when `avatars` is empty)
-- [ ] Normalize legacy scenario/first-message data (build default `StartingScenario` from legacy `scenario`/`first_message` when `starting_scenarios` is empty)
+- [x] Preserve existing Character Card compatibility (legacy cards with `avatar`, `scenario`, `first_mes`/`first_message` must continue to work)
+- [x] Normalize legacy avatar data (build default `AvatarOption` from legacy `avatar` field when `avatars` is empty)
+- [x] Normalize legacy scenario/first-message data (build default `StartingScenario` from legacy `scenario`/`first_message` when `starting_scenarios` is empty)
 - [ ] Preserve Tavern V2/V3 `alternate_greetings` (maintain as separate concept from starting scenarios)
 - [ ] Ensure imported cards can become reusable Character Pool entries (imported Characters work across multiple Stories)
 - [ ] Add tests for legacy cards (import V1/V2/V3 cards, verify normalization, verify backward compatibility)
@@ -184,21 +198,21 @@ Characters are reusable building blocks. Stories are compositions of characters,
 
 Stories support **multiple starting scenarios** — the same cast and world can have completely different starting situations. Instead of "one Story → one opening," a Story offers "one Story → multiple ways to begin." The selected scenario becomes session state.
 
-- [ ] Support multiple starting scenarios per Story (Story-level scenarios — same Characters, same World, different starting situations)
-- [ ] Give every scenario a stable ID (never use array indexes)
-- [ ] Add scenario name
-- [ ] Add scenario description (optional, shown in picker)
-- [ ] Add scenario context (`scenario` text injected into prompt)
-- [ ] Add scenario-specific first message
-- [ ] Allow selecting starting scenario during New Play
-- [ ] Keep alternate greetings separate (same scenario, different greeting — not a starting scenario)
-- [ ] Ensure selected scenario becomes session state (stored on Session, not Story)
+- [x] Support multiple starting scenarios per Story (Story-level scenarios — same Characters, same World, different starting situations)
+- [x] Give every scenario a stable ID (never use array indexes)
+- [x] Add scenario name
+- [x] Add scenario description (optional, shown in picker)
+- [x] Add scenario context (`scenario` text injected into prompt)
+- [x] Add scenario-specific first message
+- [x] Allow selecting starting scenario during New Play
+- [x] Keep alternate greetings separate (same scenario, different greeting — not a starting scenario)
+- [x] Ensure selected scenario becomes session state (stored on Session, not Story)
 
 ### Phase F — Sessions
 
 - [ ] Resolve Story Character references when creating a session (look up `character_id` → Character Pool entry)
-- [ ] Store selected starting scenario (on Session, not Story)
-- [ ] Preserve selected avatar (on Session, not Character)
+- [x] Store selected starting scenario (on Session, not Story)
+- [x] Preserve selected avatar (on Session, not Character)
 - [ ] Ensure session-specific state does not mutate reusable Character definitions (relationship evolution, key-event timeline are session-scoped)
 - [ ] Define session snapshot behavior (how session state is preserved/restored)
 - [ ] Ensure multiple sessions can use different Character/Scenario combinations
@@ -208,8 +222,8 @@ Stories support **multiple starting scenarios** — the same cast and world can 
 
 - [ ] Resolve Character references through the canonical prompt pipeline (`docs/PLAYIME_PROMPT_SPEC.md`)
 - [ ] Merge base Character information with Story-specific context (personality + role, speech_style + notes, etc.)
-- [ ] Resolve selected starting scenario (inject scenario text + first message)
-- [ ] Use scenario-specific first message as the opening assistant turn
+- [x] Resolve selected starting scenario (inject scenario text + first message)
+- [x] Use scenario-specific first message as the opening assistant turn
 - [ ] Ensure prompt assembly never depends on duplicated Story Character blobs (resolve references, not embed copies)
 - [ ] Add prompt compiler tests (verify Character + Story context merges correctly)
 
@@ -218,15 +232,15 @@ Stories support **multiple starting scenarios** — the same cast and world can 
 - [ ] One Character can be reused by multiple Stories (same Character, different roles)
 - [ ] A Story can contain multiple Characters
 - [ ] Story-specific roles do not mutate the base Character
-- [ ] Multiple avatar options work (Character owns choices, Story can prefer one)
-- [ ] Preferred Story avatar works (contextual selection, not global change)
-- [ ] Multiple starting scenarios work (per-Character and per-Story)
-- [ ] Alternate greetings remain compatible (separate from starting scenarios)
-- [ ] Legacy imported cards still work (V1/V2/V3 normalization)
-- [ ] Session isolation works (session state doesn't leak to Character/Story definitions)
+- [x] Multiple avatar options work (Character owns choices, Story can prefer one)
+- [x] Preferred Story avatar works (contextual selection, not global change)
+- [x] Multiple starting scenarios work (per-Character and per-Story)
+- [x] Alternate greetings remain compatible (separate from starting scenarios)
+- [x] Legacy imported cards still work (V1/V2/V3 normalization)
+- [x] Session isolation works (session state doesn't leak to Character/Story definitions)
 - [ ] Prompt assembly correctly combines Character + Story context
 - [ ] Invalid Character references are handled safely (missing `character_id` → graceful error)
-- [ ] Invalid scenario references are handled safely (missing scenario → graceful fallback)
+- [x] Invalid scenario references are handled safely (missing scenario → graceful fallback)
 
 ---
 

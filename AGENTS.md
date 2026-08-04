@@ -121,11 +121,18 @@ Story-specific information may include: role in the story, relationship to other
 
 ### Current data model entities
 
-- `Session` — id, class (`character`|`story`), created_at, provider/model config, plus per-session picks: `avatar_selection`, `starting_scenario_id` (the card stays reusable across sessions; the choice lives on the session). **Session-specific state must not mutate reusable Character or Story definitions.**
+- `Session` — id, class (`character`|`story`), created_at, provider/model config, plus per-session picks: `starting_scenario_id`, `persona_id`, `persona_source` (`"default"` | `"custom"`). The card stays reusable across sessions; the choices live on the session. **Session-specific state must not mutate reusable Character or Story definitions.**
 - `Message` — role, content, timestamp, session_id, `visible` flag (hide bookkeeping turns), `ooc` flag (out-of-character asides vs in-fiction dialogue).
 - `CharacterCard` — name, avatar, tagline, personality, speech_style, scenario, first_message, `relationship_state` (`{affection, trust, flags}`), plus Tavern V2/V3-compatible fields (`alternate_greetings`, `mes_example`, `system_prompt`/`post_history_instructions`, `creator`/`creator_notes`/`character_version`, `world_info`, `extensions`). The running key-event timeline is per-session, not on the card. **Characters are reusable entities** — they own identity, personality, appearance, and speech style. They should not own story-specific context.
-  - **`avatars: AvatarOption[]`** — multiple selectable avatar options per character. Each has a stable `id`, optional `name`, and `image`. The Character owns the available choices; a Story may optionally specify a preferred avatar without changing the Character globally.
-  - **`starting_scenarios: StartingScenario[]`** — multiple starting scenarios per character, each with a stable `id`, `name`, optional `description`, `scenario` text, and `first_message`. A starting scenario is a **different starting context/premise** — distinct from `alternate_greetings` (same scenario, different opening message).
+  - **`avatars: AvatarOption[]`** — multiple selectable avatar options per character (kept for SillyTavern V3 import compatibility). Not shown in the New Play UI — the character's main `avatar` field is the AI character's image.
+  - **`starting_scenarios: StartingScenario[]`** — multiple starting scenarios per character, each with a stable `id`, `name`, optional `description`, `scenario` text, `first_message`. A starting scenario is a **different starting context/premise** — distinct from `alternate_greetings` (same scenario, different opening message).
+  - **`default_persona: DefaultPersona | null`** — Character/Story-level predefined player identity. Contains `label` (narrative name shown in UI, e.g. "Childhood friend"), `name` (`{{player_name}}` placeholder), `role`, `background`, `personality`, `appearance`, `pronouns`, `details`. The player supplies only their name; the rest is set by the card author. The Default Persona is shared across all Scenarios — it defines **who the player is**, while Scenarios define **what is happening**.
+- `Persona` — the user's narrative identity for roleplay. A Persona represents **who the user is playing as**, not a variant of the AI character's appearance.
+  - **Custom Persona**: reusable identity created by the user. Fields: `id`, `name`, `avatar`, `description`, `appearance`, `personality`, `pronouns`. Stored in the `persona` table.
+  - **Default Persona**: Character/Story-level predefined identity defined on `CharacterCard.default_persona`. Contains `label` (narrative name), `name` (`{{player_name}}` placeholder), `role`, `background`, `personality`, `appearance`, `pronouns`, `details`. The player supplies only their name; the rest is set by the card author.
+  - A built-in "Myself" option (id: `myself`) is always available — it means "just be yourself" and is not stored in the DB.
+  - When a Session is created, the resolved Persona is snapshotted (`persona_snapshot`) for historical consistency. `persona_source` tracks whether it came from `"default"` (card-level) or `"custom"` (user library).
+  - Persona and Scenario are independent: Persona is always visible in the New Play UI, appears before Scenario selection, and changing one does not reset the other.
 - `StoryCard` (flagship — formerly "WorldCard") — title, genre, premise, tone, locations, `npcs: NpcCard[]`, protagonist (stats/inventory), `plot_flags` (free-form branching bag), `quest_log: QuestEntry[]`, `current_scene`, `chapter_log: ChapterEntry[]`, `world_info`. **A Story is a composition of Characters + world + scenarios** — it should reference Characters from the Character Pool rather than containing duplicated Character data.
   - `NpcCard` — each NPC carries its own `relationship_state` (`{affection, trust, flags}`, same shape as `CharacterCard`'s) — tracked independently per NPC, not shared across the cast. **Planned**: NpcCards may eventually be backed by Character Pool references rather than inline definitions.
   - `QuestEntry` — id/title/status/objective, optional `triggers_on` condition evaluated against `plot_flags` to auto-update status. Structured, distinct from the `plot_flags` bag.
@@ -137,7 +144,7 @@ Story-specific information may include: role in the story, relationship to other
 
 ## UI reference (mechanics to preserve, not branding or skin)
 
-1. **Card info modal** (before starting): cover image, title, creator credit, tag chips, short + long description, a "Prologue Preview"/"Intro Preview" excerpt (character cards additionally show a sample exchange preview), engagement stats, last-updated date, and a "New Play" CTA. **Identical structure for Character and Story cards** — build one reusable `CardInfoModal` parameterized by card type, not two. "New Play" creates the session with the avatar + starting-scenario picks.
+1. **Card info modal** (before starting): cover image, title, creator credit, tag chips, short + long description, a "Prologue Preview"/"Intro Preview" excerpt (character cards additionally show a sample exchange preview), engagement stats, last-updated date, **persona picker** (always visible, with info button), **scenario picker** (always visible), optional **name field** (shown only for Default persona), and a "New Play" CTA. The flow is: Persona → Scenario → Name → Play. Persona and Scenario are independent — changing one does not reset the other. **Identical structure for Character and Story cards** — build one reusable `CardInfoModal` parameterized by card type, not two.
 2. **In-session right sidebar** (persistent panel next to the chat, not a popover): header shows the card avatar/name; below that an **Image Gallery** (grid of images generated during this session, tied to the Phase 7 Situation Image hook); below that a **Chat Settings** group — `Play Guide`, `Avatars` (switch user-facing avatar mid-session), `Memories` (opens the memory viewer, see below), `Situation Image` toggle, `Receive Messages` toggle (proactive messaging — Phase 7). At the bottom, a credit/currency balance section (`My Credit`) — **skip this entirely**, it's monetization for a hosted product and has no place in a local-first open-source tool.
 3. **Memories modal**: a scrollable, read-only rendering of the rolling-summary timeline — literally titled "Memories" with the subtext *"You can see the content summarized in the AI's memory from past records."* Confirms the memory viewer is just a UI window onto the rolling-summary data, not a separate store.
 
@@ -150,7 +157,7 @@ Character Pool (reusable Characters)
        ↓ references
 Story (compositions of Characters + world + scenarios)
        ↓ references
-Session (play instance)
+Session (play instance) + Persona (user identity)
        ↓ assembled by
 Prompt Assembly (canonical prompt pipeline)
 ```
@@ -158,8 +165,9 @@ Prompt Assembly (canonical prompt pipeline)
 **Key ownership rules:**
 - **Character Pool** owns: identity, personality, appearance, speech style, avatars, starting scenarios, world_info. Characters are reusable across Stories.
 - **Story** owns: world/story context, character references (with story-specific role/context), starting scenarios, plot_flags, quest_log, chapter_log. A Story references Characters rather than duplicating them. **A Story supports multiple starting scenarios** — the same cast and world can have completely different starting situations ("one Story → multiple ways to begin"). The selected scenario becomes session state, not story state.
-- **Session** owns: play-specific state (message log, relationship evolution, key-event timeline, avatar/scenario selections). **Sessions must not mutate reusable Character or Story definitions.**
-- **Prompt Assembly** must happen through the canonical prompt pipeline (`docs/PLAYIME_PROMPT_SPEC.md`). The prompt compiler resolves Character references by merging base Character data with Story-specific context. **Do not construct independent prompts ad-hoc in UI components.**
+- **Persona** owns: user identity (name, appearance, personality, pronouns, avatar). Personas are reusable across Characters, Stories, and Sessions. The built-in "Myself" persona means "just be yourself." When selected at New Play time, the persona is snapshot onto the session for historical consistency.
+- **Session** owns: play-specific state (message log, relationship evolution, key-event timeline, starting scenario selection, persona selection with `persona_source` tracking default vs custom). **Sessions must not mutate reusable Character or Story definitions.**
+- **Prompt Assembly** must happen through the canonical prompt pipeline (`docs/PLAYIME_PROMPT_SPEC.md`). The prompt compiler resolves Character references by merging base Character data with Story-specific context, and injects Persona context (player identity) when a non-default persona is selected. **Do not construct independent prompts ad-hoc in UI components.**
 
 ### Live references vs snapshots (planned — implementation deferred)
 

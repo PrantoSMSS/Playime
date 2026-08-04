@@ -1,4 +1,4 @@
--- Playime — SQLite schema (v3, Phase 2.5 — avatars + starting scenarios)
+-- Playime — SQLite schema (v4, Phase 2.5 — avatars + starting scenarios + default_persona)
 -- Tables: session, message, character_card, session_event
 --
 -- Conventions:
@@ -28,7 +28,10 @@ CREATE TABLE IF NOT EXISTS session (
   avatar_selection TEXT,                               -- which avatar the user picked at New Play
   starting_scenario_id TEXT,                           -- which starting scenario the user picked at New Play
   avatar_snapshot TEXT,                                -- JSON snapshot of the selected AvatarOption
-  starting_scenario_snapshot TEXT                      -- JSON snapshot of the selected StartingScenario
+  starting_scenario_snapshot TEXT,                     -- JSON snapshot of the selected StartingScenario
+  persona_id TEXT,                                    -- which persona (user identity) the user picked
+  persona_snapshot TEXT,                              -- JSON snapshot of the selected Persona
+  persona_source TEXT                                 -- "default" (from scenario) or "custom" (from library)
 );
 
 CREATE TABLE IF NOT EXISTS message (
@@ -71,6 +74,7 @@ CREATE TABLE IF NOT EXISTS character_card (
   -- Multiple avatars and starting scenarios
   avatars         TEXT NOT NULL DEFAULT '[]',         -- JSON array of AvatarOption
   starting_scenarios TEXT NOT NULL DEFAULT '[]',      -- JSON array of StartingScenario
+  default_persona TEXT,                               -- JSON DefaultPersona (card-level, not per-scenario)
 
   -- Tavern V2/V3 card-spec compatibility fields
   -- (populated on import, editable in the creation form, never silently dropped)
@@ -111,3 +115,19 @@ CREATE TABLE IF NOT EXISTS session_event (
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_event_session ON session_event (session_id, sort_order);
+
+-- ──────────────────────────────────────────────────────────────────────
+-- User Personas (who the user is playing as)
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS persona (
+  id              TEXT PRIMARY KEY,                   -- uuid
+  name            TEXT NOT NULL,
+  avatar          TEXT,                               -- user's profile image (URL or data URI)
+  description     TEXT NOT NULL DEFAULT '',            -- short role description, e.g. "Apprentice Mage"
+  appearance      TEXT NOT NULL DEFAULT '',            -- physical appearance for prompt context
+  personality     TEXT NOT NULL DEFAULT '',            -- personality traits for prompt context
+  pronouns        TEXT NOT NULL DEFAULT '',            -- e.g. "she/her"
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);

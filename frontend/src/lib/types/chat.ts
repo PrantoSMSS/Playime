@@ -18,6 +18,10 @@ export interface ChatSession {
 	initials: string;
 	/** Base hue for the avatar gradient (0–360). */
 	hue: number;
+	/** Character card ID this session was created from (set on New Play). */
+	cardId?: string;
+	/** Avatar image URL from the selected avatar option. */
+	avatarUrl?: string;
 }
 
 /** One turn in the message list. `content` is the raw text; the renderer

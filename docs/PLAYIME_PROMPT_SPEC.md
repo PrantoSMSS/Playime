@@ -36,6 +36,17 @@ You are {name}. {tagline}
 ## Scenario
 {scenario}
 
+## Player Persona                        # included only when a non-default persona is selected
+                                        # Behavioral guidance paragraph (see §2):
+                                        # Use the Persona's identity, pronouns, background,
+                                        # personality, appearance, role to shape the Character's
+                                        # behavior naturally. Do not recite Persona facts.
+Name: {persona_name}                    # who the user is roleplaying as
+Pronouns: {persona_pronouns}
+Role: {persona_role}                    # only if present (from card default or custom)
+Appearance: {persona_appearance}        # only if present
+Personality: {persona_personality}      # only if present
+
 ## Relationship state (authoritative, current)
 - Affection: {affection}/100
 - Trust: {trust}/100
@@ -113,7 +124,11 @@ You are the dungeon master of "{title}", a {genre} story.
   - Append recent flags as prose: `Recently: {flag1}, {flag2}.`
 - **recalled_memories** — plain lines `· {text}`, top-k = 5, no importance stars, no timestamps unless the memory entry carries a useful one.
 - **length_guidance** — a per-card setting with a sane default; never hardcoded per model.
-- Every placeholder above resolves from a card + state object (Character: `CharacterCard` + `relationship_state`; Story: `WorldCard` + `current_scene`/`plot_flags`/`chapter_log`). No free-form text from the request may leak into the system prompt.
+- Every placeholder above resolves from a card + state object (Character: `CharacterCard` + `relationship_state` + optional `Persona`; Story: `WorldCard` + `current_scene`/`plot_flags`/`chapter_log`). No free-form text from the request may leak into the system prompt.
+- **Player Persona section** — included only when the session has a non-"Myself" persona. When present, it appears after the Scenario section and before Relationship state. The section includes a behavioral guidance paragraph instructing the model to use the Persona's identity, pronouns, background, personality, appearance, and role to shape the Character's behavior naturally — without reciting facts or forcing every attribute into every response. The persona source can be:
+  - **Default** (`persona_source: "default"`): resolved from `CharacterCard.default_persona` + player-provided name. The card author predefined the narrative identity; the player only supplies their name.
+  - **Custom** (`persona_source: "custom"`): a reusable identity from the user's Persona library.
+  - The built-in "Myself" persona means "just be yourself" and is never rendered in the prompt.
 
 ## 3. Message assembly (working context)
 
@@ -203,7 +218,7 @@ The main generation call streams. The adapter surfaces `session.next.text.*` con
 |---|---|
 | 0 | This spec; adapter interface `generate(messages, system, stream)` |
 | 1 | Character loop with a hardcoded card, using §1 + §3 only (no memory yet) |
-| 2 | Card CRUD; rolling summary (§6), relationship state + extraction (§5), sidebar |
+| 2 | Card CRUD; rolling summary (§6), relationship state + extraction (§5), sidebar; Persona system (player identity, prompt injection) |
 | 2.5 | World Info / lorebook layer |
 | 3 | RAG block (§4) |
 | 4 | Story DM prompt (§1), chapter-scoped summary, plot state deltas |

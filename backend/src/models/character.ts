@@ -30,6 +30,30 @@ export interface AvatarOption {
 }
 
 /**
+ * Character/Story-level default persona — predefined narrative identity designed
+ * by the card author. The name is a placeholder (`{{player_name}}`) that gets
+ * replaced with user input at session creation time.
+ */
+export interface DefaultPersona {
+  /** Narrative label shown in the UI (e.g. "Childhood friend", "New student"). */
+  label?: string | undefined;
+  /** Player name placeholder — typically "{{player_name}}", replaced at session creation. */
+  name: string;
+  /** Player's role in this story (e.g. "Teacher", "Student"). */
+  role?: string | undefined;
+  /** Player's background. */
+  background?: string | undefined;
+  /** Player's personality traits. */
+  personality?: string | undefined;
+  /** Player's appearance. */
+  appearance?: string | undefined;
+  /** Player's pronouns. */
+  pronouns?: string | undefined;
+  /** Any other narrative details. */
+  details?: string | undefined;
+}
+
+/**
  * Starting scenario — a distinct opening context with its own scenario text
  * and first message. Different from alternate_greetings (same scenario,
  * different greeting) — a scenario represents a different starting context.
@@ -101,6 +125,9 @@ export interface CharacterCard {
   avatars: AvatarOption[];
   starting_scenarios: StartingScenario[];
 
+  // Character/Story-level default persona
+  default_persona: DefaultPersona | null;
+
   // Tavern V2/V3 compatibility
   alternate_greetings: string[];
   mes_example: string | null;
@@ -150,6 +177,7 @@ interface CharacterCardRow {
   length_guidance: string | null;
   avatars: string;
   starting_scenarios: string;
+  default_persona: string | null;
   alternate_greetings: string;
   mes_example: string | null;
   system_prompt: string | null;
@@ -189,6 +217,7 @@ function rowToCard(row: CharacterCardRow): CharacterCard {
     length_guidance: row.length_guidance,
     avatars: parseJson<AvatarOption[]>(row.avatars, []),
     starting_scenarios: parseJson<StartingScenario[]>(row.starting_scenarios, []),
+    default_persona: parseJson<DefaultPersona | null>(row.default_persona, null),
     alternate_greetings: parseJson<string[]>(row.alternate_greetings, []),
     mes_example: row.mes_example,
     system_prompt: row.system_prompt,
@@ -268,7 +297,8 @@ export function resolveStartingScenario(
 const SELECT_COLS = [
   'id', 'name', 'avatar', 'tagline', 'personality', 'speech_style',
   'likes_and_dislikes', 'scenario', 'first_message', 'relationship_state',
-  'length_guidance', 'avatars', 'starting_scenarios', 'alternate_greetings',
+  'length_guidance', 'avatars', 'starting_scenarios', 'default_persona',
+  'alternate_greetings',
   'mes_example', 'system_prompt', 'post_history_instructions', 'creator',
   'creator_notes', 'character_version', 'world_info', 'extensions',
   'cover_image', 'creator_name', 'tags', 'description', 'prologue_preview',
@@ -305,6 +335,7 @@ export interface CreateCharacterCardInput {
   length_guidance?: string | undefined;
   avatars?: AvatarOption[] | undefined;
   starting_scenarios?: StartingScenario[] | undefined;
+  default_persona?: DefaultPersona | null | undefined;
   alternate_greetings?: string[] | undefined;
   mes_example?: string | undefined;
   system_prompt?: string | undefined;
@@ -348,11 +379,11 @@ export function createCharacterCard(input: CreateCharacterCardInput): CharacterC
     `INSERT INTO character_card (
       id, name, avatar, tagline, personality, speech_style, likes_and_dislikes,
       scenario, first_message, relationship_state, length_guidance,
-      avatars, starting_scenarios, alternate_greetings, mes_example,
+      avatars, starting_scenarios, default_persona, alternate_greetings, mes_example,
       system_prompt, post_history_instructions, creator, creator_notes,
       character_version, world_info, extensions, cover_image, creator_name,
       tags, description, prologue_preview, stats, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     input.name,
@@ -367,6 +398,7 @@ export function createCharacterCard(input: CreateCharacterCardInput): CharacterC
     input.length_guidance ?? null,
     JSON.stringify(avatars),
     JSON.stringify(startingScenarios),
+    input.default_persona ? JSON.stringify(input.default_persona) : null,
     JSON.stringify(input.alternate_greetings ?? []),
     input.mes_example ?? null,
     input.system_prompt ?? null,
@@ -403,6 +435,7 @@ export interface UpdateCharacterCardInput {
   length_guidance?: string | null | undefined;
   avatars?: AvatarOption[] | undefined;
   starting_scenarios?: StartingScenario[] | undefined;
+  default_persona?: DefaultPersona | null | undefined;
   alternate_greetings?: string[] | undefined;
   mes_example?: string | null | undefined;
   system_prompt?: string | null | undefined;
@@ -422,8 +455,8 @@ export interface UpdateCharacterCardInput {
 
 /** Columns whose JSON values need `JSON.stringify` when patching. */
 const JSON_COLUMNS = new Set([
-  'relationship_state', 'avatars', 'starting_scenarios', 'alternate_greetings',
-  'world_info', 'extensions', 'tags', 'stats',
+  'relationship_state', 'avatars', 'starting_scenarios', 'default_persona',
+  'alternate_greetings', 'world_info', 'extensions', 'tags', 'stats',
 ]);
 
 /**
@@ -510,6 +543,13 @@ export const YEHWA_CARD: CharacterCard = {
   length_guidance: '1-3 sentences unless the moment calls for more.',
   avatars: [],
   starting_scenarios: [],
+  default_persona: {
+    label: 'Junior Disciple',
+    name: '{{player_name}}',
+    role: 'Junior Disciple of the Orthodox Murim',
+    background: 'The youngest disciple under Master Jeong, training alongside Yehwa on Mount Cheongun',
+    personality: 'Dedicated, eager to prove themselves, but still learning the ways of the sect',
+  },
   alternate_greetings: [],
   mes_example: null,
   system_prompt: null,

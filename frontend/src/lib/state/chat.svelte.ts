@@ -10,8 +10,8 @@
  * the thread. Components only read/mutate this module, so the wiring stays
  * contained.
  */
-import { createSession, getCard, listCards, streamMessage } from '../api/chat';
-import type { ApiCharacterCard, ApiMessage } from '../api/chat';
+import { createSession, getCard, listCards, listPersonas, streamMessage } from '../api/chat';
+import type { ApiCharacterCard, ApiMessage, ApiPersona } from '../api/chat';
 import { SAMPLE_MESSAGES_BY_SESSION, SAMPLE_SESSIONS } from '../data/sample';
 import type { ChatMessage, ChatSession } from '../types/chat';
 
@@ -38,6 +38,8 @@ export const chat = $state({
 	error: null as string | null,
 	/** Card info modal state. */
 	cardInfoModal: null as { card: ApiCharacterCard } | null,
+	/** Available personas for the New Play persona picker. */
+	personas: [] as ApiPersona[],
 });
 
 /** Display session id → backend session id, for sessions made real on demand. */
@@ -54,8 +56,9 @@ export function activeMessages(): ChatMessage[] {
 /** Open the card info modal for a given card. */
 export async function openCardInfoModal(cardId: string): Promise<void> {
 	try {
-		const card = await getCard(cardId);
+		const [card, personas] = await Promise.all([getCard(cardId), listPersonas()]);
 		chat.cardInfoModal = { card };
+		chat.personas = personas;
 	} catch (err) {
 		chat.error = err instanceof Error ? err.message : 'Failed to load card';
 	}
@@ -68,7 +71,9 @@ export function closeCardInfoModal(): void {
 
 /** Start a new play session from the card info modal selections. */
 export async function startNewPlay(selections: {
-	avatarSelection?: string;
+	personaId?: string;
+	personaSource?: 'default' | 'custom';
+	playerName?: string;
 	startingScenarioId?: string;
 }): Promise<void> {
 	const modal = chat.cardInfoModal;
@@ -77,11 +82,16 @@ export async function startNewPlay(selections: {
 	try {
 		const apiSession = await createSession({
 			cardId: modal.card.id,
-			avatarSelection: selections.avatarSelection,
+			personaId: selections.personaId,
+			personaSource: selections.personaSource,
+			playerName: selections.playerName,
 			startingScenarioId: selections.startingScenarioId,
 		});
 
-		// Create a frontend session entry
+		// The session's avatarUrl is the CHARACTER's image (from CharacterCard.avatar),
+		// not the user's persona avatar.
+		const avatarUrl = modal.card.avatar ?? undefined;
+
 		const newSession: ChatSession = {
 			id: apiSession.id,
 			title: modal.card.name,
@@ -89,6 +99,8 @@ export async function startNewPlay(selections: {
 			preview: modal.card.first_message ?? 'New conversation started',
 			initials: modal.card.name.slice(0, 2).toUpperCase(),
 			hue: 172,
+			cardId: modal.card.id,
+			avatarUrl,
 		};
 
 		chat.sessions.unshift(newSession);
