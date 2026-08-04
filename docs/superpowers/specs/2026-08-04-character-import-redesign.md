@@ -27,7 +27,7 @@ User clicks "Upload" → ImportCardModal → File parsed → POST /api/cards/imp
 
 ### New Flow
 ```
-User clicks "Import" → ImportCardModal → File parsed → POST /api/cards/parse-png (PNG only) → onparsed callback → CharacterFormModal opens with pre-filled data → User reviews/edits → Save
+User clicks "Import" → ImportCardModal → File parsed → POST /api/cards/parse → onparsed callback → CharacterFormModal opens with pre-filled data → User reviews/edits → Save
 ```
 
 ---
@@ -46,26 +46,24 @@ Change the "Upload" button text to "Import":
 
 ### 2. State Management (chat.svelte.ts)
 
-Add new state for import flow:
-```typescript
-interface ChatState {
-    // ... existing state
-    importedCardData: Partial<CreateCardInput> | null;
-}
+Extend the existing `characterFormModal` state to carry imported data:
 
-// New function to handle parsed import data
-export function handleImportParsed(data: Partial<CreateCardInput>): void {
-    chat.importedCardData = data;
-    openCreateCardModal(); // Opens CharacterFormModal
-}
+```typescript
+// Extend the characterFormModal state type
+chat.characterFormModal = {
+    mode: 'create',
+    importedData: data,  // NEW: carries parsed import data
+};
 ```
 
 Modify `openImportCardModal` to accept `onparsed` callback:
 ```typescript
 export function openImportCardModal(onparsed: (data: Partial<CreateCardInput>) => void): void {
-    // ... open modal with callback
+    chat.importCardModal = { onparsed };
 }
 ```
+
+**Note:** The `+layout.svelte` must pass the `onparsed` callback to `ImportCardModal` when rendering it.
 
 ### 3. ImportCardModal Refactor
 
@@ -73,24 +71,87 @@ export function openImportCardModal(onparsed: (data: Partial<CreateCardInput>) =
 - Change callback signature from `onimported: (card: ApiCharacterCard) => void` to `onparsed: (data: Partial<CreateCardInput>) => void`
 - Both PNG and JSON files are sent to the new `/api/cards/parse` endpoint for consistent parsing
 - Update modal title to "Import Character Data"
+- Update dropzone label to "Drag & drop or click to import"
 
-**Import flow (both PNG and JSON):**
+**File reading logic:**
+```typescript
+function importFile(file: File): Promise<void> {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const dataUri = reader.result as string;
+            
+            // Check file type to determine how to send
+            if (file.type === 'application/json' || file.name.endsWith('.json')) {
+                // JSON: parse and send object directly
+                try {
+                    const jsonStr = atob(dataUri.split(',')[1] ?? '');
+                    const parsed = JSON.parse(jsonStr);
+                    await sendParse(parsed);
+                } catch {
+                    errorMessage = 'Failed to parse JSON file.';
+                }
+            } else {
+                // PNG: send base64 data
+                const base64 = dataUri.split(',')[1] ?? '';
+                await sendParse({ data: base64 });
+            }
+            resolve();
+        };
+        reader.onerror = () => {
+            errorMessage = 'Failed to read the file.';
+            resolve();
+        };
+        reader.readAsDataURL(file);
+    });
+}
+```
+
+**Parse endpoint call:**
 ```typescript
 async function sendParse(body: unknown): Promise<void> {
-    const res = await fetch(`${BASE}/api/cards/parse`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-        // handle error
+    errorMessage = '';
+    importing = true;
+    try {
+        const res = await fetch(`${BASE}/api/cards/parse`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+            let message = `Import failed (HTTP ${res.status})`;
+            try {
+                const errBody = await res.json() as { error?: { message?: string } };
+                if (errBody.error?.message) message = errBody.error.message;
+            } catch { /* non-JSON error body */ }
+            errorMessage = message;
+            return;
+        }
+        const data = (await res.json()) as Partial<CreateCardInput>;
+        onparsed(data);
+    } catch (err) {
+        errorMessage = err instanceof Error ? err.message : 'Network error — could not reach the server.';
+    } finally {
+        importing = false;
+    }
+}
+```
+
+**JSON paste flow (kept):**
+```typescript
+function importJsonText(): void {
+    const text = jsonText.trim();
+    if (!text) {
+        errorMessage = 'Please paste some JSON text first.';
         return;
     }
-    const data = await res.json();
-    onparsed(data);
+    try {
+        const parsed: unknown = JSON.parse(text);
+        sendParse(parsed);
+    } catch {
+        errorMessage = 'Invalid JSON — could not parse the pasted text.';
+    }
 }
-
-// For PNG files: send { data: "<base64>" }
-// For JSON files: send the parsed JSON object directly
 ```
 
 ### 4. Backend Parse Endpoint
@@ -120,52 +181,59 @@ app.post('/api/cards/parse', {
     let rawJson: Record<string, unknown> | null = null;
     let avatarDataUri: string | null = null;
     
-    // Case 1: PNG import (body has `data` field with base64)
-    if (typeof body['data'] === 'string') {
-        const decoded = Buffer.from(body['data'] as string, 'base64');
-        
-        // Validate PNG signature
-        const isPng = decoded.length > 8 &&
-            decoded[0] === 0x89 && decoded[1] === 0x50 &&
-            decoded[2] === 0x4e && decoded[3] === 0x47;
-        
-        if (!isPng) {
+    try {
+        // Case 1: PNG import (body has `data` field with base64)
+        if (typeof body['data'] === 'string') {
+            const decoded = Buffer.from(body['data'] as string, 'base64');
+            
+            // Validate PNG signature
+            const isPng = decoded.length > 8 &&
+                decoded[0] === 0x89 && decoded[1] === 0x50 &&
+                decoded[2] === 0x4e && decoded[3] === 0x47;
+            
+            if (!isPng) {
+                return reply.code(400).send({
+                    error: { code: 'invalid_data', message: 'Data is not a valid PNG file' },
+                });
+            }
+            
+            // Extract card JSON from tEXt chunks
+            const jsonStr = extractCardJsonFromPng(decoded);
+            if (!jsonStr) {
+                return reply.code(400).send({
+                    error: { code: 'no_card_data', message: 'PNG does not contain character card data' },
+                });
+            }
+            
+            rawJson = JSON.parse(jsonStr);
+            avatarDataUri = `data:image/png;base64,${body['data']}`;
+        }
+        // Case 2: JSON import (body IS the card object)
+        else if (typeof body['name'] === 'string' || typeof body['spec'] === 'string') {
+            rawJson = body;
+        }
+        else {
             return reply.code(400).send({
-                error: { code: 'invalid_data', message: 'Data is not a valid PNG file' },
+                error: { code: 'invalid_body', message: 'Expected PNG data or card JSON object' },
             });
         }
         
-        // Extract card JSON from tEXt chunks
-        const jsonStr = extractCardJsonFromPng(decoded);
-        if (!jsonStr) {
-            return reply.code(400).send({
-                error: { code: 'no_card_data', message: 'PNG does not contain character card data' },
-            });
+        // Parse using SillyTavern normalizer
+        const card = parseSillyTavernCard(rawJson!);
+        
+        // If we have an avatar from PNG, override the parsed avatar
+        if (avatarDataUri) {
+            card.avatar = avatarDataUri;
+            card.avatars = [{ id: 'default', name: 'Default', image: avatarDataUri }];
         }
         
-        rawJson = JSON.parse(jsonStr);
-        avatarDataUri = `data:image/png;base64,${body['data']}`;
-    }
-    // Case 2: JSON import (body IS the card object)
-    else if (typeof body['name'] === 'string' || typeof body['spec'] === 'string') {
-        rawJson = body;
-    }
-    else {
+        return reply.send(card);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to parse card data';
         return reply.code(400).send({
-            error: { code: 'invalid_body', message: 'Expected PNG data or card JSON object' },
+            error: { code: 'parse_error', message },
         });
     }
-    
-    // Parse using SillyTavern normalizer
-    const card = parseSillyTavernCard(rawJson!);
-    
-    // If we have an avatar from PNG, override the parsed avatar
-    if (avatarDataUri) {
-        card.avatar = avatarDataUri;
-        card.avatars = [{ id: 'imported', name: 'Imported', image: avatarDataUri }];
-    }
-    
-    return reply.send(card);
 });
 ```
 
@@ -218,10 +286,11 @@ let avatarPreview = $state<string | null>(
 </h2>
 ```
 
-**Handle save to include imported fields:**
+**Handle save to include ALL imported fields:**
 ```typescript
 if (mode === 'create') {
-    const input: CreateCardInput = {
+    // Build base input from form fields
+    const baseInput: CreateCardInput = {
         name: name.trim(),
         ...(avatarPreview ? { avatar: avatarPreview } : {}),
         tagline: tagline.trim(),
@@ -231,16 +300,60 @@ if (mode === 'create') {
         scenario: scenario.trim(),
         ...(firstMessage.trim() ? { first_message: firstMessage.trim() } : {}),
         ...(description.trim() ? { description: description.trim() } : {}),
-        // Include imported fields that aren't in the form
+    };
+    
+    // Merge with imported fields that aren't in the form
+    // This ensures all imported data is preserved
+    const input: CreateCardInput = {
+        ...baseInput,
+        // Pass through all imported fields that aren't form-editable
         ...(importedData?.alternate_greetings ? { alternate_greetings: importedData.alternate_greetings } : {}),
         ...(importedData?.world_info ? { world_info: importedData.world_info } : {}),
         ...(importedData?.extensions ? { extensions: importedData.extensions } : {}),
         ...(importedData?.tags ? { tags: importedData.tags } : {}),
         ...(importedData?.creator ? { creator: importedData.creator } : {}),
         ...(importedData?.creator_notes ? { creator_notes: importedData.creator_notes } : {}),
+        ...(importedData?.creator_name ? { creator_name: importedData.creator_name } : {}),
+        ...(importedData?.character_version ? { character_version: importedData.character_version } : {}),
+        ...(importedData?.system_prompt ? { system_prompt: importedData.system_prompt } : {}),
+        ...(importedData?.post_history_instructions ? { post_history_instructions: importedData.post_history_instructions } : {}),
+        ...(importedData?.mes_example ? { mes_example: importedData.mes_example } : {}),
+        ...(importedData?.alternate_greetings ? { alternate_greetings: importedData.alternate_greetings } : {}),
+        ...(importedData?.starting_scenarios ? { starting_scenarios: importedData.starting_scenarios } : {}),
+        ...(importedData?.default_persona ? { default_persona: importedData.default_persona } : {}),
     };
+    
     result = await saveCard('create', input);
 }
+```
+
+### 6. +layout.svelte Wiring
+
+The `+layout.svelte` must be updated to pass the `onparsed` callback to `ImportCardModal`:
+
+```svelte
+{#if chat.importCardModal}
+    <ImportCardModal
+        onclose={() => { chat.importCardModal = null; }}
+        onparsed={(data) => {
+            chat.importCardModal = null;
+            chat.characterFormModal = { mode: 'create', importedData: data };
+        }}
+    />
+{/if}
+
+{#if chat.characterFormModal}
+    <CharacterFormModal
+        mode={chat.characterFormModal.mode}
+        card={chat.characterFormModal.card}
+        importedData={chat.characterFormModal.importedData}
+        onclose={() => { chat.characterFormModal = null; }}
+        onsave={(card) => {
+            chat.characterFormModal = null;
+            // refresh card list
+        }}
+    />
+{/if}
 ```
 
 ---
@@ -250,20 +363,22 @@ if (mode === 'create') {
 | File | Changes |
 |------|---------|
 | `frontend/src/lib/components/chat/CharacterGrid.svelte` | Rename "Upload" to "Import" |
-| `frontend/src/lib/components/chat/ImportCardModal.svelte` | Change callback to `onparsed`, use unified `/api/cards/parse` endpoint |
+| `frontend/src/lib/components/chat/ImportCardModal.svelte` | Change callback to `onparsed`, use unified `/api/cards/parse` endpoint, update dropzone label |
 | `frontend/src/lib/components/chat/CharacterFormModal.svelte` | Add `importedData` prop, pre-fill form fields |
-| `frontend/src/lib/state/chat.svelte.ts` | Add `importedCardData` state, update modal open functions |
+| `frontend/src/lib/state/chat.svelte.ts` | Extend `characterFormModal` state type to include `importedData` |
+| `frontend/src/routes/+layout.svelte` | Wire `onparsed` callback to open CharacterFormModal with imported data |
 | `backend/src/routes/character.ts` | Add `/api/cards/parse` endpoint (unified PNG/JSON) |
 
 ---
 
 ## Testing
 
-1. **JSON Import:** Import a JSON character file → form opens with pre-filled data → save creates new card
-2. **PNG Import:** Import a PNG character card → form opens with data + avatar from PNG → save creates new card with avatar
-3. **Edit after Import:** Imported data can be modified before saving
-4. **Cancel:** Canceling import doesn't create any card
-5. **Invalid Files:** Invalid PNG/JSON shows appropriate error messages
+1. **JSON Import (file):** Import a JSON character file → form opens with pre-filled data → save creates new card
+2. **JSON Import (paste):** Paste JSON text → form opens with pre-filled data → save creates new card
+3. **PNG Import:** Import a PNG character card → form opens with data + avatar from PNG → save creates new card with avatar
+4. **Edit after Import:** Imported data can be modified before saving
+5. **Cancel:** Canceling import doesn't create any card
+6. **Invalid Files:** Invalid PNG/JSON shows appropriate error messages
 
 ---
 
