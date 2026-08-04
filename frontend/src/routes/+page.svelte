@@ -2,20 +2,17 @@
 	import CharacterGrid from '$lib/components/chat/CharacterGrid.svelte';
 	import ChatInput from '$lib/components/chat/ChatInput.svelte';
 	import ChatTopBar from '$lib/components/chat/ChatTopBar.svelte';
-	import HistoryList from '$lib/components/chat/HistoryList.svelte';
+	import ChatsList from '$lib/components/chat/ChatsList.svelte';
 	import MessageList from '$lib/components/chat/MessageList.svelte';
 	import { chat, sendMessage } from '$lib/state/chat.svelte';
+	import { nav } from '$lib/state/nav.svelte';
 
 	function handleSend(text: string): void {
 		void sendMessage(text);
 	}
 </script>
 
-{#if chat.nav === 'character'}
-	<CharacterGrid />
-{:else if chat.nav === 'history'}
-	<HistoryList />
-{:else if chat.activeSessionId}
+{#if nav.activeView === 'conversation'}
 	<div class="chat">
 		<ChatTopBar />
 		<MessageList />
@@ -23,6 +20,10 @@
 			<ChatInput onSend={handleSend} disabled={chat.sending} />
 		</div>
 	</div>
+{:else if nav.activeView === 'character'}
+	<CharacterGrid />
+{:else if nav.activeView === 'chats'}
+	<ChatsList />
 {:else}
 	<div class="placeholder">
 		<p>Coming soon</p>
