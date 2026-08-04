@@ -10,7 +10,7 @@
 	}
 </script>
 
-{#if chat.nav === 'character'}
+{#if chat.nav === 'character' && !chat.activeSessionId}
 	<CharacterGrid />
 {:else}
 	<div class="chat">
