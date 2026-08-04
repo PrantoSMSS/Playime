@@ -24,6 +24,7 @@
 
 	function handleCardImported(_card: ApiCharacterCard): void {
 		closeImportCardModal();
+		void loadCards();
 	}
 </script>
 
