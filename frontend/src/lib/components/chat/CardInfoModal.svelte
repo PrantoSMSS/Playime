@@ -62,7 +62,8 @@
 	const defaultPersonaLabel = $derived(() => {
 		const dp = card.default_persona;
 		if (!dp) return 'Default Persona';
-		return dp.label || 'Default Persona';
+		const base = dp.label || 'Default Persona';
+		return `${base} (Default)`;
 	});
 
 	// Description shown below the dropdown for the current selection
@@ -283,6 +284,10 @@
 
 					{#if personaDescription()}
 						<p class="modal__persona-selected-desc">{personaDescription()}</p>
+					{/if}
+
+					{#if selectedPersonaType === 'default' && hasDefaultPersona}
+						<p class="modal__persona-recommend">✦ Recommended for the best roleplay experience</p>
 					{/if}
 				</div>
 			</div>
@@ -675,6 +680,14 @@
 		padding: var(--space-2) var(--space-3);
 		font-size: var(--font-size-xs);
 		color: var(--text-muted);
+	}
+
+	.modal__persona-recommend {
+		margin: var(--space-1) 0 0;
+		padding: 0 var(--space-3);
+		font-size: var(--font-size-xs);
+		color: var(--accent);
+		font-style: italic;
 	}
 
 	/* Name input */
