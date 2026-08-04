@@ -32,6 +32,7 @@
 	// ── Handlers ───────────────────────────────────────────────────────────
 	function handleSessionClick(s: ChatSession): void {
 		chat.activeSessionId = s.id;
+		chat.nav = 'story';
 	}
 
 	function toggleMenu(e: MouseEvent, sessionId: string): void {

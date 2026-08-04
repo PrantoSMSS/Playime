@@ -11,7 +11,11 @@
 	}
 </script>
 
-{#if chat.activeSessionId}
+{#if chat.nav === 'character'}
+	<CharacterGrid />
+{:else if chat.nav === 'history'}
+	<HistoryList />
+{:else if chat.activeSessionId}
 	<div class="chat">
 		<ChatTopBar />
 		<MessageList />
@@ -19,10 +23,6 @@
 			<ChatInput onSend={handleSend} disabled={chat.sending} />
 		</div>
 	</div>
-{:else if chat.nav === 'character'}
-	<CharacterGrid />
-{:else if chat.nav === 'history'}
-	<HistoryList />
 {:else}
 	<div class="placeholder">
 		<p>Coming soon</p>
