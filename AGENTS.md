@@ -21,16 +21,14 @@ CHARACTER POOL
 ├── Ren         ← reusable Character entity
 └── Mika        ← reusable Character entity
         │
-        │ referenced by
-        ▼
-STORY CARD: "Summer at the Academy"
-├── character references (Yuna, Akira, Ren)
-│   └── story-specific role/context per character
-├── world, premise, plot
-└── starting scenarios
+        ├────────→ Story Card A: "Summer at the Academy"  (cast_mode: selectable)
+        ├────────→ Story Card B: "Cyberpunk City"         (cast_mode: open)
+        └────────→ Story Card C: "Winter Festival"        (cast_mode: fixed)
 ```
 
-A Character lives in the **Character Pool** — owned, authored, and maintained independently. A Story **references** Characters from the Pool rather than duplicating them. A Session **instantiates** a Story's composition for actual play.
+A Character lives in the **Character Pool** — owned, authored, and maintained independently. A Story **references** Characters from the Pool rather than duplicating them. The same Character can participate in multiple Stories with different roles. A Session **instantiates** a Story's composition for actual play.
+
+A Story Card's `cast_mode` controls which Characters participate and whether players can modify the cast. See [Cast Modes](#cast-modes) for the three modes.
 
 This separation means the same Character can appear in multiple Stories with different roles, and editing a Character does not break existing Stories or Sessions. **This architecture is planned, not yet fully implemented** — see `PLAYIME_CHECKLIST.md` for current status.
 
@@ -109,6 +107,7 @@ Story
 ├── character_references: [
 │   { character_id, role?, introduction?, relationship_to_user?, story_notes? }
 │ ]
+├── cast_mode: 'fixed' | 'selectable' | 'open'
 ├── world, premise, plot
 └── starting_scenarios
 ```
@@ -118,6 +117,34 @@ The semantic distinction:
 - **Story Character Reference** = "Who is this character in this story?" (role, context, relationships)
 
 Story-specific information may include: role in the story, relationship to other characters, relationship to the player, story-specific traits, introduction/context, and other contextual overrides. **Avoid duplicating the entire base Character Card inside a Story.**
+
+**Cast mode** controls which Characters participate in a Story and whether players can modify the cast — see [Cast Modes](#cast-modes).
+
+### Cast Modes
+
+Story Cards use a single `cast_mode` field to control character participation. This is **not** a pair of `allow_character_changes` / `allow_custom_characters` toggles — it is a single enum with three mutually exclusive modes.
+
+| Mode | Author controls cast? | Player can select/deselect author chars? | Player can add custom chars? | Recommended use |
+|---|---|---|---|---|
+| **`fixed`** | Yes — complete | No | No | Stories that depend on a carefully controlled cast |
+| **`selectable`** (default) | Author provides pool | Yes | No | General-purpose — **recommended default** |
+| **`open`** | Author provides pool | Yes | Yes | Sandbox / open-ended Stories |
+
+**`fixed`** — Author completely controls the cast.
+- Author-defined characters cannot be removed
+- Players cannot substitute characters
+- Players cannot add custom characters
+- Use when the story depends on a carefully controlled cast
+
+**`selectable`** — Author provides a character pool, player chooses which participate.
+- Players can select/deselect characters from the author's cast
+- Players cannot add arbitrary custom characters
+- This should be the **default/recommended** Story Card mode
+
+**`open`** — Player can use author's characters AND add their own.
+- Author-defined characters remain available
+- Players can add custom characters from their Character library/pool
+- Intended for sandbox/open-ended Story Cards
 
 ### Current data model entities
 
@@ -133,7 +160,7 @@ Story-specific information may include: role in the story, relationship to other
   - A built-in "Myself" option (id: `myself`) is always available — it means "just be yourself" and is not stored in the DB.
   - When a Session is created, the resolved Persona is snapshotted (`persona_snapshot`) for historical consistency. `persona_source` tracks whether it came from `"default"` (card-level) or `"custom"` (user library).
   - Persona and Scenario are independent: Persona is always visible in the New Play UI, appears before Scenario selection, and changing one does not reset the other.
-- `StoryCard` (flagship — formerly "WorldCard") — title, genre, premise, tone, locations, `npcs: NpcCard[]`, protagonist (stats/inventory), `plot_flags` (free-form branching bag), `quest_log: QuestEntry[]`, `current_scene`, `chapter_log: ChapterEntry[]`, `world_info`. **A Story is a composition of Characters + world + scenarios** — it should reference Characters from the Character Pool rather than containing duplicated Character data.
+- `StoryCard` (flagship — formerly "WorldCard") — title, genre, premise, tone, locations, `npcs: NpcCard[]`, protagonist (stats/inventory), `plot_flags` (free-form branching bag), `quest_log: QuestEntry[]`, `current_scene`, `chapter_log: ChapterEntry[]`, `world_info`, `cast_mode` (`fixed` | `selectable` | `open`, default: `selectable`). **A Story is a composition of Characters + world + scenarios** — it should reference Characters from the Character Pool rather than containing duplicated Character data. `cast_mode` controls which Characters participate and whether players can modify the cast (see [Cast Modes](#cast-modes)).
   - `NpcCard` — each NPC carries its own `relationship_state` (`{affection, trust, flags}`, same shape as `CharacterCard`'s) — tracked independently per NPC, not shared across the cast. **Planned**: NpcCards may eventually be backed by Character Pool references rather than inline definitions.
   - `QuestEntry` — id/title/status/objective, optional `triggers_on` condition evaluated against `plot_flags` to auto-update status. Structured, distinct from the `plot_flags` bag.
   - `ChapterEntry` — title/summary, optional `checkpoint_id`; a checkpoint can fork into a new, independently shareable `StoryCard` variant (alternate timeline), not just a session snapshot.
@@ -172,6 +199,15 @@ Prompt Assembly (canonical prompt pipeline)
 ### Live references vs snapshots (planned — implementation deferred)
 
 During authoring, Story Character references should behave as **live references** to Character Pool entries — this allows a reusable Character to appear in multiple Stories. However, published/exported Stories may need a **snapshot/versioned representation** so that publishing can preserve the Character state used by that Story. This is future work; the detailed versioning strategy is not yet designed.
+
+### Distinction from Native Character Card Scenarios
+
+Character Cards and Story Cards have overlapping but distinct structures. They are **not** interchangeable, and one does not replace the other.
+
+- **Character Card** = Identity + native scenarios. A Character Card owns its `starting_scenarios` (different starting contexts/premises) and `default_persona`. These are inherent to the Character — they exist regardless of any Story.
+- **Story Card** = World + character references + cast configuration + personas + story setup. A Story Card's `cast_mode` and `character_references` control **which Characters participate** — it does **not** replace, remove, or redefine the Characters' own native scenarios.
+
+**Cast configuration does not touch native Character scenarios.** A Story Card's `cast_mode` determines which Characters are available and whether players can modify the cast. The Characters' own `starting_scenarios` remain intact and are resolved during session creation alongside the Story's starting scenarios. These are independent layers.
 
 ## Memory system (implement in this order, don't skip ahead)
 
@@ -217,6 +253,7 @@ One phase should be fully checked before the next starts (per `docs/PLAYIME_CHEC
 - **Prompt construction must happen through the canonical prompt assembly pipeline** (`docs/PLAYIME_PROMPT_SPEC.md`). Do not construct independent prompts ad-hoc in UI components.
 - **Sessions must not mutate reusable Character or Story definitions** from ordinary session interactions. Session-specific state (relationship evolution, key-event timeline) belongs to the session.
 - **Before modifying the architecture**, inspect: existing types (`backend/src/models/`), persistence (`backend/db/schema.sql`), import normalization (`backend/src/cards/sillytavern.ts`), session creation (`backend/src/models/session.ts`), prompt assembly (`backend/src/prompts/`). Reuse existing abstractions; update documentation when architectural behavior changes.
+- **Character Card import/export** workflows must be preserved. Existing Character Card import/export (Tavern V2/V3, PNG tEXt) continues to work as before. When a Story Card references Characters, those references must be preserved through relevant Story Card import/export workflows — the referenced `character_id` values must remain valid after import.
 
 ## What NOT to do
 
