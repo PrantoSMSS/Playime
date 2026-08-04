@@ -1,15 +1,16 @@
 <script lang="ts">
-	import { chat } from '$lib/state/chat.svelte';
-	import type { NavId } from '$lib/state/chat.svelte';
+	import { nav } from '$lib/state/nav.svelte';
+	import type { NavView } from '$lib/state/nav.svelte';
 	import Icon from './Icon.svelte';
 
 	// No credit/currency section — this is a local-first tool, not a hosted
 	// product (AGENTS.md: explicitly skip monetization plumbing).
-	const NAV_ITEMS: { id: NavId; label: string }[] = [
+	type NavItemId = Exclude<NavView, 'conversation'>;
+	const NAV_ITEMS: { id: NavItemId; label: string }[] = [
 		{ id: 'search', label: 'Search' },
 		{ id: 'story', label: 'Story' },
 		{ id: 'character', label: 'Character' },
-		{ id: 'history', label: 'History' },
+		{ id: 'chats', label: 'Chats' },
 		{ id: 'my-titles', label: 'My Titles' },
 		{ id: 'notifications', label: 'Notifications' }
 	];
@@ -25,9 +26,9 @@
 		{#each NAV_ITEMS as item}
 			<button
 				class="nav-item"
-				class:nav-item--active={chat.nav === item.id}
+				class:nav-item--active={nav.activeView === item.id}
 				title={item.label}
-				onclick={() => (chat.nav = item.id)}
+				onclick={() => (nav.activeView = item.id)}
 			>
 				<span class="nav-item__icon"><Icon name={item.id} size={20} /></span>
 				<span class="nav-item__label">{item.label}</span>
