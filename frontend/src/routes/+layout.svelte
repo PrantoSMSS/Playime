@@ -7,24 +7,19 @@
 	import NavRail from '$lib/components/chat/NavRail.svelte';
 	import {
 		chat, closeCardInfoModal, startNewPlay,
-		closeCharacterFormModal, closeImportCardModal, loadCards,
+		closeCharacterFormModal, closeImportCardModal, loadCards, loadSessions,
 	} from '$lib/state/chat.svelte';
 	import type { ApiCharacterCard } from '$lib/api/chat';
 
 	let { children } = $props();
 
-	// Load cards on mount
+	// Load cards then sessions on mount
 	$effect(() => {
-		void loadCards();
+		void loadCards().then(() => loadSessions());
 	});
 
 	function handleCardSaved(_card: ApiCharacterCard): void {
 		closeCharacterFormModal();
-	}
-
-	function handleCardImported(_card: ApiCharacterCard): void {
-		closeImportCardModal();
-		void loadCards();
 	}
 </script>
 
@@ -52,6 +47,7 @@
 	<CharacterFormModal
 		mode={chat.characterFormModal.mode}
 		card={chat.characterFormModal.card}
+		importedData={chat.characterFormModal.importedData}
 		onclose={closeCharacterFormModal}
 		onsave={handleCardSaved}
 	/>
@@ -60,7 +56,7 @@
 {#if chat.importCardModal}
 	<ImportCardModal
 		onclose={closeImportCardModal}
-		onimported={handleCardImported}
+		onparsed={chat.importCardModal.onparsed}
 	/>
 {/if}
 

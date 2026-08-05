@@ -788,7 +788,7 @@ Before considering a major feature complete:
 - [ ] Feature has appropriate automated tests
 - [ ] Feature has failure/error handling
 - [ ] Feature has documentation
-- [ ] Feature is reflected in `AGENTS.md`
+- [ ] Feature is reflected in `CLAUDE.md`
 - [ ] Feature is reflected in `PLAYIME_ROADMAP.md`
 - [ ] Feature is reflected in `PLAYIME_CHECKLIST.md`
 - [ ] Feature does not introduce unnecessary provider lock-in

@@ -1,6 +1,6 @@
 # Playime — Frontend
 
-SvelteKit + Vite (Svelte 5, runes mode). See `../AGENTS.md` for the
+SvelteKit + Vite (Svelte 5, runes mode). See `../CLAUDE.md` for the
 architecture and build order.
 
 ## Directory map
