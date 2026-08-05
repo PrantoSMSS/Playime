@@ -1,7 +1,7 @@
 // backend/src/routes/files.ts
 import type { FastifyInstance } from 'fastify';
 import { join } from 'node:path';
-import { accessSync, createReadStream, statSync } from 'node:fs';
+import { accessSync, createReadStream, createWriteStream, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { ENTITY_TYPES, type EntityType, ensureEntityDir, getEntityPath } from '../storage.js';
 

@@ -234,10 +234,13 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
 
       const created = createCharacterCard(card as CreateCharacterCardInput);
 
-      // Save avatar locally and update avatar_file
+      // Save avatar locally and update avatar_file + avatars[].image
       const avatarFile = await saveAvatarLocally(created.id, card.avatar ?? null);
       if (avatarFile) {
-        updateCharacterCard(created.id, { avatar_file: avatarFile });
+        const avatars = (card.avatars ?? []).map((a, i) =>
+          i === 0 ? { ...a, image: avatarFile } : a
+        );
+        updateCharacterCard(created.id, { avatar_file: avatarFile, avatars });
       }
       return reply.code(201).send(created);
     },
