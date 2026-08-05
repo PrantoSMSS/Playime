@@ -27,9 +27,9 @@
 		return name.slice(0, 2).toUpperCase();
 	}
 
-	/** Resolve the display image for a card — first from avatars array, then legacy avatar, then cover. */
+	/** Resolve the display image for a card — first from avatars array, then legacy avatar, then file storage fields, then cover. */
 	function getDisplayImage(card: ApiCharacterCard): string | null {
-		const raw = card.avatars.length > 0 ? card.avatars[0]!.image : (card.avatar ?? card.cover_image ?? null);
+		const raw = card.avatars.length > 0 ? card.avatars[0]!.image : (card.avatar ?? card.avatar_file ?? card.cover_file ?? card.cover_image ?? null);
 		return resolveFileUrl(raw);
 	}
 

@@ -385,15 +385,23 @@ export async function exportCardAsJson(card: ApiCharacterCard): Promise<void> {
 
 /** Export a character card as PNG with embedded card data and trigger download. */
 export async function exportCardAsPng(card: ApiCharacterCard): Promise<void> {
-	const res = await fetch(`${BASE}/api/cards/${encodeURIComponent(card.id)}/export.png`);
+	const avatarPath = card.avatars[0]?.image ?? card.avatar_file;
+	const avatarUrl = resolveFileUrl(avatarPath);
+
+	const url = new URL(`/api/cards/${encodeURIComponent(card.id)}/export.png`, BASE);
+	if (avatarUrl) {
+		url.searchParams.set('avatar_url', avatarUrl);
+	}
+
+	const res = await fetch(url.toString());
 	if (!res.ok) throw await errorFrom(res);
 	const blob = await res.blob();
-	const url = URL.createObjectURL(blob);
+	const blobUrl = URL.createObjectURL(blob);
 	const a = document.createElement('a');
-	a.href = url;
+	a.href = blobUrl;
 	a.download = `${card.name}.png`;
 	a.click();
-	URL.revokeObjectURL(url);
+	URL.revokeObjectURL(blobUrl);
 }
 
 /** Send a user turn and resolve with the persisted turn + assistant reply. */

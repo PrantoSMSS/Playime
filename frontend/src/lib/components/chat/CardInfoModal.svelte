@@ -111,7 +111,7 @@
 
 	// The avatar image to show — first from the avatars array, or card default
 	const displayImage = $derived(() => {
-		const raw = card.avatars.length > 0 ? card.avatars[0]!.image : (card.avatar ?? card.cover_image ?? null);
+		const raw = card.avatars.length > 0 ? card.avatars[0]!.image : (card.avatar ?? card.avatar_file ?? card.cover_file ?? card.cover_image ?? null);
 		return resolveFileUrl(raw);
 	});
 
