@@ -23,7 +23,7 @@ import type {
   UpdateCharacterCardInput,
 } from '../models/character.js';
 import { extractCardJsonFromPng, embedTextChunks } from '../cards/pngText.js';
-import { parseSillyTavernCard } from '../cards/sillytavern.js';
+import { parseSillyTavernCard, saveAvatarLocally } from '../cards/sillytavern.js';
 
 export async function characterRoutes(app: FastifyInstance): Promise<void> {
   // ── GET /api/cards ───────────────────────────────────────────────────
@@ -231,6 +231,12 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const created = createCharacterCard(card as CreateCharacterCardInput);
+
+      // Save avatar locally and update avatar_file
+      const avatarFile = await saveAvatarLocally(created.id, card.avatar ?? null);
+      if (avatarFile) {
+        updateCharacterCard(created.id, { avatar_file: avatarFile });
+      }
       return reply.code(201).send(created);
     },
   );

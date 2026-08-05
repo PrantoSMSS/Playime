@@ -13,7 +13,10 @@
  * Off-spec fallback handles KoboldAI-style exports (char_name, char_persona,
  * char_greeting) and other non-standard shapes.
  */
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { AvatarOption, CharacterCard, StartingScenario, WorldInfoEntry } from '../models/character.js';
+import { ensureEntityDir } from '../storage.js';
 
 // ── SillyTavern raw types (what we receive, before normalization) ───────
 
@@ -371,4 +374,44 @@ function parseOffSpec(card: SillyTavernV1): Partial<CharacterCard> {
     description: card.description ?? null,
     prologue_preview: firstMessage || null,
   };
+}
+
+// ── Avatar persistence ───────────────────────────────────────────────
+
+/**
+ * Download or decode avatar and save to entity folder.
+ * Returns local filename.
+ */
+export async function saveAvatarLocally(
+  cardId: string,
+  avatarValue: string | null,
+): Promise<string | null> {
+  if (!avatarValue) return null;
+
+  const entityDir = ensureEntityDir('characters', cardId);
+
+  if (avatarValue.startsWith('data:')) {
+    // Decode base64 data URI
+    const base64 = avatarValue.split(',')[1] ?? '';
+    const buffer = Buffer.from(base64, 'base64');
+    const ext = avatarValue.includes('image/png') ? 'png' : 'jpg';
+    const filename = `avatar.${ext}`;
+    writeFileSync(join(entityDir, filename), buffer);
+    return filename;
+  }
+
+  if (avatarValue.startsWith('http://') || avatarValue.startsWith('https://')) {
+    // Fetch from URL
+    const resp = await fetch(avatarValue);
+    if (!resp.ok) return null;
+    const buffer = Buffer.from(await resp.arrayBuffer());
+    const contentType = resp.headers.get('content-type') || '';
+    const ext = contentType.includes('image/png') ? 'png' : 'jpg';
+    const filename = `avatar.${ext}`;
+    writeFileSync(join(entityDir, filename), buffer);
+    return filename;
+  }
+
+  // Already a relative path or unknown format
+  return null;
 }
