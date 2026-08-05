@@ -3,7 +3,6 @@ import type { FastifyInstance } from 'fastify';
 import { join } from 'node:path';
 import { accessSync, createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
-import { randomUUID } from 'node:crypto';
 import { ENTITY_TYPES, type EntityType, ensureEntityDir, getEntityPath } from '../storage.js';
 
 const ENTITIES_DIR = join(import.meta.dirname, '../../data/entities');
