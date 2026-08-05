@@ -387,11 +387,12 @@ export async function exportCardAsJson(card: ApiCharacterCard): Promise<void> {
 export async function exportCardAsPng(card: ApiCharacterCard): Promise<void> {
 	const avatarPath = card.avatars[0]?.image ?? card.avatar_file;
 	const avatarUrl = resolveFileUrl(avatarPath);
+	if (!avatarUrl) {
+		throw new ApiError(400, 'Card has no avatar to export');
+	}
 
 	const url = new URL(`/api/cards/${encodeURIComponent(card.id)}/export.png`, BASE);
-	if (avatarUrl) {
-		url.searchParams.set('avatar_url', avatarUrl);
-	}
+	url.searchParams.set('avatar_url', avatarUrl);
 
 	const res = await fetch(url.toString());
 	if (!res.ok) throw await errorFrom(res);
