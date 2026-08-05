@@ -5,11 +5,13 @@
 	let {
 		mode,
 		card,
+		importedData,
 		onclose,
 		onsave,
 	}: {
 		mode: 'create' | 'edit';
 		card?: ApiCharacterCard;
+		importedData?: Partial<CreateCardInput>;
 		onclose: () => void;
 		onsave: (card: ApiCharacterCard) => void;
 	} = $props();
@@ -18,20 +20,20 @@
 	type Tab = 'identity' | 'personality' | 'scenario';
 	let activeTab = $state<Tab>('identity');
 
-	// ── Form fields (initialized from card when editing) ───────────────────
+	// ── Form fields (initialized from importedData, card, or empty) ────────
 	// We intentionally capture the prop's initial value here — the modal is
 	// created fresh per open, so reactivity is not needed.
-	let name = $state(card?.name ?? '');
-	let tagline = $state(card?.tagline ?? '');
-	let description = $state(card?.description ?? '');
-	let personality = $state(card?.personality ?? '');
-	let speechStyle = $state(card?.speech_style ?? '');
-	let likesAndDislikes = $state(card?.likes_and_dislikes ?? '');
-	let scenario = $state(card?.scenario ?? '');
-	let firstMessage = $state(card?.first_message ?? '');
+	let name = $state(importedData?.name ?? card?.name ?? '');
+	let tagline = $state(importedData?.tagline ?? card?.tagline ?? '');
+	let description = $state(importedData?.description ?? card?.description ?? '');
+	let personality = $state(importedData?.personality ?? card?.personality ?? '');
+	let speechStyle = $state(importedData?.speech_style ?? card?.speech_style ?? '');
+	let likesAndDislikes = $state(importedData?.likes_and_dislikes ?? card?.likes_and_dislikes ?? '');
+	let scenario = $state(importedData?.scenario ?? card?.scenario ?? '');
+	let firstMessage = $state(importedData?.first_message ?? card?.first_message ?? '');
 
 	// ── Avatar ────────────────────────────────────────────────────────────
-	let avatarPreview = $state<string | null>(card?.avatar ?? null);
+	let avatarPreview = $state<string | null>(importedData?.avatar ?? card?.avatar ?? null);
 	let fileInput = $state<HTMLInputElement>();
 
 	// ── Submission state ───────────────────────────────────────────────────
@@ -64,10 +66,6 @@
 		if (fileInput) fileInput.value = '';
 	}
 
-	function handleBackdropClick(e: MouseEvent): void {
-		if (e.target === e.currentTarget) onclose();
-	}
-
 	function handleKeydown(e: KeyboardEvent): void {
 		if (e.key === 'Escape') onclose();
 	}
@@ -82,7 +80,8 @@
 			let result: ApiCharacterCard | null;
 
 			if (mode === 'create') {
-				const input: CreateCardInput = {
+				// Build base input from form fields
+				const baseInput: CreateCardInput = {
 					name: name.trim(),
 					...(avatarPreview ? { avatar: avatarPreview } : {}),
 					tagline: tagline.trim(),
@@ -93,6 +92,26 @@
 					...(firstMessage.trim() ? { first_message: firstMessage.trim() } : {}),
 					...(description.trim() ? { description: description.trim() } : {}),
 				};
+
+				// Merge with imported fields that aren't in the form
+				const input: CreateCardInput = {
+					...baseInput,
+					// Pass through all imported fields that aren't form-editable
+					...(importedData?.alternate_greetings ? { alternate_greetings: importedData.alternate_greetings } : {}),
+					...(importedData?.world_info ? { world_info: importedData.world_info } : {}),
+					...(importedData?.extensions ? { extensions: importedData.extensions } : {}),
+					...(importedData?.tags ? { tags: importedData.tags } : {}),
+					...(importedData?.creator ? { creator: importedData.creator } : {}),
+					...(importedData?.creator_notes ? { creator_notes: importedData.creator_notes } : {}),
+					...(importedData?.creator_name ? { creator_name: importedData.creator_name } : {}),
+					...(importedData?.character_version ? { character_version: importedData.character_version } : {}),
+					...(importedData?.system_prompt ? { system_prompt: importedData.system_prompt } : {}),
+					...(importedData?.post_history_instructions ? { post_history_instructions: importedData.post_history_instructions } : {}),
+					...(importedData?.mes_example ? { mes_example: importedData.mes_example } : {}),
+					...(importedData?.starting_scenarios ? { starting_scenarios: importedData.starting_scenarios } : {}),
+					...(importedData?.default_persona ? { default_persona: importedData.default_persona } : {}),
+				};
+
 				result = await saveCard('create', input);
 			} else {
 				const input: UpdateCardInput = {
@@ -124,13 +143,17 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="modal-backdrop" onclick={handleBackdropClick}>
+<div class="modal-backdrop">
 	<div class="modal" role="dialog" aria-labelledby="character-form-title">
 		<div class="modal__header">
 			<h2 id="character-form-title" class="modal__header-title">
-				{mode === 'create' ? 'Create Character' : 'Edit Character'}
+				{#if importedData}
+					Create Character (Imported)
+				{:else if mode === 'create'}
+					Create Character
+				{:else}
+					Edit Character
+				{/if}
 			</h2>
 			<button class="modal__close" onclick={onclose} aria-label="Close">
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

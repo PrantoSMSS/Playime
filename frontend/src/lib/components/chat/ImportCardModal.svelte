@@ -1,13 +1,13 @@
 <script lang="ts">
-	import type { ApiCharacterCard } from '$lib/api/chat';
+	import type { CreateCardInput } from '$lib/api/chat';
 	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 
 	let {
 		onclose,
-		onimported,
+		onparsed,
 	}: {
 		onclose: () => void;
-		onimported: (card: ApiCharacterCard) => void;
+		onparsed: (data: Partial<CreateCardInput>) => void;
 	} = $props();
 
 	const BASE = (PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:3000').replace(/\/+$/, '');
@@ -23,10 +23,6 @@
 	const hasContent = $derived(jsonText.trim().length > 0);
 
 	// ── Handlers ──────────────────────────────────────────────────────────
-
-	function handleBackdropClick(e: MouseEvent): void {
-		if (e.target === e.currentTarget) onclose();
-	}
 
 	function handleKeydown(e: KeyboardEvent): void {
 		if (e.key === 'Escape') onclose();
@@ -46,8 +42,8 @@
 		dragging = false;
 		const files = e.dataTransfer?.files;
 		if (files && files.length > 0) {
-		importFile(files[0]!);
-	}
+			importFile(files[0]!);
+		}
 	}
 
 	function handleFileSelect(e: Event): void {
@@ -66,7 +62,7 @@
 
 	/**
 	 * Read a file as a base64 data URI, extract the raw base64 portion,
-	 * and POST to the import endpoint.
+	 * and POST to the parse endpoint.
 	 */
 	function importFile(file: File): Promise<void> {
 		return new Promise((resolve) => {
@@ -75,7 +71,7 @@
 				const dataUri = reader.result as string;
 				// dataUri looks like "data:image/png;base64,iVBOR..." or "data:application/json;base64,..."
 				const base64 = dataUri.split(',')[1] ?? '';
-				await sendImport({ data: base64 });
+				await sendParse({ data: base64 });
 				resolve();
 			};
 			reader.onerror = () => {
@@ -97,20 +93,20 @@
 		}
 		try {
 			const parsed: unknown = JSON.parse(text);
-			sendImport(parsed);
+			sendParse(parsed);
 		} catch {
 			errorMessage = 'Invalid JSON — could not parse the pasted text.';
 		}
 	}
 
 	/**
-	 * POST to the backend import endpoint.
+	 * POST to the backend parse endpoint. Returns parsed data WITHOUT creating a card.
 	 */
-	async function sendImport(body: unknown): Promise<void> {
+	async function sendParse(body: unknown): Promise<void> {
 		errorMessage = '';
 		importing = true;
 		try {
-			const res = await fetch(`${BASE}/api/cards/import`, {
+			const res = await fetch(`${BASE}/api/cards/parse`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(body),
@@ -124,8 +120,8 @@
 				errorMessage = message;
 				return;
 			}
-			const card = (await res.json()) as ApiCharacterCard;
-			onimported(card);
+			const data = (await res.json()) as Partial<CreateCardInput>;
+			onparsed(data);
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : 'Network error — could not reach the server.';
 		} finally {
@@ -142,12 +138,10 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="modal-backdrop" onclick={handleBackdropClick}>
+<div class="modal-backdrop">
 	<div class="modal" role="dialog" aria-labelledby="import-card-title">
 		<div class="modal__header">
-			<h2 id="import-card-title" class="modal__header-title">Import Character Card</h2>
+			<h2 id="import-card-title" class="modal__header-title">Import Character Data</h2>
 			<button class="modal__close" onclick={onclose} aria-label="Close">
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M18 6L6 18M6 6l12 12" />
@@ -170,7 +164,7 @@
 					<polyline points="17 8 12 3 7 8" />
 					<line x1="12" y1="3" x2="12" y2="15" />
 				</svg>
-				<p class="dropzone__label">Drag & drop or click to upload</p>
+				<p class="dropzone__label">Drag & drop or click to import</p>
 				<p class="dropzone__sublabel">Supports: .png (character card) · .json</p>
 				<input
 					bind:this={fileInputEl}
@@ -219,7 +213,7 @@
 				onclick={handleImport}
 			>
 				{#if importing}
-					Importing...
+					Parsing...
 				{:else}
 					Import
 				{/if}
@@ -424,6 +418,7 @@
 		cursor: pointer;
 		transition: opacity var(--transition-fast), background var(--transition-fast);
 	}
+
 	.modal__btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;

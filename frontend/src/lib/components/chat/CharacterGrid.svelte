@@ -1,18 +1,41 @@
 <script lang="ts">
 	import {
 		chat,
+		loadCards,
 		openCardInfoModal,
 		openCreateCardModal,
 		openImportCardModal,
+		closeImportCardModal,
 	} from '$lib/state/chat.svelte';
-	import type { ApiCharacterCard } from '$lib/api/chat';
+	import type { ApiCharacterCard, CreateCardInput } from '$lib/api/chat';
+
+	let loading = $state(false);
 
 	function handleCardClick(card: ApiCharacterCard): void {
 		void openCardInfoModal(card.id);
 	}
 
+	function handleImportClick(): void {
+		openImportCardModal((data: Partial<CreateCardInput>) => {
+			closeImportCardModal();
+			openCreateCardModal(data);
+		});
+	}
+
 	function getInitials(name: string): string {
 		return name.slice(0, 2).toUpperCase();
+	}
+
+	/** Resolve the display image for a card — first from avatars array, then legacy avatar, then cover. */
+	function getDisplayImage(card: ApiCharacterCard): string | null {
+		if (card.avatars.length > 0) return card.avatars[0]!.image;
+		return card.avatar ?? card.cover_image ?? null;
+	}
+
+	async function handleRetry(): Promise<void> {
+		loading = true;
+		await loadCards();
+		loading = false;
 	}
 </script>
 
@@ -21,14 +44,14 @@
 	<div class="grid-header">
 		<h1 class="grid-header__title">Character</h1>
 		<div class="grid-header__actions">
-			<button class="action-btn" onclick={openCreateCardModal}>
+			<button class="action-btn" onclick={() => openCreateCardModal()}>
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<line x1="12" y1="5" x2="12" y2="19" />
 					<line x1="5" y1="12" x2="19" y2="12" />
 				</svg>
-				<span>+ New</span>
+				<span>New</span>
 			</button>
-			<button class="action-btn" onclick={openImportCardModal}>
+			<button class="action-btn" onclick={handleImportClick}>
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
 					<polyline points="17 8 12 3 7 8" />
@@ -42,21 +65,34 @@
 	<!-- Card grid -->
 	{#if chat.cards.length === 0}
 		<div class="empty-state">
-			<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-				<rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-				<line x1="12" y1="8" x2="12" y2="16" />
-				<line x1="8" y1="12" x2="16" y2="12" />
-			</svg>
-			<p class="empty-state__title">No characters yet</p>
-			<p class="empty-state__hint">Create a new character or import one to get started.</p>
+			{#if chat.error}
+				<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+					<circle cx="12" cy="12" r="10" />
+					<line x1="12" y1="8" x2="12" y2="12" />
+					<line x1="12" y1="16" x2="12.01" y2="16" />
+				</svg>
+				<p class="empty-state__title">Couldn't load characters</p>
+				<p class="empty-state__hint">{chat.error}</p>
+				<button class="retry-btn" onclick={handleRetry} disabled={loading}>
+					{loading ? 'Retrying…' : 'Retry'}
+				</button>
+			{:else}
+				<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+					<rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+					<line x1="12" y1="8" x2="12" y2="16" />
+					<line x1="8" y1="12" x2="16" y2="12" />
+				</svg>
+				<p class="empty-state__title">No characters yet</p>
+				<p class="empty-state__hint">Create a new character or import one to get started.</p>
+			{/if}
 		</div>
 	{:else}
 		<div class="card-grid">
 			{#each chat.cards as card (card.id)}
 				<button class="card" onclick={() => handleCardClick(card)}>
 					<div class="card__image">
-						{#if card.avatar}
-							<img src={card.avatar} alt={card.name} />
+						{#if getDisplayImage(card)}
+							<img src={getDisplayImage(card)} alt={card.name} />
 						{:else}
 							<span class="card__initials">{getInitials(card.name)}</span>
 						{/if}
@@ -147,6 +183,31 @@
 		margin: 0;
 		font-size: var(--font-size-sm);
 		color: var(--text-muted);
+	}
+
+	.retry-btn {
+		margin-top: var(--space-2);
+		padding: var(--space-2) var(--space-4);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-pill);
+		background: var(--surface-elevated);
+		color: var(--text-secondary);
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-medium);
+		cursor: pointer;
+		transition:
+			background var(--transition-fast),
+			color var(--transition-fast),
+			border-color var(--transition-fast);
+	}
+	.retry-btn:hover:not(:disabled) {
+		background: var(--accent-soft);
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+	.retry-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	/* ── Card grid ───────────────────────────────────────────────────── */

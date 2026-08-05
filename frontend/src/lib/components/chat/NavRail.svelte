@@ -4,7 +4,7 @@
 	import Icon from './Icon.svelte';
 
 	// No credit/currency section — this is a local-first tool, not a hosted
-	// product (AGENTS.md: explicitly skip monetization plumbing).
+	// product (CLAUDE.md: explicitly skip monetization plumbing).
 	type NavItemId = Exclude<NavView, 'conversation'>;
 	const NAV_ITEMS: { id: NavItemId; label: string }[] = [
 		{ id: 'search', label: 'Search' },

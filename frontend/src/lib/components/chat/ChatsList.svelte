@@ -1,5 +1,9 @@
 <script lang="ts">
-	import { chat, deleteSession, resetSession } from '$lib/state/chat.svelte';
+	import {
+		chat, deleteSession, resetSession, loadSessionMessages,
+		toggleSelection, selectAll, enterSelectionMode, exitSelectionMode,
+		bulkDeleteSessions, bulkResetSessions,
+	} from '$lib/state/chat.svelte';
 	import { nav, chatsTab } from '$lib/state/nav.svelte';
 	import type { ChatSession } from '$lib/types/chat';
 	import Avatar from './Avatar.svelte';
@@ -10,6 +14,11 @@
 
 	const filteredSessions = $derived(
 		chat.sessions.filter((s) => s.kind === chatsTab.tab),
+	);
+
+	const selectedCount = $derived.by(() => Object.keys(chat.selectedSessionIds).length);
+	const allVisibleSelected = $derived.by(() =>
+		filteredSessions.length > 0 && filteredSessions.every((s) => chat.selectedSessionIds[s.id]),
 	);
 
 	// ── Relative timestamp ─────────────────────────────────────────────────
@@ -31,9 +40,23 @@
 	}
 
 	// ── Handlers ───────────────────────────────────────────────────────────
-	function handleSessionClick(s: ChatSession): void {
+	async function handleSessionClick(s: ChatSession): Promise<void> {
+		if (chat.selectionMode) {
+			toggleSelection(s.id);
+			return;
+		}
 		chat.activeSessionId = s.id;
 		nav.activeView = 'conversation';
+		// Load messages from backend if not already loaded
+		if (!chat.messagesBySession[s.id]?.length) {
+			await loadSessionMessages(s.id);
+		}
+	}
+
+	function handleKeydown(e: KeyboardEvent): void {
+		if (e.key === 'Escape' && chat.selectionMode) {
+			exitSelectionMode();
+		}
 	}
 
 	function toggleMenu(e: MouseEvent, sessionId: string): void {
@@ -41,15 +64,15 @@
 		menuOpenId = menuOpenId === sessionId ? null : sessionId;
 	}
 
-	function handleDelete(e: MouseEvent, sessionId: string): void {
+	async function handleDelete(e: MouseEvent, sessionId: string): Promise<void> {
 		e.stopPropagation();
-		deleteSession(sessionId);
+		await deleteSession(sessionId);
 		menuOpenId = null;
 	}
 
-	function handleReset(e: MouseEvent, sessionId: string): void {
+	async function handleReset(e: MouseEvent, sessionId: string): Promise<void> {
 		e.stopPropagation();
-		resetSession(sessionId);
+		await resetSession(sessionId);
 		menuOpenId = null;
 	}
 
@@ -58,28 +81,52 @@
 	}
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="history-list" onclick={handleClickOutside}>
 	<div class="history-list__header">
-		<h2 class="history-list__title">Chats</h2>
-		<div class="history-list__tabs" role="tablist">
-			<button
-				class="history-list__tab"
-				class:history-list__tab--active={chatsTab.tab === 'story'}
-				role="tab"
-				onclick={() => (chatsTab.tab = 'story')}
-			>
-				Story
-			</button>
-			<button
-				class="history-list__tab"
-				class:history-list__tab--active={chatsTab.tab === 'character'}
-				role="tab"
-				onclick={() => (chatsTab.tab = 'character')}
-			>
-				Character
-			</button>
+		{#if chat.selectionMode}
+			<h2 class="history-list__title">Select conversations</h2>
+		{:else}
+			<h2 class="history-list__title">Chats</h2>
+		{/if}
+		<div class="history-list__header-actions">
+			{#if chat.selectionMode}
+				<button class="history-list__select-all" onclick={() => selectAll(filteredSessions.map((s) => s.id))}>
+					{allVisibleSelected ? 'Deselect All' : 'Select All'}
+				</button>
+				{#if selectedCount > 0}
+					<button class="history-list__action-btn history-list__action-btn--delete" onclick={bulkDeleteSessions}>
+						Delete ({selectedCount})
+					</button>
+					<button class="history-list__action-btn history-list__action-btn--reset" onclick={bulkResetSessions}>
+						Reset ({selectedCount})
+					</button>
+				{/if}
+				<button class="history-list__done-btn" onclick={exitSelectionMode}>Cancel</button>
+			{:else}
+				<div class="history-list__tabs" role="tablist">
+					<button
+						class="history-list__tab"
+						class:history-list__tab--active={chatsTab.tab === 'story'}
+						role="tab"
+						onclick={() => (chatsTab.tab = 'story')}
+					>
+						Story
+					</button>
+					<button
+						class="history-list__tab"
+						class:history-list__tab--active={chatsTab.tab === 'character'}
+						role="tab"
+						onclick={() => (chatsTab.tab = 'character')}
+					>
+						Character
+					</button>
+				</div>
+				<button class="history-list__select-btn" onclick={enterSelectionMode}>Select</button>
+			{/if}
 		</div>
 	</div>
 
@@ -92,9 +139,20 @@
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="history-list__item"
-				class:history-list__item--active={chat.activeSessionId === s.id}
+				class:history-list__item--active={!chat.selectionMode && chat.activeSessionId === s.id}
+				class:history-list__item--selected={chat.selectedSessionIds[s.id]}
 				onclick={() => handleSessionClick(s)}
 			>
+				{#if chat.selectionMode}
+					<div class="history-list__checkbox">
+						<input
+							type="checkbox"
+							checked={!!chat.selectedSessionIds[s.id]}
+							onclick={(e) => { e.stopPropagation(); toggleSelection(s.id); }}
+							tabindex="-1"
+						/>
+					</div>
+				{/if}
 				<div class="history-list__avatar">
 					<Avatar initials={s.initials} hue={s.hue} size={48}>
 						{#if s.avatarUrl}
@@ -109,30 +167,33 @@
 					</div>
 					<div class="history-list__row">
 						<span class="history-list__preview">{s.preview}</span>
-						<div class="history-list__menu-wrap">
-							<button
-								class="history-list__dots"
-								onclick={(e) => toggleMenu(e, s.id)}
-								aria-label="More options"
-							>
-								<Icon name="dots" size={16} />
-							</button>
-							{#if menuOpenId === s.id}
-								<div class="history-list__dropdown" onclick={(e) => e.stopPropagation()}>
-									<button class="history-list__dropdown-item" onclick={(e) => handleDelete(e, s.id)}>
-										Delete conversation
-									</button>
-									<button class="history-list__dropdown-item" onclick={(e) => handleReset(e, s.id)}>
-										Reset chat
-									</button>
-								</div>
-							{/if}
-						</div>
+						{#if !chat.selectionMode}
+							<div class="history-list__menu-wrap">
+								<button
+									class="history-list__dots"
+									onclick={(e) => toggleMenu(e, s.id)}
+									aria-label="More options"
+								>
+									<Icon name="dots" size={16} />
+								</button>
+								{#if menuOpenId === s.id}
+									<div class="history-list__dropdown" onclick={(e) => e.stopPropagation()}>
+										<button class="history-list__dropdown-item" onclick={(e) => handleDelete(e, s.id)}>
+											Delete conversation
+										</button>
+										<button class="history-list__dropdown-item" onclick={(e) => handleReset(e, s.id)}>
+											Reset chat
+										</button>
+									</div>
+								{/if}
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>
 		{/each}
 	</div>
+
 </div>
 
 <style>
@@ -296,5 +357,94 @@
 	}
 	.history-list__dropdown-item:hover {
 		background: var(--bg-raised);
+	}
+
+	/* ---- Header actions ---- */
+	.history-list__header-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+	.history-list__select-btn,
+	.history-list__select-all,
+	.history-list__done-btn {
+		padding: var(--space-1) var(--space-3);
+		border-radius: var(--radius-pill);
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-medium);
+		cursor: pointer;
+		transition: background var(--transition-fast), color var(--transition-fast);
+	}
+	.history-list__select-btn {
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		color: var(--text-secondary);
+	}
+	.history-list__select-btn:hover {
+		background: var(--accent-soft);
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+	.history-list__select-all {
+		background: none;
+		border: none;
+		color: var(--accent);
+	}
+	.history-list__select-all:hover {
+		text-decoration: underline;
+	}
+	.history-list__done-btn {
+		background: var(--accent);
+		border: none;
+		color: var(--on-accent);
+	}
+	.history-list__done-btn:hover {
+		background: var(--accent-hover);
+	}
+
+	/* ---- Checkbox ---- */
+	.history-list__checkbox {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+	}
+	.history-list__checkbox input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		accent-color: var(--accent);
+		cursor: pointer;
+	}
+
+	/* ---- Selected state ---- */
+	.history-list__item--selected {
+		background: var(--accent-soft);
+	}
+
+	/* ---- Action buttons (inside header in selection mode) ---- */
+	.history-list__action-btn {
+		padding: var(--space-1) var(--space-3);
+		border-radius: var(--radius-pill);
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-semibold);
+		cursor: pointer;
+		transition: background var(--transition-fast);
+		white-space: nowrap;
+	}
+	.history-list__action-btn--delete {
+		background: var(--danger-bg, #3b1c1c);
+		color: var(--danger-text, #f87171);
+	}
+	.history-list__action-btn--delete:hover {
+		background: var(--danger-hover, #4c2020);
+	}
+	.history-list__action-btn--reset {
+		background: var(--bg-raised);
+		color: var(--text-secondary);
+		border: 1px solid var(--border);
+	}
+	.history-list__action-btn--reset:hover {
+		background: var(--accent-soft);
+		color: var(--accent);
+		border-color: var(--accent);
 	}
 </style>

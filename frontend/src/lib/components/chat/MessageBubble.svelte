@@ -80,8 +80,8 @@
 	}
 
 	/* Everything that isn't speech — narration and stage directions alike —
-	 * reads italic + muted. Dialogue is the only bold segment (bold,
-	 * full-contrast), so spoken lines lead the reading. */
+	 * reads italic + muted. Dialogue is slightly bold + normal, so spoken
+	 * lines lead the reading. */
 	.bubble__seg {
 		color: var(--ai-narration);
 		font-style: italic;
@@ -89,6 +89,7 @@
 	.bubble__seg--dialogue {
 		color: var(--ai-dialogue);
 		font-style: normal;
+		font-weight: var(--font-weight-medium);
 	}
 
 	/* Typing indicator: the live streaming placeholder shows animated dots

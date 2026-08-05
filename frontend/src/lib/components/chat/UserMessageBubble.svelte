@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { parseMessage } from '$lib/messageParse';
 	import type { ChatMessage } from '$lib/types/chat';
 
 	let { message }: { message: ChatMessage } = $props();
@@ -12,10 +13,17 @@
 			message.content.startsWith('*') &&
 			message.content.endsWith('*')
 	);
-	const display = $derived(isOoc ? message.content.slice(1, -1) : message.content);
+	const segments = $derived(parseMessage(message.content));
 </script>
 
-<div class="user-bubble" class:user-bubble--ooc={isOoc}>{display}</div>
+<div class="user-bubble" class:user-bubble--ooc={isOoc}>
+	{#each segments as seg, i (i)}
+		<span
+			class="user-bubble__seg"
+			class:user-bubble__seg--dialogue={seg.type === 'dialogue'}
+		>{seg.text}</span>
+	{/each}
+</div>
 
 <style>
 	.user-bubble {
@@ -34,5 +42,8 @@
 		font-style: italic;
 		background: var(--user-bg);
 		border-color: var(--user-border);
+	}
+	.user-bubble__seg--dialogue {
+		font-weight: var(--font-weight-medium);
 	}
 </style>
