@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ApiCharacterCard, CreateCardInput, UpdateCardInput } from '$lib/api/chat';
+	import { resolveFileUrl } from '$lib/api/chat';
 	import { saveCard } from '$lib/state/chat.svelte';
 
 	let {
@@ -33,7 +34,7 @@
 	let firstMessage = $state(importedData?.first_message ?? card?.first_message ?? '');
 
 	// ── Avatar ────────────────────────────────────────────────────────────
-	let avatarPreview = $state<string | null>(importedData?.avatar ?? card?.avatar ?? null);
+	let avatarPreview = $state<string | null>(resolveFileUrl(importedData?.avatar ?? card?.avatar ?? card?.avatar_file ?? null));
 	let fileInput = $state<HTMLInputElement>();
 
 	// ── Submission state ───────────────────────────────────────────────────
