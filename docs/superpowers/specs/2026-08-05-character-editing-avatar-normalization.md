@@ -60,6 +60,20 @@ CardInfoModal
 
 Untouched fields remain unchanged. The PATCH endpoint only updates fields present in the request body. Compatible fields (extensions, world_info, alternate_greetings, etc.) are preserved because the frontend doesn't send them in the PATCH payload.
 
+**Critical rule:** Editing through CharacterFormModal must NOT remove Character Card fields not represented in the UI. Only fields controlled by the form should be updated. Example:
+
+```
+Imported card: Miko
+  system_prompt = "..."
+  extensions = {...}
+  alternate_greetings = [...]
+
+User edits: Name only
+
+Result must still contain:
+  system_prompt, extensions, alternate_greetings
+```
+
 ## Section 2: Avatar Lifecycle Cleanup
 
 ### Problem
@@ -165,6 +179,13 @@ Frontend: receives relative path → includes in card create/update payload
 3. Receive relative path back (e.g., `characters/char_abyss_0001/avatar.png`)
 4. Include path in the card create/update payload
 
+### Frontend Avatar Contract
+
+- Frontend may temporarily convert selected files into upload-compatible data
+- Backend remains responsible for storage normalization (format, path, validation)
+- The UI should not assume the database stores the final avatar representation
+- Frontend only sends the file upload; backend returns the canonical reference path
+
 ### Entity Directory Structure
 
 ```
@@ -175,7 +196,40 @@ data/entities/characters/char_abyss_0001/
     └── option2.png
 ```
 
-## Section 5: Avatar Management in Editor
+## Section 5: CharacterGrid Architecture
+
+### Presentation-Only Rule
+
+CharacterGrid is presentation-only. It must not directly manage:
+- Modal state
+- API calls
+- Character mutations
+
+All actions should call centralized `chat.svelte.ts` state functions:
+- `onnewclick()` → `openCharacterFormModal` (via state)
+- `onuploadclick()` → `openImportCardModal` (via state)
+- `oncardclick(card)` → `openCardInfoModal(card)` (via state)
+
+This prevents navigation/modal ownership conflicts and keeps state centralized.
+
+### Required UI States
+
+| Component | States |
+|---|---|
+| **CharacterGrid** | Loading characters · Empty character library · Error loading characters |
+| **CharacterFormModal** | Saving · Save failure |
+| **ImportCardModal** | Reading file · Parsing card · Importing · Import failure |
+
+**Empty state for CharacterGrid:**
+```
+No characters yet
+[+ New Character]
+[Import Character Card]
+```
+
+**Loading states:** Show spinner or skeleton while cards load, save, import, or process avatars.
+
+## Section 7: Avatar Management in Editor
 
 ### UI in Edit Mode (Identity Tab)
 
@@ -193,7 +247,26 @@ data/entities/characters/char_abyss_0001/
 
 Removing an avatar from the card does NOT delete the file — existing sessions may reference it via `avatar_snapshot`. The file becomes orphaned but harmless.
 
-## Section 6: Deletion Reference Cleanup
+## Section 8: Character Deletion
+
+### Delete UI Location
+
+**Location:** CardInfoModal footer (existing Delete button, confirmed present).
+
+**Requirements:**
+- Confirmation required (existing confirmation dialog)
+- Delete database record
+- Delete character entity folder
+- Existing chat sessions must remain readable (snapshots intact)
+
+### Current Behavior
+
+```typescript
+deleteCharacterCard(id);   // removes DB row
+deleteEntityDir('characters', id);  // removes entity folder
+```
+
+Sessions store `character_card_id` but also snapshot `avatar_snapshot` and `starting_scenario_snapshot`. After deletion, the `character_card_id` becomes a dangling reference — but chat history remains intact.
 
 ### Current Behavior
 
