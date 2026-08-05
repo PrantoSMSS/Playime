@@ -30,14 +30,32 @@ A Character lives in the **Character Pool** — owned, authored, and maintained 
 
 A Story Card's `cast_mode` controls which Characters participate and whether players can modify the cast. See [Cast Modes](#cast-modes) for the three modes.
 
-This separation means the same Character can appear in multiple Stories with different roles, and editing a Character does not break existing Stories or Sessions. **This architecture is planned, not yet fully implemented** — see `PLAYIME_CHECKLIST.md` for current status.
+This separation means the same Character can appear in multiple Stories with different roles, and editing a Character does not break existing Stories or Sessions. **This architecture is planned, not yet fully implemented** — see `playime-checklist.md` for current status.
 
-**Story Cards are Playime's flagship feature** — the thing no comparable tool has: a browsable, shareable, structured story unit with its own quest log and per-NPC relationships (see `PLAYIME_ROADMAP.md` §0.5 for the prior-art research that decided this). Treat `StoryCard` as a first-class peer of `CharacterCard`, never a lesser sibling.
+**Story Cards are Playime's flagship feature** — the thing no comparable tool has: a browsable, shareable, structured story unit with its own quest log and per-NPC relationships (see `playime-roadmap.md` §0.5 for the prior-art research that decided this). Treat `StoryCard` as a first-class peer of `CharacterCard`, never a lesser sibling.
 
 **Source-of-truth docs** — read these before implementing, and keep them in sync when a decision changes:
-- `docs/PLAYIME_ROADMAP.md` — design decisions, full data-model shapes, memory-system spec (§3, §4).
-- `docs/PLAYIME_CHECKLIST.md` — build progress phase by phase, plus the Notes/decisions log where decisions are recorded.
-- `docs/PLAYIME_PROMPT_SPEC.md` — the single source of truth for prompt assembly.
+- `docs/playime-technical-overview.md` — core experience, prior art, high-level architecture, stack.
+- `docs/playime-development-onboarding.md` — data model, memory system, LM source, UI/UX, roadmap, repo structure.
+- `docs/playime-data-model.md` — character pool, story, world info, sessions.
+- `docs/playime-prompt-spec.md` — the single source of truth for prompt assembly.
+- `docs/playime-roadmap.md` — architecture, stack, data model, memory, LM source, UI/UX, phases, open questions, repo structure.
+- `docs/playime-checklist.md` — build progress phase by phase, plus the Notes/decisions log where decisions are recorded.
+
+## Sync sources
+
+CLAUDE.md syncs from the following source documents. Changes to these files should be reflected in CLAUDE.md:
+
+| Source file | Section(s) synced to CLAUDE.md | Last synced |
+|---|---|---|
+| `docs/playime-technical-overview.md` | §0–§2 (core experience, prior art, high-level architecture, stack) | 2026-08-05 |
+| `docs/playime-development-onboarding.md` | §3–§7 (data model, memory system, LM source, UI/UX, roadmap, repo structure) | 2026-08-05 |
+| `docs/playime-data-model.md` | §Data Model (character pool, story, world info, sessions) | 2026-08-05 |
+| `docs/playime-prompt-spec.md` | §Prompt Spec (canonical prompt pipeline) | 2026-08-05 |
+| `docs/playime-roadmap.md` | §1–§9 (architecture, stack, data model, memory, LM source, UI/UX, phases, open questions, repo structure) | 2026-08-05 |
+| `docs/playime-checklist.md` | §Phases A–H, §Notes/decisions log (build progress, decisions) | 2026-08-05 |
+
+Each source document is the authoritative copy for its section. When a section changes in the source, CLAUDE.md must be updated to match. Do not edit CLAUDE.md's content directly for these sections — edit the source document first, then sync the change here.
 
 ## Core architectural rule
 
@@ -74,16 +92,19 @@ playime/
       routes/character/
       routes/story/
   docs/
-    PLAYIME_ROADMAP.md
-    PLAYIME_CHECKLIST.md
-    PLAYIME_PROMPT_SPEC.md
+    playime-technical-overview.md
+    playime-development-onboarding.md
+    playime-data-model.md
+    playime-prompt-spec.md
+    playime-roadmap.md
+    playime-checklist.md
     setup-opencode.md
     setup-ollama.md
 ```
 
 ## Data model quick reference
 
-Full field shapes live in `PLAYIME_ROADMAP.md` §3 — this is the quick map. Everything is structured JSON with real schema/columns, queryable and diffable — never just prompt text.
+Full field shapes live in `playime-roadmap.md` §3 — this is the quick map. Everything is structured JSON with real schema/columns, queryable and diffable — never just prompt text.
 
 ### Character Pool (planned — not yet implemented as a separate entity)
 
@@ -194,7 +215,7 @@ Prompt Assembly (canonical prompt pipeline)
 - **Story** owns: world/story context, character references (with story-specific role/context), starting scenarios, plot_flags, quest_log, chapter_log. A Story references Characters rather than duplicating them. **A Story supports multiple starting scenarios** — the same cast and world can have completely different starting situations ("one Story → multiple ways to begin"). The selected scenario becomes session state, not story state.
 - **Persona** owns: user identity (name, appearance, personality, pronouns, avatar). Personas are reusable across Characters, Stories, and Sessions. The built-in "Myself" persona means "just be yourself." When selected at New Play time, the persona is snapshot onto the session for historical consistency.
 - **Session** owns: play-specific state (message log, relationship evolution, key-event timeline, starting scenario selection, persona selection with `persona_source` tracking default vs custom). **Sessions must not mutate reusable Character or Story definitions.**
-- **Prompt Assembly** must happen through the canonical prompt pipeline (`docs/PLAYIME_PROMPT_SPEC.md`). The prompt compiler resolves Character references by merging base Character data with Story-specific context, and injects Persona context (player identity) when a non-default persona is selected. **Do not construct independent prompts ad-hoc in UI components.**
+- **Prompt Assembly** must happen through the canonical prompt pipeline (`docs/playime-prompt-spec.md`). The prompt compiler resolves Character references by merging base Character data with Story-specific context, and injects Persona context (player identity) when a non-default persona is selected. **Do not construct independent prompts ad-hoc in UI components.**
 
 ### Live references vs snapshots (planned — implementation deferred)
 
@@ -211,7 +232,7 @@ Character Cards and Story Cards have overlapping but distinct structures. They a
 
 ## Memory system (implement in this order, don't skip ahead)
 
-1. **Working context** — last N raw turns verbatim (N = 12, per `PLAYIME_PROMPT_SPEC.md` §3).
+1. **Working context** — last N raw turns verbatim (N = 12, per `playime-prompt-spec.md` §3).
 2. **Rolling summary** — every ~15–20 turns, background call compresses history + updates flags; raw turns drop from the prompt (kept in DB for export). **Confirmed format**: a human-readable, timestamped key-event timeline that gets appended to, not rewritten —
    ```
    [Key Event Timeline]
@@ -230,9 +251,9 @@ Character mode validates this whole pipeline first. Story mode reuses the same e
 
 Phase 0 (adapter + opencode serve running) → Phase 1 (raw chat loop, no memory — **done**) → Phase 2 (Character MVP: cards + SillyTavern V2/V3 import + rolling summary + relationship state) → Phase 2.5 (World Info / lorebook layer, wired to imported `character_book`) → Phase 3 (RAG recall) → Phase 4 (Story MVP: StoryCard + quest_log + per-NPC state + chapter summarization, reusing the Phase 2/3 engine) → Phase 5 (unify UI, out-of-character toggle, checkpoints-as-forks) → Phase 6 (JSON/PNG export + Story Card portable bundle, import already landed in Phase 2) → Phase 7 (TTS/image gen hooks) → Phase 8 (packaging).
 
-**Modular Character Cards** (planned, cross-cutting) — this architectural evolution can begin after Phase 2 when Character CRUD and import are solid. See `docs/PLAYIME_CHECKLIST.md` for the dedicated feature sections (Phases A–H). The work touches data models, import normalization, Story composition, session creation, prompt assembly, and the Story Editor UI. It does not require a new phase number — it refines existing phases.
+**Modular Character Cards** (planned, cross-cutting) — this architectural evolution can begin after Phase 2 when Character CRUD and import are solid. See `docs/playime-checklist.md` for the dedicated feature sections (Phases A–H). The work touches data models, import normalization, Story composition, session creation, prompt assembly, and the Story Editor UI. It does not require a new phase number — it refines existing phases.
 
-One phase should be fully checked before the next starts (per `docs/PLAYIME_CHECKLIST.md`). Don't start Story mode or RAG before Character mode's basic loop is validated — see roadmap §9.
+One phase should be fully checked before the next starts (per `docs/playime-checklist.md`). Don't start Story mode or RAG before Character mode's basic loop is validated — see roadmap §9.
 
 ## Conventions
 
@@ -241,7 +262,7 @@ One phase should be fully checked before the next starts (per `docs/PLAYIME_CHEC
 - All state-mutating LLM calls (summarization, state extraction) should prefer a configurable "small model" — don't burn main-model context/cost on bookkeeping.
 - Streaming (SSE) is expected end-to-end once Phase 1 lands; don't ship a non-streaming chat loop as final.
 - Single local user for v1 — no auth/multi-tenancy work unless explicitly asked.
-- **Record design decisions** in `docs/PLAYIME_CHECKLIST.md`'s Notes/decisions log (and the roadmap when a shape changes) as you make them, so reasoning doesn't get lost between sessions.
+- **Record design decisions** in `docs/playime-checklist.md`'s Notes/decisions log (and the roadmap when a shape changes) as you make them, so reasoning doesn't get lost between sessions.
 - Tavern card-format default: **read both V2 (`chara`) and V3 (`ccv3`) tEXt chunks, write V2** (what SillyTavern/RisuAI/Chub.ai all reliably read today) — see roadmap §8. Never silently drop an unmapped field; put it in `extensions`.
 - Keep this file updated when stack/structure decisions change; it's what future agent sessions will trust first.
 
@@ -250,7 +271,7 @@ One phase should be fully checked before the next starts (per `docs/PLAYIME_CHEC
 - **Use stable IDs** for Characters, avatar options, Story Character references, and starting scenarios. **Never use array indexes as persistent identifiers.**
 - **Do not duplicate Character Cards into Stories** unless a deliberate snapshot/export operation requires it. Stories reference Characters from the Character Pool.
 - **Do not break existing Character Card imports or `alternate_greetings`**. Legacy cards with `avatar`, `scenario`, `first_mes`/`first_message` fields must continue to work. Normalization bridges older/simpler card structures into the modular model.
-- **Prompt construction must happen through the canonical prompt assembly pipeline** (`docs/PLAYIME_PROMPT_SPEC.md`). Do not construct independent prompts ad-hoc in UI components.
+- **Prompt construction must happen through the canonical prompt assembly pipeline** (`docs/playime-prompt-spec.md`). Do not construct independent prompts ad-hoc in UI components.
 - **Sessions must not mutate reusable Character or Story definitions** from ordinary session interactions. Session-specific state (relationship evolution, key-event timeline) belongs to the session.
 - **Before modifying the architecture**, inspect: existing types (`backend/src/models/`), persistence (`backend/db/schema.sql`), import normalization (`backend/src/cards/sillytavern.ts`), session creation (`backend/src/models/session.ts`), prompt assembly (`backend/src/prompts/`). Reuse existing abstractions; update documentation when architectural behavior changes.
 - **Character Card import/export** workflows must be preserved. Existing Character Card import/export (Tavern V2/V3, PNG tEXt) continues to work as before. When a Story Card references Characters, those references must be preserved through relevant Story Card import/export workflows — the referenced `character_id` values must remain valid after import.
@@ -264,4 +285,4 @@ One phase should be fully checked before the next starts (per `docs/PLAYIME_CHEC
 - Don't claim modular Character Cards are "implemented" if they are not. Distinguish architecture/direction from implementation status accurately.
 - Don't use array indexes as persistent identifiers for Characters, avatars, scenarios, or Story Character references.
 - Don't mutate reusable Character or Story definitions from session-level interactions.
-- Don't build a second prompt assembly pipeline. The canonical pipeline in `docs/PLAYIME_PROMPT_SPEC.md` is the single source of truth.
+- Don't build a second prompt assembly pipeline. The canonical pipeline in `docs/playime-prompt-spec.md` is the single source of truth.
