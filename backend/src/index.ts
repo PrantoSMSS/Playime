@@ -1,4 +1,5 @@
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { spawn, execSync, type ChildProcess } from 'node:child_process';
@@ -21,6 +22,9 @@ await app.register(cors, {
   origin: process.env.CORS_ORIGIN ?? true,
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 });
+
+// Multipart form data — needed for file uploads
+await app.register(multipart);
 
 app.register(chatRoutes);
 app.register(characterRoutes);
