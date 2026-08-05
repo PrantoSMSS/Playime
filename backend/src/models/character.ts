@@ -140,6 +140,8 @@ export interface CharacterCard {
   extensions: Record<string, unknown>;
 
   // Card-browser metadata
+  avatar_file: string | null;
+  cover_file: string | null;
   cover_image: string | null;
   creator_name: string | null;
   tags: string[];
@@ -187,6 +189,8 @@ interface CharacterCardRow {
   character_version: string | null;
   world_info: string;
   extensions: string;
+  avatar_file: string | null;
+  cover_file: string | null;
   cover_image: string | null;
   creator_name: string | null;
   tags: string;
@@ -227,6 +231,8 @@ function rowToCard(row: CharacterCardRow): CharacterCard {
     character_version: row.character_version,
     world_info: parseJson<WorldInfoEntry[]>(row.world_info, []),
     extensions: parseJson<Record<string, unknown>>(row.extensions, {}),
+    avatar_file: row.avatar_file ?? null,
+    cover_file: row.cover_file ?? null,
     cover_image: row.cover_image,
     creator_name: row.creator_name,
     tags: parseJson<string[]>(row.tags, []),
@@ -301,7 +307,7 @@ const SELECT_COLS = [
   'alternate_greetings',
   'mes_example', 'system_prompt', 'post_history_instructions', 'creator',
   'creator_notes', 'character_version', 'world_info', 'extensions',
-  'cover_image', 'creator_name', 'tags', 'description', 'prologue_preview',
+  'avatar_file', 'cover_file', 'cover_image', 'creator_name', 'tags', 'description', 'prologue_preview',
   'stats', 'created_at', 'updated_at',
 ].join(', ');
 
@@ -346,6 +352,8 @@ export interface CreateCharacterCardInput {
   world_info?: WorldInfoEntry[] | undefined;
   extensions?: Record<string, unknown> | undefined;
   cover_image?: string | undefined;
+  avatar_file?: string | null | undefined;
+  cover_file?: string | null | undefined;
   creator_name?: string | undefined;
   tags?: string[] | undefined;
   description?: string | undefined;
@@ -381,9 +389,9 @@ export function createCharacterCard(input: CreateCharacterCardInput): CharacterC
       scenario, first_message, relationship_state, length_guidance,
       avatars, starting_scenarios, default_persona, alternate_greetings, mes_example,
       system_prompt, post_history_instructions, creator, creator_notes,
-      character_version, world_info, extensions, cover_image, creator_name,
-      tags, description, prologue_preview, stats, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      character_version, world_info, extensions, avatar_file, cover_file,
+      cover_image, creator_name, tags, description, prologue_preview, stats, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     input.name,
@@ -408,6 +416,8 @@ export function createCharacterCard(input: CreateCharacterCardInput): CharacterC
     input.character_version ?? null,
     JSON.stringify(input.world_info ?? []),
     JSON.stringify(input.extensions ?? {}),
+    input.avatar_file ?? null,
+    input.cover_file ?? null,
     input.cover_image ?? null,
     input.creator_name ?? null,
     JSON.stringify(input.tags ?? []),
@@ -446,6 +456,8 @@ export interface UpdateCharacterCardInput {
   world_info?: WorldInfoEntry[] | undefined;
   extensions?: Record<string, unknown> | undefined;
   cover_image?: string | null | undefined;
+  avatar_file?: string | null | undefined;
+  cover_file?: string | null | undefined;
   creator_name?: string | null | undefined;
   tags?: string[] | undefined;
   description?: string | null | undefined;
@@ -578,6 +590,8 @@ export const YEHWA_CARD: CharacterCard = {
   character_version: null,
   world_info: [],
   extensions: {},
+  avatar_file: null,
+  cover_file: null,
   cover_image: null,
   creator_name: null,
   tags: [],
@@ -648,6 +662,8 @@ export const MIKO_CARD: CharacterCard = {
   character_version: null,
   world_info: [],
   extensions: {},
+  avatar_file: null,
+  cover_file: null,
   cover_image: null,
   creator_name: null,
   tags: [],

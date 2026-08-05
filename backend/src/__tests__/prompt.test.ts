@@ -35,6 +35,8 @@ function makeCard(overrides: Partial<CharacterCard> = {}): CharacterCard {
     character_version: null,
     world_info: [],
     extensions: {},
+    avatar_file: null,
+    cover_file: null,
     cover_image: null,
     creator_name: null,
     tags: [],
