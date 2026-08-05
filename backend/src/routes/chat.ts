@@ -22,6 +22,7 @@ import { getCharacterCard, resolveAvatar, resolveStartingScenario } from '../mod
 import type { AvatarOption, StartingScenario } from '../models/character.js';
 import { getPersona } from '../models/persona.js';
 import type { Persona } from '../models/persona.js';
+import { listSessions, listTurns, getSession, insertMessage, nextMessageSeq, deleteSession as deleteSessionModel, deleteMessages as deleteMessagesModel } from '../models/session.js';
 import type { SessionClass } from '../models/session.js';
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
@@ -30,6 +31,91 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('onClose', async () => {
     await adapter.dispose();
   });
+
+  // ── GET /api/sessions ─────────────────────────────────────────────────
+  // List all sessions, newest first.
+  app.get('/api/sessions', async (_request, reply) => {
+    const sessions = listSessions();
+    return reply.send(sessions);
+  });
+
+  // ── GET /api/sessions/:id/messages ────────────────────────────────────
+  // List all visible messages for a session.
+  app.get(
+    '/api/sessions/:id/messages',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const session = getSession(id);
+      if (!session) {
+        return reply.code(404).send({
+          error: { code: 'session_not_found', message: `Session ${id} not found` },
+        });
+      }
+      const messages = listTurns(id);
+      return reply.send(messages);
+    },
+  );
+
+  // ── DELETE /api/sessions/:id ──────────────────────────────────────────
+  // Delete a session and its messages (cascade via FK).
+  app.delete(
+    '/api/sessions/:id',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const session = getSession(id);
+      if (!session) {
+        return reply.code(404).send({
+          error: { code: 'session_not_found', message: `Session ${id} not found` },
+        });
+      }
+      deleteSessionModel(id);
+      return reply.code(204).send();
+    },
+  );
+
+  // ── DELETE /api/sessions/:id/messages ─────────────────────────────────
+  // Delete all messages for a session (used for reset).
+  app.delete(
+    '/api/sessions/:id/messages',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const session = getSession(id);
+      if (!session) {
+        return reply.code(404).send({
+          error: { code: 'session_not_found', message: `Session ${id} not found` },
+        });
+      }
+      deleteMessagesModel(id);
+      return reply.code(204).send();
+    },
+  );
 
   app.post(
     '/api/sessions',
@@ -163,6 +249,20 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         persona_snapshot: personaSnapshot,
         persona_source: personaSource,
       });
+
+      // Persist the character's first message so it survives page reloads.
+      if (card) {
+        const firstMessage = scenarioSnapshot?.first_message ?? card.first_message;
+        if (firstMessage) {
+          insertMessage({
+            session_id: session.id,
+            seq: nextMessageSeq(session.id),
+            role: 'assistant',
+            content: firstMessage,
+          });
+        }
+      }
+
       return reply.code(201).send(session);
     },
   );
@@ -267,7 +367,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
           const replyMsg = persistAssistantReply(id, text);
           yield sseFrame('done', { user_message: handle.userMessage, message: replyMsg });
         } catch (err) {
-          app.log.warn({ err }, 'chat stream failed mid-response');
+          app.log.error({ err }, 'chat stream failed mid-response');
           yield sseFrame('error', streamError(err));
         }
       };

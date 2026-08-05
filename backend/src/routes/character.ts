@@ -5,6 +5,7 @@
  *   GET    /api/cards/:id        get one card
  *   POST   /api/cards            create a card
  *   POST   /api/cards/import     import from PNG (base64) or JSON card
+ *   POST   /api/cards/parse      parse PNG/JSON without creating a card
  *   PATCH  /api/cards/:id        update a card (partial patch)
  *   DELETE /api/cards/:id        delete a card
  */
@@ -141,9 +142,6 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
       schema: {
         body: {
           type: 'object',
-          properties: {
-            data: { type: 'string' },
-          },
           additionalProperties: true,
         },
       },
@@ -233,6 +231,110 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
 
       const created = createCharacterCard(card as CreateCharacterCardInput);
       return reply.code(201).send(created);
+    },
+  );
+
+  // ── POST /api/cards/parse ────────────────────────────────────────────
+  // Parse PNG or JSON card data WITHOUT creating a card.
+  // Returns the parsed card data for use in the CharacterFormModal.
+  app.post(
+    '/api/cards/parse',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          additionalProperties: true,
+        },
+      },
+    },
+    async (request, reply) => {
+      const body = request.body as Record<string, unknown> | undefined;
+      if (!body) {
+        return reply.code(400).send({
+          error: { code: 'invalid_body', message: 'Request body is required' },
+        });
+      }
+
+      let rawJson: Record<string, unknown> | null = null;
+      let avatarDataUri: string | null = null;
+
+      // Case 1: body has a `data` field — could be base64 PNG or base64 JSON
+      if (typeof body['data'] === 'string') {
+        const decoded = Buffer.from(body['data'] as string, 'base64');
+
+        // Check PNG signature
+        const isPng =
+          decoded.length > 8 &&
+          decoded[0] === 0x89 &&
+          decoded[1] === 0x50 &&
+          decoded[2] === 0x4e &&
+          decoded[3] === 0x47;
+
+        if (isPng) {
+          const jsonStr = extractCardJsonFromPng(decoded);
+          if (!jsonStr) {
+            return reply.code(400).send({
+              error: {
+                code: 'no_card_data',
+                message: 'PNG does not contain a character card (no chara/ccv3 tEXt chunk)',
+              },
+            });
+          }
+          try {
+            rawJson = JSON.parse(jsonStr) as Record<string, unknown>;
+          } catch {
+            return reply.code(400).send({
+              error: { code: 'invalid_json', message: 'Embedded card data is not valid JSON' },
+            });
+          }
+          // Use the PNG itself as the avatar
+          avatarDataUri = `data:image/png;base64,${body['data']}`;
+        } else {
+          // Try parsing the decoded bytes as JSON directly
+          try {
+            const str = decoded.toString('utf-8');
+            rawJson = JSON.parse(str) as Record<string, unknown>;
+          } catch {
+            return reply.code(400).send({
+              error: {
+                code: 'invalid_data',
+                message: 'Data is neither a valid PNG nor valid JSON',
+              },
+            });
+          }
+        }
+      }
+      // Case 2: body IS the card JSON (no wrapping)
+      else if (typeof body['spec'] === 'string' || typeof body['name'] === 'string' || typeof body['char_name'] === 'string') {
+        rawJson = body;
+      } else {
+        return reply.code(400).send({
+          error: {
+            code: 'invalid_body',
+            message: 'Expected { "data": "<base64>" } or a card JSON object with spec/name fields',
+          },
+        });
+      }
+
+      // Normalize onto CharacterCard shape
+      let card: Partial<CreateCharacterCardInput>;
+      try {
+        card = parseSillyTavernCard(rawJson!) as Partial<CreateCharacterCardInput>;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return reply.code(400).send({
+          error: { code: 'parse_error', message: msg },
+        });
+      }
+
+      // If we have a PNG avatar, override the parsed avatar
+      if (avatarDataUri) {
+        card.avatar = avatarDataUri;
+        card.avatars = [{ id: 'default', name: 'Default', image: avatarDataUri }];
+      }
+
+      // Return parsed data WITHOUT creating a card
+      return reply.send(card);
     },
   );
 
