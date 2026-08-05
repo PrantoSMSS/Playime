@@ -8,6 +8,7 @@
 		closeImportCardModal,
 	} from '$lib/state/chat.svelte';
 	import type { ApiCharacterCard, CreateCardInput } from '$lib/api/chat';
+	import { resolveFileUrl } from '$lib/api/chat';
 
 	let loading = $state(false);
 
@@ -28,8 +29,8 @@
 
 	/** Resolve the display image for a card — first from avatars array, then legacy avatar, then cover. */
 	function getDisplayImage(card: ApiCharacterCard): string | null {
-		if (card.avatars.length > 0) return card.avatars[0]!.image;
-		return card.avatar ?? card.cover_image ?? null;
+		const raw = card.avatars.length > 0 ? card.avatars[0]!.image : (card.avatar ?? card.cover_image ?? null);
+		return resolveFileUrl(raw);
 	}
 
 	async function handleRetry(): Promise<void> {

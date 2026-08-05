@@ -13,6 +13,19 @@ import { PUBLIC_API_BASE_URL } from '$env/static/public';
 
 const BASE = (PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:3000').replace(/\/+$/, '');
 
+/**
+ * Resolve a relative file path to a full URL.
+ * Handles both old URL format (http/https/data:) and new relative path format
+ * (e.g. "character/{id}/avatar.png") returned by the local-first file storage.
+ */
+export function resolveFileUrl(path: string | null | undefined): string | null {
+	if (!path) return null;
+	if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+		return path; // Already a full URL
+	}
+	return `${BASE}/api/files/${path}`;
+}
+
 /** Avatar option from the backend. */
 export interface ApiAvatarOption {
 	id: string;
@@ -66,6 +79,8 @@ export interface ApiCharacterCard {
 	character_version: string | null;
 	world_info: unknown[];
 	extensions: Record<string, unknown>;
+	avatar_file: string | null;
+	cover_file: string | null;
 	cover_image: string | null;
 	creator_name: string | null;
 	tags: string[];
@@ -99,6 +114,7 @@ export interface ApiPersona {
 	id: string;
 	name: string;
 	avatar: string | null;
+	avatar_file: string | null;
 	description: string;
 	appearance: string;
 	personality: string;
@@ -321,6 +337,8 @@ export interface CreateCardInput {
 	character_version?: string | null;
 	world_info?: unknown[];
 	extensions?: Record<string, unknown>;
+	avatar_file?: string | null;
+	cover_file?: string | null;
 	cover_image?: string | null;
 	creator_name?: string | null;
 	tags?: string[];

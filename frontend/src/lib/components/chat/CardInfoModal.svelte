@@ -2,7 +2,7 @@
 	import type { ApiCharacterCard, ApiStartingScenario, ApiPersona, ApiDefaultPersona } from '$lib/api/chat';
 	import { parseMessage } from '$lib/messageParse';
 	import { chat, removeCard, closeCardInfoModal } from '$lib/state/chat.svelte';
-	import { exportCardAsJson, exportCardAsPng } from '$lib/api/chat';
+	import { exportCardAsJson, exportCardAsPng, resolveFileUrl } from '$lib/api/chat';
 
 	let {
 		card,
@@ -111,8 +111,8 @@
 
 	// The avatar image to show — first from the avatars array, or card default
 	const displayImage = $derived(() => {
-		if (card.avatars.length > 0) return card.avatars[0]!.image;
-		return card.avatar ?? card.cover_image ?? null;
+		const raw = card.avatars.length > 0 ? card.avatars[0]!.image : (card.avatar ?? card.cover_image ?? null);
+		return resolveFileUrl(raw);
 	});
 
 	// ── Effects ───────────────────────────────────────────────────────────

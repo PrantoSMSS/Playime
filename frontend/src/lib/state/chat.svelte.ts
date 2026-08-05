@@ -15,6 +15,7 @@ import {
 	createCard, updateCard, deleteCard,
 	listSessions, listSessionMessages,
 	deleteSessionApi, deleteSessionMessages,
+	resolveFileUrl,
 } from '../api/chat';
 import type {
 	ApiCharacterCard, ApiMessage, ApiPersona, ApiSession,
@@ -101,7 +102,8 @@ export async function loadCards(): Promise<void> {
 function sessionFromApi(s: ApiSession, cards: ApiCharacterCard[]): ChatSession {
 	const card = s.character_card_id ? cards.find((c) => c.id === s.character_card_id) : undefined;
 	const title = card?.name ?? s.character_card_id ?? 'Untitled';
-	const avatarUrl = s.avatar_snapshot?.image ?? card?.avatars[0]?.image ?? card?.avatar ?? card?.cover_image ?? undefined;
+	const rawAvatar = s.avatar_snapshot?.image ?? card?.avatars[0]?.image ?? card?.avatar ?? card?.cover_image ?? undefined;
+	const avatarUrl = resolveFileUrl(rawAvatar) ?? undefined;
 	return {
 		id: s.id,
 		title,
@@ -334,7 +336,8 @@ export async function startNewPlay(selections: {
 
 		// The session's avatarUrl is the CHARACTER's image (from CharacterCard.avatar),
 		// not the user's persona avatar.
-		const avatarUrl = modal.card.avatars[0]?.image ?? modal.card.avatar ?? modal.card.cover_image ?? undefined;
+		const rawAvatar = modal.card.avatars[0]?.image ?? modal.card.avatar ?? modal.card.cover_image ?? undefined;
+		const avatarUrl = resolveFileUrl(rawAvatar) ?? undefined;
 
 		const newSession: ChatSession = {
 			id: apiSession.id,
