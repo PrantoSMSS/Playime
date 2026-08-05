@@ -156,11 +156,13 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit): Promise<T> {
-	const res = await fetch(`${BASE}${path}`, {
-		headers: { 'Content-Type': 'application/json' },
-		...init,
-	});
+	const headers: Record<string, string> = {};
+	// Fastify rejects Content-Type: application/json with an empty body
+	// (FST_ERR_CTP_EMPTY_JSON_BODY) — only send it when there's a body.
+	if (init.body != null) headers['Content-Type'] = 'application/json';
+	const res = await fetch(`${BASE}${path}`, { headers, ...init });
 	if (!res.ok) throw await errorFrom(res);
+	if (res.status === 204) return undefined as T;
 	return (await res.json()) as T;
 }
 
@@ -264,6 +266,18 @@ export function createSession(options?: {
 			...(options?.playerName ? { player_name: options.playerName } : {}),
 			...(options?.startingScenarioId ? { starting_scenario_id: options.startingScenarioId } : {}),
 		}),
+	});
+}
+
+/** List all sessions from the backend, newest first. */
+export function listSessions(): Promise<ApiSession[]> {
+	return request<ApiSession[]>('/api/sessions', { method: 'GET' });
+}
+
+/** List all visible messages for a session. */
+export function listSessionMessages(sessionId: string): Promise<ApiMessage[]> {
+	return request<ApiMessage[]>(`/api/sessions/${encodeURIComponent(sessionId)}/messages`, {
+		method: 'GET',
 	});
 }
 
@@ -397,4 +411,16 @@ export function updatePersona(id: string, patch: UpdatePersonaInput): Promise<Ap
 /** Delete a persona. */
 export async function deletePersona(id: string): Promise<void> {
 	await request<void>(`/api/personas/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+// ── Session / Message deletion ──────────────────────────────────────────
+
+/** Delete a session and its messages. */
+export async function deleteSessionApi(id: string): Promise<void> {
+	await request<void>(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/** Delete all messages for a session. */
+export async function deleteSessionMessages(id: string): Promise<void> {
+	await request<void>(`/api/sessions/${encodeURIComponent(id)}/messages`, { method: 'DELETE' });
 }

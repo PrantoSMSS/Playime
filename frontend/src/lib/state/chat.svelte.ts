@@ -13,12 +13,14 @@
 import {
 	createSession, getCard, listCards, listPersonas, streamMessage,
 	createCard, updateCard, deleteCard,
+	listSessions, listSessionMessages,
+	deleteSessionApi, deleteSessionMessages,
 } from '../api/chat';
 import type {
-	ApiCharacterCard, ApiMessage, ApiPersona,
+	ApiCharacterCard, ApiMessage, ApiPersona, ApiSession,
 	CreateCardInput, UpdateCardInput,
 } from '../api/chat';
-import { SAMPLE_MESSAGES_BY_SESSION, SAMPLE_SESSIONS } from '../data/sample';
+import { SAMPLE_SESSIONS } from '../data/sample';
 import type { ChatMessage, ChatSession } from '../types/chat';
 import { nav } from './nav.svelte';
 
@@ -27,10 +29,10 @@ export type ResponseLength = 'Short' | 'Normal' | 'Long';
 export const chat = $state({
 	/** Currently-open session. */
 	activeSessionId: '' as string,
-	/** Past sessions for the Chats list. */
-	sessions: [...SAMPLE_SESSIONS],
+	/** Past sessions for the Chats list (loaded from the backend on mount). */
+	sessions: [] as ChatSession[],
 	/** Per-session message threads. */
-	messagesBySession: structuredClone(SAMPLE_MESSAGES_BY_SESSION) as Record<string, ChatMessage[]>,
+	messagesBySession: {} as Record<string, ChatMessage[]>,
 	/** Right-top dropdown: response length / quality. */
 	responseLength: 'Normal' as ResponseLength,
 	/** True while a send is awaiting the backend reply. */
@@ -47,9 +49,16 @@ export const chat = $state({
 	characterFormModal: null as {
 		mode: 'create' | 'edit';
 		card?: ApiCharacterCard;
+		importedData?: Partial<CreateCardInput>;
 	} | null,
-	/** Import card modal visibility. */
-	importCardModal: false as boolean,
+	/** Import card modal state. */
+	importCardModal: null as {
+		onparsed: (data: Partial<CreateCardInput>) => void;
+	} | null,
+	/** Bulk selection mode for the Chats list. */
+	selectionMode: false,
+	/** IDs of currently selected sessions (bulk operations). Object for Svelte 5 reactivity. */
+	selectedSessionIds: {} as Record<string, boolean>,
 });
 
 /** Display session id → backend session id, for sessions made real on demand. */
@@ -88,6 +97,49 @@ export async function loadCards(): Promise<void> {
 	}
 }
 
+/** Convert a backend ApiSession to a frontend ChatSession. */
+function sessionFromApi(s: ApiSession, cards: ApiCharacterCard[]): ChatSession {
+	const card = s.character_card_id ? cards.find((c) => c.id === s.character_card_id) : undefined;
+	const title = card?.name ?? s.character_card_id ?? 'Untitled';
+	const avatarUrl = s.avatar_snapshot?.image ?? card?.avatars[0]?.image ?? card?.avatar ?? card?.cover_image ?? undefined;
+	return {
+		id: s.id,
+		title,
+		kind: s.class,
+		preview: '',
+		initials: title.slice(0, 2).toUpperCase(),
+		hue: 172,
+		cardId: s.character_card_id ?? undefined,
+		personaId: s.persona_id ?? undefined,
+		personaSource: (s.persona_source as 'default' | 'custom') ?? undefined,
+		startingScenarioId: s.starting_scenario_id ?? undefined,
+		avatarUrl,
+		createdAt: s.created_at,
+	};
+}
+
+/** Load all sessions from the backend, replacing any existing list. */
+export async function loadSessions(): Promise<void> {
+	try {
+		const apiSessions = await listSessions();
+		// Filter out cardless sessions (created as side-effects of legacy sends).
+		const validSessions = apiSessions.filter((s) => s.character_card_id != null);
+		chat.sessions = validSessions.map((s) => sessionFromApi(s, chat.cards));
+	} catch (err) {
+		chat.error = err instanceof Error ? err.message : 'Failed to load sessions';
+	}
+}
+
+/** Load messages for a session from the backend into the message store. */
+export async function loadSessionMessages(sessionId: string): Promise<void> {
+	try {
+		const apiMessages = await listSessionMessages(sessionId);
+		chat.messagesBySession[sessionId] = apiMessages.map(messageFromApi);
+	} catch (err) {
+		chat.error = err instanceof Error ? err.message : 'Failed to load messages';
+	}
+}
+
 /** Create or update a character card. Returns the saved card. */
 export async function saveCard(
 	mode: 'create' | 'edit',
@@ -123,8 +175,8 @@ export async function removeCard(id: string): Promise<boolean> {
 }
 
 /** Open the character form modal for creating a new card. */
-export function openCreateCardModal(): void {
-	chat.characterFormModal = { mode: 'create' };
+export function openCreateCardModal(importedData?: Partial<CreateCardInput>): void {
+	chat.characterFormModal = { mode: 'create', importedData };
 }
 
 /** Open the character form modal for editing an existing card. */
@@ -137,29 +189,45 @@ export function closeCharacterFormModal(): void {
 	chat.characterFormModal = null;
 }
 
-/** Open the import card modal. */
-export function openImportCardModal(): void {
-	chat.importCardModal = true;
+/** Open the import card modal with a callback for parsed data. */
+export function openImportCardModal(onparsed: (data: Partial<CreateCardInput>) => void): void {
+	chat.importCardModal = { onparsed };
 }
 
 /** Close the import card modal. */
 export function closeImportCardModal(): void {
-	chat.importCardModal = false;
+	chat.importCardModal = null;
 }
 
-/** Delete a session and its messages. */
-export function deleteSession(sessionId: string): void {
+/** Delete a session and its messages (backend + frontend). */
+export async function deleteSession(sessionId: string): Promise<void> {
+	try {
+		await deleteSessionApi(sessionId);
+	} catch (err) {
+		// Keep the conversation — the list must reflect the database.
+		chat.error = err instanceof Error ? err.message : 'Failed to delete conversation';
+		return;
+	}
 	chat.sessions = chat.sessions.filter((s) => s.id !== sessionId);
 	delete chat.messagesBySession[sessionId];
+	delete chat.selectedSessionIds[sessionId];
 	if (chat.activeSessionId === sessionId) {
 		chat.activeSessionId = '';
 	}
 }
 
 /** Reset a session: clear messages and re-trigger the character's first message. */
-export function resetSession(sessionId: string): void {
+export async function resetSession(sessionId: string): Promise<void> {
 	const session = chat.sessions.find((s) => s.id === sessionId);
 	if (!session || !session.cardId) return;
+
+	// Clear messages on backend — fail = keep existing messages
+	try {
+		await deleteSessionMessages(sessionId);
+	} catch (err) {
+		chat.error = err instanceof Error ? err.message : 'Failed to reset conversation';
+		return;
+	}
 
 	// Clear all messages
 	chat.messagesBySession[sessionId] = [];
@@ -189,6 +257,58 @@ export function resetSession(sessionId: string): void {
 	chat.activeSessionId = sessionId;
 }
 
+// ── Bulk selection ──────────────────────────────────────────────────────
+
+/** Toggle a session's selection state. */
+export function toggleSelection(sessionId: string): void {
+	if (chat.selectedSessionIds[sessionId]) {
+		delete chat.selectedSessionIds[sessionId];
+	} else {
+		chat.selectedSessionIds[sessionId] = true;
+	}
+}
+
+/** Select or deselect all visible sessions. */
+export function selectAll(visibleIds: string[]): void {
+	const allSelected = visibleIds.every((id) => chat.selectedSessionIds[id]);
+	if (allSelected) {
+		for (const id of visibleIds) delete chat.selectedSessionIds[id];
+	} else {
+		for (const id of visibleIds) chat.selectedSessionIds[id] = true;
+	}
+}
+
+/** Clear all selections. */
+export function clearSelection(): void {
+	chat.selectedSessionIds = {};
+}
+
+/** Enter selection mode. */
+export function enterSelectionMode(): void {
+	chat.selectionMode = true;
+	chat.selectedSessionIds = {};
+}
+
+/** Exit selection mode and clear selections. */
+export function exitSelectionMode(): void {
+	chat.selectionMode = false;
+	chat.selectedSessionIds = {};
+}
+
+/** Delete all selected sessions (bulk). */
+export async function bulkDeleteSessions(): Promise<void> {
+	const ids = Object.keys(chat.selectedSessionIds);
+	exitSelectionMode();
+	await Promise.all(ids.map((id) => deleteSession(id)));
+}
+
+/** Reset all selected sessions (bulk). */
+export async function bulkResetSessions(): Promise<void> {
+	const ids = Object.keys(chat.selectedSessionIds);
+	exitSelectionMode();
+	await Promise.all(ids.map((id) => resetSession(id)));
+}
+
 /** Start a new play session from the card info modal selections. */
 export async function startNewPlay(selections: {
 	personaId?: string;
@@ -214,7 +334,7 @@ export async function startNewPlay(selections: {
 
 		// The session's avatarUrl is the CHARACTER's image (from CharacterCard.avatar),
 		// not the user's persona avatar.
-		const avatarUrl = modal.card.avatar ?? modal.card.cover_image ?? undefined;
+		const avatarUrl = modal.card.avatars[0]?.image ?? modal.card.avatar ?? modal.card.cover_image ?? undefined;
 
 		const newSession: ChatSession = {
 			id: apiSession.id,
@@ -279,7 +399,9 @@ async function ensureBackendSession(frontendId: string): Promise<string> {
 	// basic session without a card.
 	const session = chat.sessions.find((s) => s.id === frontendId);
 	const isLegacySession = !session || SAMPLE_SESSIONS.some((s) => s.id === session.id);
-	const apiSession = await createSession(isLegacySession ? undefined : { cardId: undefined });
+	const apiSession = await createSession(
+		isLegacySession ? undefined : { cardId: session?.cardId },
+	);
 	backendSessions[frontendId] = apiSession.id;
 	return apiSession.id;
 }
@@ -334,6 +456,9 @@ export async function sendMessage(content: string): Promise<void> {
 			onError: (_code, message) => {
 				chat.error = message;
 				dropStreaming();
+				// Also remove the optimistic user message so the user can retry cleanly
+				const optIdx = list.findIndex((m) => m.id === optimisticId);
+				if (optIdx >= 0) list.splice(optIdx, 1);
 			},
 		});
 	} catch (err) {

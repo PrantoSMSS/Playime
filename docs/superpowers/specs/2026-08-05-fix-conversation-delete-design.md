@@ -7,17 +7,32 @@ Date: 2026-08-05
 Deleting a conversation from the Chats list appears to work but the conversation
 returns on page refresh. The backend row is never deleted.
 
-**Root cause:** the frontend API helper sends `Content-Type: application/json`
-on every request, including bodyless `DELETE` requests. Fastify rejects a JSON
-content-type with an empty body (`FST_ERR_CTP_EMPTY_JSON_BODY`, HTTP 400). The
-`catch { /* best-effort */ }` in `deleteSession` swallows that 400, the
-conversation is removed from the in-memory list (looks like success), but the
-database row survives — so `loadSessions()` on refresh brings it back.
+**Root cause (two-layer):**
+
+1. **CORS preflight blocking DELETE** — The browser sends an `OPTIONS` preflight
+   before cross-origin `DELETE` requests. Fastify's `@fastify/cors` plugin
+   (registered with `origin: true`) was not including `DELETE` in
+   `Access-Control-Allow-Methods` in the preflight response. The browser blocked
+   the actual DELETE request entirely — it never reached the backend. The 204
+   status seen in backend logs was from the OPTIONS preflight, not the DELETE.
+   Python `urllib` was unaffected because it doesn't enforce CORS.
+
+2. **Content-Type on bodyless requests** — The frontend API helper sent
+   `Content-Type: application/json` on every request, including bodyless `DELETE`
+   requests. Fastify rejects a JSON content-type with an empty body
+   (`FST_ERR_CTP_EMPTY_JSON_BODY`, HTTP 400). Even if CORS had passed, this
+   would have caused a 400.
+
+3. **Error swallowing** — The `catch { /* best-effort */ }` in `deleteSession`
+   swallows the error, the conversation is removed from the in-memory list
+   (looks like success), but the database row survives — so `loadSessions()` on
+   refresh brings it back.
 
 Verified live:
 - `curl -X DELETE` (no Content-Type) → `204`, session count drops 35 → 34.
-- Browser-style `DELETE` with `Content-Type: application/json` and no body →
-  `400 FST_ERR_CTP_EMPTY_JSON_BODY`, row untouched.
+- Browser `DELETE` → CORS preflight blocks it, `ERR_FAILED` in console, row
+  untouched.
+- Python `DELETE` → works (no CORS enforcement), row deleted.
 
 ## Non-goals
 
@@ -31,7 +46,19 @@ Verified live:
 
 ## Changes
 
-All changes are frontend; the backend and schema are untouched.
+### 0. `backend/src/index.ts` — explicitly allow DELETE in CORS
+
+```typescript
+await app.register(cors, {
+  origin: process.env.CORS_ORIGIN ?? true,
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+});
+```
+
+`@fastify/cors` with `origin: true` reflects the requesting origin but may not
+include `DELETE` in `Access-Control-Allow-Methods` by default. Explicitly
+listing methods ensures browser preflight checks pass for all verbs. This is the
+primary fix — without it the DELETE never reaches the backend.
 
 ### 1. `frontend/src/lib/api/chat.ts` — only claim a JSON body when there is one
 
@@ -86,11 +113,13 @@ today, so no new UI is needed.
 
 Manual:
 1. Start backend + frontend dev servers.
-2. Create a conversation (New Play), send a message, reload — conversation persists.
-3. Delete the conversation from the Chats list → it disappears immediately.
-4. Reload → still gone. Verify with `curl http://127.0.0.1:3000/api/sessions`
+2. Open browser DevTools Network tab.
+3. Create a conversation (New Play), send a message, reload — conversation persists.
+4. Delete the conversation from the Chats list → it disappears immediately.
+5. Verify in Network tab: the DELETE request succeeds (204), no CORS errors.
+6. Reload → still gone. Verify with `curl http://127.0.0.1:3000/api/sessions`
    that the row is absent and its messages are gone (cascade).
-5. Stop the backend, attempt delete → conversation stays in the list and an
+7. Stop the backend, attempt delete → conversation stays in the list and an
    error banner appears.
-6. Reset a conversation → messages clear; reload → still cleared (first message
+8. Reset a conversation → messages clear; reload → still cleared (first message
    re-seeded per existing behavior).
