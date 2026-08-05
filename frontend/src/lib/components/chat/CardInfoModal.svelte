@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { ApiCharacterCard, ApiStartingScenario, ApiPersona, ApiDefaultPersona } from '$lib/api/chat';
 	import { parseMessage } from '$lib/messageParse';
-	import { chat } from '$lib/state/chat.svelte';
+	import { chat, removeCard, closeCardInfoModal } from '$lib/state/chat.svelte';
+	import { exportCardAsJson, exportCardAsPng } from '$lib/api/chat';
 
 	let {
 		card,
@@ -37,6 +38,10 @@
 	let personaSelectValue = $state('myself');
 	let playerName = $state('');
 	let showPersonaInfo = $state(false);
+	let showDeleteConfirm = $state(false);
+	let showExportDropdown = $state(false);
+	let isDeleting = $state(false);
+	let isExporting = $state(false);
 
 	// ── Derived values ────────────────────────────────────────────────────
 	const selectedScenario = $derived(
@@ -157,9 +162,45 @@
 	function handleKeydown(e: KeyboardEvent): void {
 		if (e.key === 'Escape') onclose();
 	}
+
+	function handleClickOutside(e: MouseEvent): void {
+		const target = e.target as HTMLElement;
+		if (!target.closest('.modal__export-wrapper')) {
+			showExportDropdown = false;
+		}
+	}
+
+	async function handleDelete(): Promise<void> {
+		isDeleting = true;
+		try {
+			const success = await removeCard(card.id);
+			if (success) {
+				closeCardInfoModal();
+			}
+		} finally {
+			isDeleting = false;
+			showDeleteConfirm = false;
+		}
+	}
+
+	async function handleExport(format: 'json' | 'png'): Promise<void> {
+		isExporting = true;
+		showExportDropdown = false;
+		try {
+			if (format === 'json') {
+				await exportCardAsJson(card);
+			} else {
+				await exportCardAsPng(card);
+			}
+		} catch (err) {
+			chat.error = err instanceof Error ? err.message : 'Failed to export card';
+		} finally {
+			isExporting = false;
+		}
+	}
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} onpointerdown={handleClickOutside} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -355,13 +396,65 @@
 
 		<!-- Sticky footer -->
 		<div class="modal__footer">
-			<button
-				class="modal__start-btn"
-				disabled={!canPlay()}
-				onclick={handleStartPlay}
-			>
-				New Play
-			</button>
+			<!-- Delete button (leftmost, separated) -->
+			{#if !showDeleteConfirm}
+				<button
+					class="modal__delete-btn"
+					onclick={() => (showDeleteConfirm = true)}
+					aria-label="Delete character"
+				>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+					</svg>
+					Delete
+				</button>
+			{:else}
+				<div class="modal__delete-confirm">
+					<span>Delete this character?</span>
+					<button class="modal__confirm-yes" onclick={handleDelete} disabled={isDeleting}>
+						{isDeleting ? '...' : 'Yes'}
+					</button>
+					<button class="modal__confirm-no" onclick={() => (showDeleteConfirm = false)}>
+						No
+					</button>
+				</div>
+			{/if}
+
+			<div class="modal__footer-right">
+				<!-- Export dropdown -->
+				<div class="modal__export-wrapper">
+					<button
+						class="modal__export-btn"
+						onclick={() => (showExportDropdown = !showExportDropdown)}
+						disabled={isExporting}
+						aria-label="Export character"
+					>
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+						</svg>
+						Export
+					</button>
+					{#if showExportDropdown}
+						<div class="modal__export-dropdown">
+							<button class="modal__export-option" onclick={() => handleExport('json')}>
+								.json (without avatar)
+							</button>
+							<button class="modal__export-option" onclick={() => handleExport('png')}>
+								.png (with avatar)
+							</button>
+						</div>
+					{/if}
+				</div>
+
+				<!-- New Play button -->
+				<button
+					class="modal__start-btn"
+					disabled={!canPlay()}
+					onclick={handleStartPlay}
+				>
+					New Play
+				</button>
+			</div>
 		</div>
 	</div>
 </div>
@@ -734,9 +827,137 @@
 		padding: var(--space-3) var(--space-5);
 		border-top: 1px solid var(--border);
 		display: flex;
-		justify-content: flex-end;
+		align-items: center;
+		justify-content: space-between;
 	}
 
+	.modal__footer-right {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	/* Delete button */
+	.modal__delete-btn {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		padding: var(--space-2) var(--space-3);
+		background: transparent;
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+		transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+	}
+	.modal__delete-btn:hover {
+		color: #ef4444;
+		border-color: #ef4444;
+		background: rgba(239, 68, 68, 0.1);
+	}
+
+	/* Delete confirmation */
+	.modal__delete-confirm {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-size: var(--font-size-sm);
+		color: var(--text-muted);
+	}
+
+	.modal__confirm-yes {
+		padding: var(--space-1) var(--space-3);
+		background: #ef4444;
+		color: white;
+		border: none;
+		border-radius: var(--radius-md);
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-semibold);
+		cursor: pointer;
+		transition: opacity var(--transition-fast);
+	}
+	.modal__confirm-yes:hover:not(:disabled) {
+		opacity: 0.9;
+	}
+	.modal__confirm-yes:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.modal__confirm-no {
+		padding: var(--space-1) var(--space-3);
+		background: transparent;
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		font-size: var(--font-size-xs);
+		cursor: pointer;
+		transition: color var(--transition-fast), border-color var(--transition-fast);
+	}
+	.modal__confirm-no:hover {
+		color: var(--text);
+		border-color: var(--text-muted);
+	}
+
+	/* Export button */
+	.modal__export-wrapper {
+		position: relative;
+	}
+
+	.modal__export-btn {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		padding: var(--space-2) var(--space-3);
+		background: transparent;
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+		transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+	}
+	.modal__export-btn:hover:not(:disabled) {
+		color: var(--text);
+		border-color: var(--text-muted);
+		background: var(--bg-raised);
+	}
+	.modal__export-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.modal__export-dropdown {
+		position: absolute;
+		bottom: calc(100% + var(--space-1));
+		right: 0;
+		min-width: 180px;
+		background: var(--surface-elevated);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+		z-index: 10;
+		overflow: hidden;
+	}
+
+	.modal__export-option {
+		display: block;
+		width: 100%;
+		padding: var(--space-2) var(--space-3);
+		background: transparent;
+		color: var(--text);
+		border: none;
+		text-align: left;
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+		transition: background var(--transition-fast);
+	}
+	.modal__export-option:hover {
+		background: var(--bg-raised);
+	}
+
+	/* New Play button */
 	.modal__start-btn {
 		padding: var(--space-2) var(--space-5);
 		background: var(--accent);

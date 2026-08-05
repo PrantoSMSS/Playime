@@ -352,6 +352,32 @@ export async function deleteCard(id: string): Promise<void> {
 	await request<void>(`/api/cards/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
+/** Export a character card as SillyTavern V2 JSON and trigger download. */
+export async function exportCardAsJson(card: ApiCharacterCard): Promise<void> {
+	const res = await fetch(`${BASE}/api/cards/${encodeURIComponent(card.id)}/export.json`);
+	if (!res.ok) throw await errorFrom(res);
+	const blob = await res.blob();
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = `${card.name}.json`;
+	a.click();
+	URL.revokeObjectURL(url);
+}
+
+/** Export a character card as PNG with embedded card data and trigger download. */
+export async function exportCardAsPng(card: ApiCharacterCard): Promise<void> {
+	const res = await fetch(`${BASE}/api/cards/${encodeURIComponent(card.id)}/export.png`);
+	if (!res.ok) throw await errorFrom(res);
+	const blob = await res.blob();
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = `${card.name}.png`;
+	a.click();
+	URL.revokeObjectURL(url);
+}
+
 /** Send a user turn and resolve with the persisted turn + assistant reply. */
 export function postMessage(sessionId: string, content: string): Promise<SendMessageResponse> {
 	return request<SendMessageResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/messages`, {

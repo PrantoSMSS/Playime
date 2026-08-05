@@ -1,5 +1,5 @@
 /**
- * PNG tEXt chunk reader — extracts character card data embedded in PNG images.
+ * PNG tEXt chunk reader/writer — extracts and embeds character card data in PNG images.
  *
  * SillyTavern stores character JSON as base64-encoded text in `tEXt` chunks:
  *   - `chara` keyword → V2 spec JSON (base64-encoded)
@@ -122,4 +122,89 @@ export function extractCardJsonFromPng(image: Buffer): string | null {
   }
 
   return null;
+}
+
+// ── PNG tEXt chunk writer ─────────────────────────────────────────────
+
+/**
+ * Create a tEXt chunk buffer for embedding in a PNG.
+ * Format: [4-byte length][4-byte type][keyword\0text][4-byte CRC32]
+ */
+function createTextChunk(keyword: string, text: string): Buffer {
+  const keywordBuf = Buffer.from(keyword, 'ascii');
+  const textBuf = Buffer.from(text, 'ascii');
+  const dataLength = keywordBuf.length + 1 + textBuf.length; // +1 for null separator
+
+  const chunk = Buffer.alloc(12 + dataLength);
+  chunk.writeUInt32BE(dataLength, 0);           // length
+  chunk.writeUInt32BE(CHUNK_TYPE_TEXT, 4);       // type: 'tEXt'
+  keywordBuf.copy(chunk, 8);                     // keyword
+  chunk[8 + keywordBuf.length] = 0;              // null separator
+  textBuf.copy(chunk, 8 + keywordBuf.length + 1); // text
+
+  // CRC32 covers type + data (bytes 4 through 4+4+dataLength)
+  const crcValue = crc32(chunk, 4, 4 + dataLength);
+  chunk.writeUInt32BE(crcValue, 8 + dataLength);
+
+  return chunk;
+}
+
+/**
+ * Embed tEXt chunks into a PNG buffer, inserting them before the IEND chunk.
+ * Returns a new PNG buffer with the chunks added.
+ */
+export function embedTextChunks(image: Buffer, chunks: PngTextChunk[]): Buffer {
+  if (image.length < 8) {
+    throw new Error('PNG too short — missing signature');
+  }
+
+  // Validate PNG signature
+  for (let i = 0; i < 8; i++) {
+    if (image[i] !== PNG_SIGNATURE[i]) {
+      throw new Error('Not a valid PNG file');
+    }
+  }
+
+  // Find the IEND chunk (last chunk in PNG)
+  let iendOffset = -1;
+  let offset = 8;
+  while (offset + 8 <= image.length) {
+    const chunkType = image.readUInt32BE(offset + 4);
+    const dataLength = image.readUInt32BE(offset);
+
+    // IEND has type 0x49454E44 and length 0
+    if (chunkType === 0x49454E44) {
+      iendOffset = offset;
+      break;
+    }
+
+    offset += 12 + dataLength;
+  }
+
+  if (iendOffset === -1) {
+    throw new Error('PNG missing IEND chunk');
+  }
+
+  // Build new chunks to insert
+  const newChunks: Buffer[] = [];
+  for (const chunk of chunks) {
+    newChunks.push(createTextChunk(chunk.keyword, chunk.text));
+  }
+
+  // Concatenate: signature + everything before IEND + new chunks + IEND
+  const beforeIend = image.subarray(0, iendOffset);
+  const iendChunk = image.subarray(iendOffset);
+  const totalLength = beforeIend.length + newChunks.reduce((sum, c) => sum + c.length, 0) + iendChunk.length;
+
+  const result = Buffer.alloc(totalLength);
+  let pos = 0;
+  beforeIend.copy(result, pos);
+  pos += beforeIend.length;
+  for (const chunk of newChunks) {
+    chunk.copy(result, pos);
+    pos += chunk.length;
+  }
+  iendChunk.copy(result, pos);
+
+  return result;
 }
