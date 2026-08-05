@@ -1,6 +1,5 @@
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
-import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { spawn, execSync, type ChildProcess } from 'node:child_process';
 import { getCharacterCard } from './models/character.js';
@@ -10,6 +9,7 @@ import { chatRoutes } from './routes/chat.js';
 import { personaRoutes } from './routes/persona.js';
 import filesRoutes from './routes/files.js';
 import { getDb } from './db.js';
+import { initializeStorage } from './storage.js';
 
 const app = Fastify({ logger: true });
 
@@ -30,8 +30,7 @@ app.register(chatRoutes);
 app.register(characterRoutes);
 app.register(personaRoutes);
 
-// Static file serving — provides reply.sendFile() for entity files
-await app.register(fastifyStatic, { root: '' });
+// Entity file serving (avatars, covers, etc.)
 app.register(filesRoutes);
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -196,6 +195,7 @@ function seedTestCard(): void {
 
 async function main(): Promise<void> {
   try {
+    initializeStorage();
     seedTestCard();
     await ensureOpencode();
     await app.listen({ port: PORT, host: HOST });

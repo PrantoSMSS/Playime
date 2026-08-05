@@ -1,11 +1,22 @@
 // backend/src/routes/files.ts
 import type { FastifyInstance } from 'fastify';
 import { join } from 'node:path';
-import { accessSync, createWriteStream } from 'node:fs';
+import { accessSync, createReadStream, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { ENTITY_TYPES, type EntityType, ensureEntityDir, getEntityPath } from '../storage.js';
 
 const ENTITIES_DIR = join(import.meta.dirname, '../../data/entities');
+
+/** Map common file extensions to MIME types. */
+const MIME_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  json: 'application/json',
+};
 
 export default async function filesRoutes(app: FastifyInstance): Promise<void> {
   /**
@@ -41,7 +52,16 @@ export default async function filesRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    return reply.sendFile(filename, join(ENTITIES_DIR, type, id));
+    // Determine MIME type from extension
+    const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+    const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
+
+    // Stream the file
+    const stat = statSync(filePath);
+    reply.header('content-type', contentType);
+    reply.header('content-length', stat.size);
+    const stream = createReadStream(filePath);
+    await pipeline(stream, reply.raw);
   });
 
   /**
