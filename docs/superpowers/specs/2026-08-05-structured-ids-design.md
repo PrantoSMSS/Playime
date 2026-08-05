@@ -26,33 +26,44 @@ Introduce a structured ID format: `type_slug_sequence`
 | Type | Prefix | Format | Example |
 |------|--------|--------|---------|
 | Character | `char` | `char_<slug>_<seq>` | `char_yehwa_0001` |
-| Story | `story` | `story_<slug>_<seq>` | `story_mountain_trial_0001` |
+| Story | `story` | `story_<slug>_<seq>` | `story_mountain-trial_0001` |
 | Persona | `persona` | `persona_<slug>_<seq>` | `persona_abyssweiss_0001` |
 | Session | `sess` | `sess_<seq>` | `sess_0000042` |
 | Message | `msg` | `msg_<seq>` | `msg_0000003` |
 
 ### Slug Generation Rules
 
-Input: `"Yehwa's Tale"` → Output: `yehwastale`
+Input: `"Yehwa's Tale"` → Output: `yehwas-tale`
 
 1. Convert to lowercase
-2. Remove all characters except `[a-z0-9]`
-3. No delimiter — slug is one continuous string
+2. Replace any non-alphanumeric characters (and runs of them) with a single hyphen
+3. Trim leading/trailing hyphens
 
 ```typescript
 function toSlug(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 ```
+
+This preserves word boundaries for readability:
+- `"Mountain Trial"` → `mountain-trial`
+- `"MountainTrial"` → `mountaintrial`
+- `"Mountain-Trial"` → `mountain-trial`
+
+The slug is used in the ID: `story_mountain-trial_0001`.
 
 ### Sequence Counter: Per-Slug
 
 Each unique slug gets its own sequence counter:
 
 ```
-generateId('char', 'Yehwa')   → char_yehwa_0001
-generateId('char', 'Ayaka')   → char_ayaka_0001
-generateId('char', 'Yehwa')   → char_yehwa_0002
+allocateId('char', 'Yehwa')   → char_yehwa_0001
+allocateId('char', 'Ayaka')   → char_ayaka_0001
+allocateId('char', 'Yehwa')   → char_yehwa_0002
 ```
 
 Sessions and messages use a global counter (no slug).
@@ -69,40 +80,67 @@ Sessions and messages use a global counter (no slug).
 
 ### Problem
 
-Two simultaneous `generateId('char', 'Yehwa')` calls must not both get `char_yehwa_0001`.
+Two simultaneous `allocateId('char', 'Yehwa')` calls must not both get `char_yehwa_0001`.
 
-### Solution: SQLite Transaction Lock
+### Critical Constraint: Never Reuse IDs
+
+Sequence numbers must never be reused, even after deletion. Deriving sequences from existing entity rows fails this — if `char_yehwa_0002` is deleted, querying `MAX(id)` would regenerate it.
+
+### Solution: Dedicated Sequence Table
+
+```sql
+CREATE TABLE IF NOT EXISTS id_sequences (
+  type      TEXT NOT NULL,    -- 'char', 'story', 'persona', 'sess', 'msg'
+  slug      TEXT NOT NULL,    -- slug for named entities, '' for sessions/messages
+  next_seq  INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (type, slug)
+);
+```
+
+Each (type, slug) pair has its own monotonic counter. Once a sequence number is allocated, it is never reused — even if the entity is deleted.
+
+### Implementation
 
 ```typescript
-function generateId(type: EntityType, name?: string): string {
-  const db = getDb();
-  const slug = name ? toSlug(name) : null;
+function allocateId(
+  db: DatabaseSync,
+  type: EntityType,
+  name?: string
+): string {
+  const slug = name ? toSlug(name) : '';
   const prefix = slug ? `${type}_${slug}_` : `${type}_`;
+  const padding = type === 'sess' || type === 'msg' ? 7 : 4;
 
-  // BEGIN IMMEDIATE acquires a write lock — blocks other writers
+  // Upsert: insert row with next_seq=2 if not exists (1 is consumed immediately),
+  // or increment existing counter
+  db.prepare(
+    `INSERT INTO id_sequences (type, slug, next_seq) VALUES (?, ?, 2)
+     ON CONFLICT (type, slug) DO UPDATE SET next_seq = next_seq + 1`
+  ).run(type, slug);
+
+  // Read the value AFTER increment
+  const row = db.prepare(
+    `SELECT next_seq FROM id_sequences WHERE type = ? AND slug = ?`
+  ).get(type, slug) as { next_seq: number };
+
+  // Allocated number is next_seq - 1
+  const seq = row.next_seq - 1;
+  const padded = seq.toString().padStart(padding, '0');
+  return `${prefix}${padded}`;
+}
+```
+
+**IMPORTANT:** `allocateId()` does NOT manage transactions. The caller (model) must wrap it in `BEGIN IMMEDIATE` / `COMMIT` with try/catch/ROLLBACK:
+
+```typescript
+function createCharacterCard(input) {
+  const db = getDb();
   db.exec('BEGIN IMMEDIATE');
   try {
-    const table = type === 'char' ? 'character_card'
-      : type === 'persona' ? 'persona'
-      : type === 'sess' ? 'session'
-      : type === 'msg' ? 'message'
-      : 'story_card'; // future
-
-    const row = db.prepare(
-      `SELECT id FROM ${table} WHERE id LIKE ? || '%' ORDER BY id DESC LIMIT 1`
-    ).get(`${prefix}`) as { id: string } | undefined;
-
-    let seq = 1;
-    if (row) {
-      const parts = row.id.split('_');
-      seq = parseInt(parts[parts.length - 1], 10) + 1;
-    }
-
-    const padded = seq.toString().padStart(type === 'sess' || type === 'msg' ? 7 : 4, '0');
-    const newId = `${prefix}${padded}`;
-
+    const id = allocateId(db, 'char', input.name);
+    db.prepare('INSERT INTO character_card ...').run(id, ...);
     db.exec('COMMIT');
-    return newId;
+    return getCharacterCard(id)!;
   } catch (err) {
     db.exec('ROLLBACK');
     throw err;
@@ -110,15 +148,46 @@ function generateId(type: EntityType, name?: string): string {
 }
 ```
 
+The try/catch/ROLLBACK is critical: if entity creation fails, the sequence allocation must also roll back. This ensures failed ID attempts don't create permanent gaps in the sequence.
+
+### Sequence Table Semantics
+
+`next_seq` stores the **next available** sequence number. When a new (type, slug) pair is first inserted, `next_seq` is set to `2` because sequence `1` is being consumed immediately. On subsequent calls, `next_seq` is incremented first, then the allocated number is `next_seq - 1`.
+
+Example lifecycle for `char_yehwa`:
+
+| Step | Operation | next_seq after | Allocated ID |
+|------|-----------|----------------|--------------|
+| 1st call | INSERT (type=char, slug=yehwa, next_seq=2) | 2 | `char_yehwa_0001` |
+| 2nd call | UPDATE next_seq = 3 | 3 | `char_yehwa_0002` |
+| 3rd call | UPDATE next_seq = 4 | 4 | `char_yehwa_0003` |
+
+### Why This Works
+
+1. `INSERT ... ON CONFLICT DO UPDATE` atomically increments the counter
+2. `BEGIN IMMEDIATE` serializes concurrent callers
+3. The sequence table is append-only in terms of sequence numbers — no entity deletion can roll back a counter
+4. No dependency on entity table contents — works even on empty tables
+
+### Call-Inside-Transaction Guideline
+
+`allocateId()` MUST be called inside the same transaction that creates the entity row, wrapped in try/catch/ROLLBACK. If entity creation fails, the sequence allocation rolls back too. If a crash occurs between successful COMMIT and response, the allocated number is consumed — this is **expected behavior**, not a bug. The "never reuse IDs after successful creation" guarantee means gaps from deletions are acceptable and inevitable.
+
+### Sequence Reservation for Existing Data
+
+When migrating an existing database, sequence numbers must be reserved for all existing structured IDs. The migration scans existing entity tables, parses their IDs, and inserts corresponding rows into `id_sequences`. This prevents `allocateId()` from regenerating IDs that already exist.
+
+For a fresh database, seed data IDs are reserved automatically by the same scan.
+
 ### Table Mapping
 
-| Type | Table to query |
-|------|----------------|
-| `char` | `character_card` |
-| `story` | `story_card` (future) |
-| `persona` | `persona` |
-| `sess` | `session` |
-| `msg` | `message` |
+| Type | Slug source | Example row |
+|------|-------------|-------------|
+| `char` | `toSlug(name)` | `(char, yehwa, 3)` |
+| `story` | `toSlug(name)` | `(story, mountain-trial, 1)` |
+| `persona` | `toSlug(name)` | `(persona, abyssweiss, 1)` |
+| `sess` | `''` (empty) | `(sess, , 43)` |
+| `msg` | `''` (empty) | `(msg, , 182)` |
 
 ---
 
@@ -134,23 +203,64 @@ interface CharacterCard {
 }
 ```
 
-- `source` identifies where the card originally came from.
+### Naming Convention
+
+- **TypeScript/API:** camelCase — `sourceId`
+- **SQLite:** snake_case — `source_id`
+- **`rowToCard()`** maps between them: `sourceId: row.source_id`
+
+This keeps the TypeScript API clean while matching SQLite conventions.
+
+- `source` identifies the **original origin** of the card — where it was first created.
 - `sourceId` stores the original external ID when importing.
 - For cards created directly in Playime, `source` is `playime` and `sourceId` is `null`.
 - `sourceId` is metadata only and MUST NOT be used as the Playime character ID.
 
-### Import Flow (`sillytavern.ts`)
+### Source Is Original Origin, Not Import Channel
+
+A card can travel between systems:
+
+```text
+Created in Playime → exported → imported into SillyTavern → exported → re-imported into Playime
+```
+
+On the re-import, `source` should still be `"playime"` — because that's where the card was **originally created**. Do NOT set `source` to `"sillytavern"` just because the import was performed through a SillyTavern-compatible importer.
+
+The rule: `source` reflects where the card was **authored**, not where it was last imported from.
+
+### Import Flow
+
+**Architecture rule:** Parser → extracts metadata. Route/import service → determines source. Model → stores it.
 
 When importing a card:
 
-1. Parse the card from PNG/JSON.
-2. Extract the original external ID, if available.
-3. Store that value as `sourceId`.
-4. Set `source` to the appropriate origin (`chub` or `sillytavern`).
-5. Generate a new Playime ID using: `generateId('char', card.name)`
-6. Store the card using the generated Playime ID and source metadata.
+1. **Parser** (`sillytavern.ts`): Parse the card from PNG/JSON. Extract and return any embedded `source`/`sourceId` metadata. Do NOT set `source` — leave it for the route.
+2. **Route** (`routes/character.ts`): Determine `source` based on import origin. If `source` is already set (e.g. re-importing a Playime card), preserve it. Otherwise, set based on the endpoint (`'sillytavern'`, `'chub'`, etc.).
+3. **Model** (`createCharacterCard`): Generate a new Playime ID using `allocateId('char', card.name)`. Store the card with the generated ID and source metadata.
 
 The imported external ID must NEVER be used as the primary Playime ID.
+
+### Imported ID Collision
+
+Imported cards MUST always receive a new Playime ID.
+
+The ID embedded in an imported card must never be reused as the new card's primary ID, even when no collision currently exists.
+
+Example:
+
+```
+Imported card: char_yehwa_0001
+
+If char_yehwa_0001 already exists:
+  → generate char_yehwa_0002
+
+Even if it does NOT exist:
+  → still generate the next Playime ID rather than adopting char_yehwa_0001
+```
+
+The imported ID is preserved only as source metadata where applicable.
+
+This keeps the ID system consistent: **every card entering Playime gets an ID from Playime's own ID generator.**
 
 ### Example — Imported Chub Card
 
@@ -245,19 +355,19 @@ The Playime ID system is authoritative. An imported card's external ID is retain
 
 | File | Purpose |
 |------|---------|
-| `backend/src/id.ts` | Shared ID generator: `generateId()`, `toSlug()`, atomic sequence allocation |
+| `backend/src/id.ts` | Shared ID generator: `allocateId()`, `toSlug()`, atomic sequence allocation |
 
 ### Modified Files
 
 | File | Changes |
 |------|---------|
-| `backend/src/models/character.ts` | Use `generateId('char', name)` instead of `randomUUID()`. Add `source`/`sourceId` fields. Update seed data IDs. |
-| `backend/src/models/persona.ts` | Use `generateId('persona', name)` instead of `randomUUID()`. Add `source`/`sourceId` fields. |
-| `backend/src/models/session.ts` | Use `generateId('sess')` instead of `randomUUID()` for sessions. Use `generateId('msg')` for messages. |
-| `backend/src/cards/sillytavern.ts` | Import flow: extract `sourceId`, set `source`, call `generateId('char', name)`. |
-| `backend/db/schema.sql` | Add `source`/`sourceId` columns to `character_card`. |
-| `backend/src/db.ts` | Add migration for `source`/`sourceId` columns. |
-| `backend/src/routes/character.ts` | Import route passes `source`/`sourceId` through. |
+| `backend/src/models/character.ts` | Use `allocateId('char', name)` instead of `randomUUID()`. Add `source`/`sourceId` fields. Update seed data IDs. |
+| `backend/src/models/persona.ts` | Use `allocateId('persona', name)` instead of `randomUUID()`. No source/sourceId — personas don't import. |
+| `backend/src/models/session.ts` | Use `allocateId('sess')` instead of `randomUUID()` for sessions. Use `allocateId('msg')` for messages. |
+| `backend/src/cards/sillytavern.ts` | Import flow: preserve existing `source` if present, extract `sourceId`, call `allocateId('char', name)`. |
+| `backend/db/schema.sql` | Add `source`/`sourceId` columns to `character_card`. Add `id_sequences` table. |
+| `backend/src/db.ts` | Add migration for `source`/`sourceId` columns, `id_sequences` table, and seed sequence reservation. |
+| `backend/src/routes/character.ts` | Import route sets correct `source` based on import origin. |
 
 ### Frontend
 
