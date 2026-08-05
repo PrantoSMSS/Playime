@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS character_card (
   -- Core persona
   name            TEXT NOT NULL,
   avatar          TEXT,                               -- default avatar URL or base64 data URI (legacy)
+  avatar_file     TEXT,                               -- local filename (e.g. "avatar.png")
   tagline         TEXT NOT NULL DEFAULT '',
   personality     TEXT NOT NULL DEFAULT '',
   speech_style    TEXT NOT NULL DEFAULT '',
@@ -90,6 +91,7 @@ CREATE TABLE IF NOT EXISTS character_card (
 
   -- Card-browser metadata (shared shape with future StoryCard)
   cover_image     TEXT,
+  cover_file      TEXT,                               -- local filename for cover
   creator_name    TEXT,
   tags            TEXT NOT NULL DEFAULT '[]',         -- JSON array of strings
   description     TEXT,                               -- short one-line description
@@ -124,6 +126,7 @@ CREATE TABLE IF NOT EXISTS persona (
   id              TEXT PRIMARY KEY,                   -- uuid
   name            TEXT NOT NULL,
   avatar          TEXT,                               -- user's profile image (URL or data URI)
+  avatar_file     TEXT,                               -- local filename (e.g. "avatar.png")
   description     TEXT NOT NULL DEFAULT '',            -- short role description, e.g. "Apprentice Mage"
   appearance      TEXT NOT NULL DEFAULT '',            -- physical appearance for prompt context
   personality     TEXT NOT NULL DEFAULT '',            -- personality traits for prompt context
