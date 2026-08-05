@@ -8,7 +8,7 @@ import { characterRoutes } from './routes/character.js';
 import { chatRoutes } from './routes/chat.js';
 import { personaRoutes } from './routes/persona.js';
 import filesRoutes from './routes/files.js';
-import { getDb } from './db.js';
+import { getDb, reserveExistingIdSequences } from './db.js';
 import { initializeStorage } from './storage.js';
 
 const app = Fastify({ logger: true });
@@ -197,6 +197,7 @@ async function main(): Promise<void> {
   try {
     initializeStorage();
     seedTestCard();
+    reserveExistingIdSequences(getDb());
     await ensureOpencode();
     await app.listen({ port: PORT, host: HOST });
   } catch (err) {
