@@ -1,10 +1,10 @@
 # Structured IDs Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace random UUIDs with human-readable structured IDs (`char_yehwa_0001`, `sess_0000042`) across all entity types, with atomic sequence allocation and import traceability.
 
-**Architecture:** Central `id.ts` module with `allocateId()` and `toSlug()`. Dedicated `id_sequences` table for atomic counter allocation. `sourceId`/`source` fields on `character_card` for import provenance (TypeScript uses camelCase `sourceId`, SQLite uses snake_case `source_id`). Models own their transactions with proper try/catch/ROLLBACK and call `allocateId()` inside them. Existing ID sequences are derived from actual DB contents during migration.
+**Architecture:** Central `id.ts` module with `allocateId()` and `toSlug()`. Dedicated `id_sequences` table for atomic counter allocation. `sourceId`/`source` fields on `character_card` for import provenance (TypeScript uses camelCase `sourceId`, SQLite uses snake_case `source_id`). Models own their transactions with proper try/catch/ROLLBACK and call `allocateId()` inside them. Existing ID sequences are derived from actual DB contents during migration using `MAX()` to handle multiple existing IDs per slug.
 
 **Tech Stack:** Node.js, TypeScript, SQLite (`node:sqlite`), Fastify
 
@@ -12,12 +12,14 @@
 
 - IDs never reused after successful creation — gaps from deletions are acceptable
 - Failed transactions roll back both the entity AND the sequence allocation
-- `allocateId()` must be called inside the entity's own transaction (model owns BEGIN/COMMIT/ROLLBACK)
+- `allocateId()` MUST be called inside a transaction — never outside
 - Imported cards always get new Playime IDs — never adopt the imported ID
 - `source` = original origin (where card was authored), not import channel
 - TypeScript API uses camelCase (`sourceId`), SQLite uses snake_case (`source_id`), `rowToCard()` maps between them
-- Sequence padding: 4 digits for named entities, 7 for sessions/messages
+- Sequence padding: minimum 4 digits for named entities, minimum 7 for sessions/messages (wider allowed)
 - Slug rules: lowercase, non-alphanumeric → hyphen, trim edges
+- `story` type is declared in `EntityType` for future use but is NOT implemented or migrated in this plan
+- Empty slugs from `toSlug()` must throw an error for named entity types
 
 ---
 
@@ -44,7 +46,7 @@
 **Interfaces:**
 - Produces: `allocateId(db, type, name?): string`, `toSlug(name: string): string`, `EntityType`
 
-- [ ] **Step 1: Create `backend/src/id.ts`**
+- [x] **Step 1: Create `backend/src/id.ts`**
 
 ```typescript
 /**
@@ -56,6 +58,7 @@
  *
  * IMPORTANT: allocateId() does NOT manage transactions.
  * The caller (model) must wrap it in BEGIN/COMMIT with try/catch/ROLLBACK.
+ * allocateId() MUST never be called outside a transaction.
  */
 import type { DatabaseSync } from 'node:sqlite';
 
@@ -65,6 +68,7 @@ export type EntityType = 'char' | 'story' | 'persona' | 'sess' | 'msg';
  * Convert a name to a URL-safe slug.
  * "Yehwa's Tale" → "yehwas-tale"
  * "MountainTrial" → "mountaintrial"
+ * "!!!" → "" (empty — allocateId will reject this for named entities)
  */
 export function toSlug(name: string): string {
   return name
@@ -82,6 +86,10 @@ export function toSlug(name: string): string {
  *
  * Uses the id_sequences table. The caller MUST be inside a transaction.
  * This function does NOT begin or commit a transaction.
+ *
+ * Throws if:
+ * - Named entity type produces an empty slug
+ * - Sequence row lookup fails after upsert (should never happen)
  */
 export function allocateId(
   db: DatabaseSync,
@@ -89,6 +97,14 @@ export function allocateId(
   name?: string
 ): string {
   const slug = name ? toSlug(name) : '';
+
+  // Reject empty slugs for named entity types
+  if (!slug && type !== 'sess' && type !== 'msg') {
+    throw new Error(
+      `Cannot generate structured ID: "${name}" produces an empty slug`
+    );
+  }
+
   const prefix = slug ? `${type}_${slug}_` : `${type}_`;
   const padding = type === 'sess' || type === 'msg' ? 7 : 4;
 
@@ -99,10 +115,14 @@ export function allocateId(
      ON CONFLICT (type, slug) DO UPDATE SET next_seq = next_seq + 1`
   ).run(type, slug);
 
-  // Read the value AFTER increment
+  // Read the value AFTER increment — defensive check
   const row = db.prepare(
     `SELECT next_seq FROM id_sequences WHERE type = ? AND slug = ?`
-  ).get(type, slug) as { next_seq: number };
+  ).get(type, slug) as { next_seq: number } | undefined;
+
+  if (!row) {
+    throw new Error(`Failed to allocate ID sequence for ${type}:${slug}`);
+  }
 
   // Allocated number is next_seq - 1
   const seq = row.next_seq - 1;
@@ -111,7 +131,7 @@ export function allocateId(
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add backend/src/id.ts
@@ -130,7 +150,7 @@ git commit -m "feat: add structured ID allocator with atomic sequence allocation
 - Consumes: nothing
 - Produces: `id_sequences` table, `source`/`source_id` columns on `character_card`, sequence reservation derived from existing IDs
 
-- [ ] **Step 1: Add `id_sequences` table to `schema.sql`**
+- [x] **Step 1: Add `id_sequences` table to `schema.sql`**
 
 Add at the end of `backend/db/schema.sql`:
 
@@ -147,17 +167,17 @@ CREATE TABLE IF NOT EXISTS id_sequences (
 );
 ```
 
-- [ ] **Step 2: Add `source`/`source_id` columns to schema.sql**
+- [x] **Step 2: Add `source`/`source_id` columns to schema.sql**
 
 In the `character_card` table definition in `schema.sql`, add after `extensions`:
 
 ```sql
   -- Import provenance
-  source      TEXT NOT NULL DEFAULT 'playime',    -- original origin: 'playime' | 'chub' | 'sillytavern'
+  source      TEXT NOT NULL DEFAULT 'playime',    -- original origin: 'playime' | 'chub' | 'sillytavern' | 'unknown'
   source_id   TEXT,                               -- original external ID (null if created in Playime)
 ```
 
-- [ ] **Step 3: Add migrations to `db.ts`**
+- [x] **Step 3: Add migrations to `db.ts`**
 
 In `backend/src/db.ts`, add to `runMigrations()` after the existing migrations:
 
@@ -187,12 +207,13 @@ In `backend/src/db.ts`, add to `runMigrations()` after the existing migrations:
   }
 ```
 
-- [ ] **Step 4: Add sequence reservation derived from existing IDs**
+- [x] **Step 4: Add sequence reservation derived from existing IDs**
 
-After the above migrations in `db.ts`, add a function that scans existing entity tables and reserves sequence numbers:
+This MUST run after schema creation/migrations AND after seed data has been inserted.
 
 ```typescript
-  // Reserve sequence numbers from existing IDs so future allocateId() calls don't collide
+  // Reserve sequence numbers from existing IDs so future allocateId() calls don't collide.
+  // This MUST run after seed data is inserted so it can see seed IDs.
   reserveExistingIdSequences(db);
 ```
 
@@ -201,12 +222,21 @@ And define the helper:
 ```typescript
 /**
  * Scan existing entity tables and reserve sequence numbers in id_sequences.
- * This handles both fresh DBs (seed data) and existing DBs with migrated data.
- * Idempotent — ON CONFLICT DO NOTHING preserves already-reserved sequences.
+ *
+ * For each (type, slug) pair, finds the MAXIMUM existing sequence number
+ * and sets next_seq to max + 1. This handles multiple existing IDs per slug
+ * (e.g. char_yehwa_0001, char_yehwa_0002, char_yehwa_0007 → next_seq = 8).
+ *
+ * Idempotent — existing counters are only advanced, never reduced.
+ * Uses MAX(next_seq, excluded.next_seq) so re-running won't lower a counter.
+ *
+ * Only matches IDs prefixed with the expected type for that table
+ * (e.g. char_... in character_card, not persona_... in character_card).
+ *
+ * Note: 'story' type is declared in EntityType for future use but has no
+ * story_card table yet — it is not migrated here.
  */
 function reserveExistingIdSequences(db: DatabaseSync): void {
-  // Parse structured IDs and reserve their sequences.
-  // Pattern: type_slug_XXXX (4 digits) or type_XXXXXXX (7 digits for sess/msg)
   const patterns: Array<{ type: string; table: string; hasSlug: boolean }> = [
     { type: 'char', table: 'character_card', hasSlug: true },
     { type: 'persona', table: 'persona', hasSlug: true },
@@ -214,49 +244,56 @@ function reserveExistingIdSequences(db: DatabaseSync): void {
     { type: 'msg', table: 'message', hasSlug: false },
   ];
 
-  const insert = db.prepare(
-    `INSERT INTO id_sequences (type, slug, next_seq) VALUES (?, ?, ?)
-     ON CONFLICT (type, slug) DO NOTHING`
-  );
-
   for (const { type, table, hasSlug } of patterns) {
     // Only process tables that exist
     const tableExists = db.prepare(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name=?`
+      `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`
     ).get(table);
     if (!tableExists) continue;
 
     const rows = db.prepare(`SELECT id FROM ${table}`).all() as Array<{ id: string }>;
 
+    // Collect the MAXIMUM sequence per slug
+    const maxSequences = new Map<string, number>();
+
     for (const { id } of rows) {
-      // Try to parse as structured ID: type_slug_XXXX or type_XXXXXXX
+      // Only match IDs with the EXPECTED type prefix for this table
       const match = hasSlug
-        ? id.match(/^([a-z]+)_([a-z0-9-]+)_(\d+)$/)  // char_yehwa_0001
-        : id.match(/^([a-z]+)_(\d+)$/);                // sess_0000042
+        ? id.match(new RegExp(`^${type}_([a-z0-9-]+)_(\\d+)$`))
+        : id.match(new RegExp(`^${type}_(\\d+)$`));
 
-      if (!match) continue; // Not a structured ID (e.g. old UUID) — skip
+      if (!match) continue;
 
-      if (hasSlug) {
-        const [, parsedType, slug, seqStr] = match;
-        const nextSeq = parseInt(seqStr, 10) + 1;
-        insert.run(parsedType, slug, nextSeq);
-      } else {
-        const [, parsedType, seqStr] = match;
-        const nextSeq = parseInt(seqStr, 10) + 1;
-        insert.run(parsedType, '', nextSeq);
-      }
+      const slug = hasSlug ? match[1] : '';
+      const seq = Number(match[hasSlug ? 2 : 1]);
+
+      if (!Number.isSafeInteger(seq) || seq < 1) continue;
+
+      maxSequences.set(slug, Math.max(maxSequences.get(slug) ?? 0, seq));
+    }
+
+    // Upsert with MAX — only advance counters, never reduce
+    const upsert = db.prepare(`
+      INSERT INTO id_sequences (type, slug, next_seq)
+      VALUES (?, ?, ?)
+      ON CONFLICT (type, slug)
+      DO UPDATE SET next_seq = MAX(id_sequences.next_seq, excluded.next_seq)
+    `);
+
+    for (const [slug, maxSeq] of maxSequences) {
+      upsert.run(type, slug, maxSeq + 1);
     }
   }
 }
 ```
 
-- [ ] **Step 5: Delete existing database to start fresh**
+- [x] **Step 5: Delete existing database to start fresh**
 
 ```bash
 rm -f backend/data/playime.db backend/data/playime.db-shm backend/data/playime.db-wal
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/db/schema.sql backend/src/db.ts
@@ -274,28 +311,28 @@ git commit -m "feat: add id_sequences table, source/source_id columns, derive re
 - Consumes: `allocateId()` from `id.ts`
 - Produces: Updated `CharacterCard` type with `source`/`sourceId` (camelCase in TS), new cards use `allocateId()` inside try/catch/ROLLBACK transaction
 
-- [ ] **Step 1: Add `source`/`sourceId` to `CharacterCard` interface**
+- [x] **Step 1: Add `source`/`sourceId` to `CharacterCard` interface**
 
 In `backend/src/models/character.ts`, add to the `CharacterCard` interface after `stats`:
 
 ```typescript
   // Import provenance
-  source: 'playime' | 'chub' | 'sillytavern';
+  source: 'playime' | 'chub' | 'sillytavern' | 'unknown';
   sourceId: string | null;
 ```
 
 Note: TypeScript uses camelCase `sourceId`. SQLite column is `source_id`. The `rowToCard()` function maps between them.
 
-- [ ] **Step 2: Add `source`/`sourceId` to `CreateCharacterCardInput`**
+- [x] **Step 2: Add `source`/`sourceId` to `CreateCharacterCardInput`**
 
 In `CreateCharacterCardInput`, add:
 
 ```typescript
-  source?: 'playime' | 'chub' | 'sillytavern' | undefined;
+  source?: 'playime' | 'chub' | 'sillytavern' | 'unknown' | undefined;
   sourceId?: string | null | undefined;
 ```
 
-- [ ] **Step 3: Add `source`/`sourceId` to `CharacterCardRow`**
+- [x] **Step 3: Add `source`/`sourceId` to `CharacterCardRow`**
 
 In `CharacterCardRow`, add (snake_case to match SQLite):
 
@@ -304,16 +341,16 @@ In `CharacterCardRow`, add (snake_case to match SQLite):
   source_id: string | null;
 ```
 
-- [ ] **Step 4: Update `rowToCard` to map `source_id` → `sourceId`**
+- [x] **Step 4: Update `rowToCard` to map `source_id` → `sourceId`**
 
 In the `rowToCard` function, add to the return object:
 
 ```typescript
-  source: row.source as 'playime' | 'chub' | 'sillytavern',
+  source: row.source as 'playime' | 'chub' | 'sillytavern' | 'unknown',
   sourceId: row.source_id,
 ```
 
-- [ ] **Step 5: Replace `randomUUID()` with `allocateId()` in `createCharacterCard`**
+- [x] **Step 5: Replace `randomUUID()` with `allocateId()` in `createCharacterCard`**
 
 The model owns the transaction with try/catch/ROLLBACK. Replace:
 
@@ -351,7 +388,7 @@ And wrap the INSERT + COMMIT:
 
 Update imports: remove `randomUUID` from `node:crypto`, add `import { allocateId } from '../id.js';`
 
-- [ ] **Step 6: Add `source`/`sourceId` to INSERT statement**
+- [x] **Step 6: Add `source`/`sourceId` to INSERT statement**
 
 Add `source` and `source_id` to the INSERT column list and VALUES. Map camelCase input to snake_case column:
 
@@ -364,7 +401,7 @@ Add `source` and `source_id` to the INSERT column list and VALUES. Map camelCase
   );
 ```
 
-- [ ] **Step 7: Update seed data IDs**
+- [x] **Step 7: Update seed data IDs**
 
 Replace `YEHWA_CARD`:
 ```typescript
@@ -386,7 +423,7 @@ export const MIKO_CARD: CharacterCard = {
   // ... rest of fields unchanged
 ```
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backend/src/models/character.ts
@@ -404,7 +441,7 @@ git commit -m "feat: use structured IDs for characters, add source/sourceId fiel
 - Consumes: `allocateId()` from `id.ts`
 - Produces: New personas use `allocateId('persona', name)` inside try/catch/ROLLBACK transaction
 
-- [ ] **Step 1: Replace `randomUUID()` with `allocateId()`**
+- [x] **Step 1: Replace `randomUUID()` with `allocateId()`**
 
 The model owns the transaction with try/catch/ROLLBACK. Replace:
 
@@ -444,7 +481,7 @@ Update imports: remove `randomUUID` from `node:crypto`, add `import { allocateId
 
 Note: Personas do NOT get `source`/`sourceId` fields — they are user-created identities, not imported cards.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add backend/src/models/persona.ts
@@ -462,7 +499,7 @@ git commit -m "feat: use structured IDs for personas"
 - Consumes: `allocateId()` from `id.ts`
 - Produces: Sessions use `allocateId('sess')`, messages use `allocateId('msg')`, both with try/catch/ROLLBACK
 
-- [ ] **Step 1: Replace `randomUUID()` in `createSession`**
+- [x] **Step 1: Replace `randomUUID()` in `createSession`**
 
 The model owns the transaction with try/catch/ROLLBACK. Replace:
 
@@ -500,7 +537,7 @@ And wrap the INSERT + COMMIT:
 
 Update imports: remove `randomUUID` from `node:crypto`, add `import { allocateId } from '../id.js';`
 
-- [ ] **Step 2: Replace `randomUUID()` in `insertMessage`**
+- [x] **Step 2: Replace `randomUUID()` in `insertMessage`**
 
 Same pattern — model owns transaction with try/catch/ROLLBACK:
 
@@ -525,7 +562,7 @@ export function insertMessage(input: InsertMessageInput): MessageRow {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/src/models/session.ts
@@ -546,28 +583,27 @@ git commit -m "feat: use structured IDs for sessions and messages"
 
 **Architecture rule:** Parser → extracts metadata. Route/import service → determines source. Model → stores it.
 
-- [ ] **Step 1: Update `parseSillyTavernCard` to return source metadata**
+**Source determination priority:**
+1. Existing trusted `source` metadata in the imported card (e.g. re-importing a Playime card)
+2. Explicit origin metadata from card fields (if the card has `source: "chub"` embedded)
+3. Otherwise, `source = 'unknown'` — do NOT assume SillyTavern format means SillyTavern origin
 
-In `backend/src/cards/sillytavern.ts`, ensure the returned `Partial<CharacterCard>` preserves any existing `source`/`sourceId` fields from the imported JSON:
+- [x] **Step 1: Update `parseSillyTavernCard` to return source metadata**
 
-```typescript
-  // Preserve existing source metadata if present (e.g. re-importing a Playime card).
-  // The ROUTE determines the source, not the parser.
-  // If the imported JSON has source/sourceId, pass them through.
-  // If not, leave undefined — the route fills them in.
-```
+In `backend/src/cards/sillytavern.ts`, ensure the returned `Partial<CharacterCard>` preserves any existing `source`/`sourceId` fields from the imported JSON. Do NOT set `source` — leave it for the route.
 
-- [ ] **Step 2: Update import route to determine source**
+- [x] **Step 2: Update import route to determine source**
 
 In `backend/src/routes/character.ts`, in the POST `/api/cards/import` handler, after `parseSillyTavernCard`:
 
 ```typescript
       // Determine source and sourceId.
-      // Rule: preserve if already set (e.g. re-importing a Playime card),
-      // otherwise set based on import origin.
+      // Priority:
+      // 1. Preserve existing source if already set (e.g. re-importing a Playime card)
+      // 2. If the card has explicit origin metadata, use it
+      // 3. Otherwise, source = 'unknown' (SillyTavern format ≠ SillyTavern origin)
       if (!card.source) {
-        // This endpoint handles SillyTavern-format imports
-        card.source = 'sillytavern';
+        card.source = 'unknown';
       }
       // sourceId: preserved from parsed card if present, otherwise null
       if (card.sourceId === undefined) {
@@ -577,7 +613,7 @@ In `backend/src/routes/character.ts`, in the POST `/api/cards/import` handler, a
 
 The `createCharacterCard()` call will now use `allocateId('char', card.name)` internally, always generating a new Playime ID.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/src/cards/sillytavern.ts backend/src/routes/character.ts
@@ -595,7 +631,7 @@ git commit -m "feat: separate parser metadata extraction from route source deter
 - Consumes: All previous tasks
 - Produces: Verified working system
 
-- [ ] **Step 1: Start the backend and verify no crashes**
+- [x] **Step 1: Start the backend and verify no crashes**
 
 ```bash
 cd backend && npx tsx src/index.ts
@@ -603,7 +639,7 @@ cd backend && npx tsx src/index.ts
 
 Expected: Server starts without errors. `id_sequences` table is created with sequence reservations derived from seed data.
 
-- [ ] **Step 2: Verify seed characters have correct IDs**
+- [x] **Step 2: Verify seed characters have correct IDs**
 
 ```bash
 curl -s http://localhost:3000/api/cards | jq '.[].id'
@@ -615,7 +651,7 @@ Expected:
 "char_miko_0001"
 ```
 
-- [ ] **Step 3: Create a new character and verify ID generation**
+- [x] **Step 3: Create a new character and verify ID generation**
 
 ```bash
 curl -s -X POST http://localhost:3000/api/cards \
@@ -625,7 +661,7 @@ curl -s -X POST http://localhost:3000/api/cards \
 
 Expected: `"char_ayaka_0001"`
 
-- [ ] **Step 4: Create another character with same name and verify increment**
+- [x] **Step 4: Create another character with same name and verify increment**
 
 ```bash
 curl -s -X POST http://localhost:3000/api/cards \
@@ -635,7 +671,7 @@ curl -s -X POST http://localhost:3000/api/cards \
 
 Expected: `"char_yehwa_0002"` (not `0001` — that's taken by seed data, and the sequence was reserved)
 
-- [ ] **Step 5: Verify source fields (camelCase in API)**
+- [x] **Step 5: Verify source fields (camelCase in API)**
 
 ```bash
 curl -s http://localhost:3000/api/cards | jq '.[] | {id, source, sourceId}'
@@ -648,15 +684,40 @@ Expected:
 { "id": "char_ayaka_0001", "source": "playime", "sourceId": null }
 ```
 
-- [ ] **Step 6: Create a session and verify ID format (on a fresh DB)**
+- [x] **Step 6: Test migration with multiple existing IDs per slug**
+
+Create a test DB with:
+```
+char_yehwa_0001
+char_yehwa_0002
+char_yehwa_0007
+```
+
+Run migration. Then create Yehwa. Expected: `char_yehwa_0008`.
+
+- [x] **Step 7: Test rollback behavior**
+
+Sequence currently at 10. BEGIN transaction, allocate → 10, INSERT fails, ROLLBACK. Next successful creation must get `0000010`, not `0000011`.
+
+- [x] **Step 8: Test empty slug rejection**
+
+```bash
+curl -s -X POST http://localhost:3000/api/cards \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "!!!"}' | jq '.error'
+```
+
+Expected: Error about empty slug.
+
+- [x] **Step 9: Create a session and verify ID format (on a fresh DB)**
 
 Start a new play session and check the session ID — should be `sess_0000001`.
 
-- [ ] **Step 7: Send a message and verify ID format (on a fresh DB)**
+- [x] **Step 10: Send a message and verify ID format (on a fresh DB)**
 
 Send a chat message and check the message ID — should be `msg_0000001`.
 
-- [ ] **Step 8: Commit any fixes**
+- [x] **Step 11: Commit any fixes**
 
 ```bash
 git add -A
