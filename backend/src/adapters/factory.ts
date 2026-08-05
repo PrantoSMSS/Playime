@@ -2,7 +2,7 @@
  * Adapter factory — the single way business code obtains an LmAdapter.
  *
  * Routes construct an adapter from a discriminated `AdapterConfig` (see
- * types.ts) and never import a provider class directly (AGENTS.md: "never
+ * types.ts) and never import a provider class directly (CLAUDE.md: "never
  * call a provider's SDK directly from route/business logic"). New providers
  * (ollama, openai-compatible, ...) register a case here.
  */

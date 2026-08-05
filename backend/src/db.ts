@@ -7,7 +7,7 @@
  *
  * Playime owns ALL persistent state (sessions, messages, cards, memories)
  * in SQLite; the LM provider's own session history is never treated as
- * state (AGENTS.md "Core architectural rule").
+ * state (CLAUDE.md "Core architectural rule").
  */
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

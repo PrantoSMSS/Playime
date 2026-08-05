@@ -41,7 +41,7 @@ export function relationshipProse(state: RelationshipState): string {
  *
  * If a `persona` is provided, a "Player Persona" section is injected so
  * the AI knows who the user is roleplaying as. This is player identity,
- * NOT a character avatar — see AGENTS.md "Persona".
+ * NOT a character avatar — see CLAUDE.md "Persona".
  */
 export function renderCharacterSystemPrompt(
   card: CharacterCard,

@@ -3,7 +3,7 @@
  *
  * A thin repository over `node:sqlite` (see src/db.ts for the connection).
  * Routes and the chat service go through these helpers — no raw SQL in
- * business code (AGENTS.md conventions).
+ * business code (CLAUDE.md conventions).
  */
 import { randomUUID } from 'node:crypto';
 import { getDb } from '../db.js';
@@ -147,6 +147,23 @@ function parseJson<T>(raw: string | null, fallback: T): T {
   }
 }
 
+/** List all sessions, newest first. */
+export function listSessions(): SessionRow[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source
+       FROM session
+       ORDER BY created_at DESC`,
+    )
+    .all() as unknown as SessionRowRaw[];
+  return rows.map((row) => ({
+    ...row,
+    avatar_snapshot: parseJson<AvatarOption | null>(row.avatar_snapshot, null),
+    starting_scenario_snapshot: parseJson<StartingScenario | null>(row.starting_scenario_snapshot, null),
+    persona_snapshot: parseJson<Persona | null>(row.persona_snapshot, null),
+  }));
+}
+
 /** Next per-session sequence number for a message (seq is 0-based per session). */
 export function nextMessageSeq(sessionId: string): number {
   const row = getDb()
@@ -201,4 +218,14 @@ export function listTurns(sessionId: string): MessageRow[] {
        ORDER BY seq`,
     )
     .all(sessionId) as unknown as MessageRow[];
+}
+
+/** Delete a session and its messages (cascade via FK). */
+export function deleteSession(id: string): void {
+  getDb().prepare('DELETE FROM session WHERE id = ?').run(id);
+}
+
+/** Delete all messages for a session. */
+export function deleteMessages(sessionId: string): void {
+  getDb().prepare('DELETE FROM message WHERE session_id = ?').run(sessionId);
 }

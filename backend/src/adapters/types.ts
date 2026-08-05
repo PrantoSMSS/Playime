@@ -2,7 +2,7 @@
  * Shared types for LM provider adapters.
  *
  * The adapter layer is the ONLY place a provider's SDK or HTTP API is
- * touched (see AGENTS.md). Business logic depends on `LmAdapter` (defined
+ * touched (see CLAUDE.md). Business logic depends on `LmAdapter` (defined
  * in index.ts) and on these types, never on a provider directly.
  *
  * Prompt assembly rules live in docs/PLAYIME_PROMPT_SPEC.md. An adapter

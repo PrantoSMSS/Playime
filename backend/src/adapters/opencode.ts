@@ -16,7 +16,7 @@
  * are dropped (see decisions log: never surface model reasoning).
  *
  * The adapter stores NO state in opencode's session history beyond the
- * prompt message; Playime owns all memory/state (AGENTS.md).
+ * prompt message; Playime owns all memory/state (CLAUDE.md).
  */
 import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -132,7 +132,7 @@ export class OpenCodeAdapter {
   /** Create an opencode session in a neutral working directory. */
   async createSession(directory: string = this.directory): Promise<string> {
     mkdirSync(directory, { recursive: true });
-    const res = await fetch(`${this.baseUrl}/api/session`, {
+    const res = await this.safeFetch(`${this.baseUrl}/api/session`, {
       method: 'POST',
       headers: this.headers('application/json'),
       body: JSON.stringify({ location: { directory } }),
@@ -153,7 +153,7 @@ export class OpenCodeAdapter {
 
   /** Delete an opencode session to release provider context. Best-effort. */
   async destroySession(sessionId: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/session/${sessionId}`, {
+    const res = await this.safeFetch(`${this.baseUrl}/api/session/${sessionId}`, {
       method: 'DELETE',
       headers: this.headers(),
       signal: AbortSignal.timeout(10_000),
@@ -201,7 +201,7 @@ export class OpenCodeAdapter {
 
   /** Set the model for a session (204 on success). */
   private async setModel(sessionId: string, model: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/session/${sessionId}/model`, {
+    const res = await this.safeFetch(`${this.baseUrl}/api/session/${sessionId}/model`, {
       method: 'POST',
       headers: this.headers('application/json'),
       body: JSON.stringify({ model: { id: model, providerID: 'opencode' } }),
@@ -222,7 +222,7 @@ export class OpenCodeAdapter {
     promptText: string,
     signal?: AbortSignal,
   ): Promise<number> {
-    const res = await fetch(`${this.baseUrl}/api/session/${sessionId}/prompt`, {
+    const res = await this.safeFetch(`${this.baseUrl}/api/session/${sessionId}/prompt`, {
       method: 'POST',
       headers: this.headers('application/json'),
       body: JSON.stringify({ prompt: { text: promptText } }),
@@ -257,7 +257,7 @@ export class OpenCodeAdapter {
     const timeout = setTimeout(() => ctrl.abort(), 120_000);
 
     try {
-      const res = await fetch(url, {
+      const res = await this.safeFetch(url, {
         headers: this.headers(),
         signal: ctrl.signal,
       });
@@ -301,7 +301,12 @@ export class OpenCodeAdapter {
             buffer = buffer.slice(idx + 2);
             const data = parseSseData(raw);
             if (data) {
-              const event = JSON.parse(data) as OpenCodeEvent;
+              let event: OpenCodeEvent;
+              try {
+                event = JSON.parse(data) as OpenCodeEvent;
+              } catch {
+                throw new LmError('provider', `opencode sent non-JSON SSE data: ${data.slice(0, 200)}`);
+              }
               if (event.type?.startsWith('session.next.') || event.type?.startsWith('message.updated')) {
                 yield event;
               }
@@ -335,6 +340,21 @@ export class OpenCodeAdapter {
     if (contentType) h['Content-Type'] = contentType;
     if (this.authHeader) h.Authorization = this.authHeader;
     return h;
+  }
+
+  /**
+   * Wrapper around `fetch` that converts network-level errors (connection
+   * refused, DNS failures, etc.) into `LmError` so callers never surface
+   * raw `TypeError` objects to the chat service.
+   */
+  private async safeFetch(url: string, init?: RequestInit): Promise<Response> {
+    try {
+      return await fetch(url, init);
+    } catch (err) {
+      if (err instanceof LmError) throw err;
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new LmError('provider', `opencode unreachable: ${msg}`, { cause: err });
+    }
   }
 }
 
