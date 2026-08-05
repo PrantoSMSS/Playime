@@ -42,6 +42,7 @@
 	let showExportDropdown = $state(false);
 	let isDeleting = $state(false);
 	let isExporting = $state(false);
+	let localError = $state<string | null>(null);
 
 	// ── Derived values ────────────────────────────────────────────────────
 	const selectedScenario = $derived(
@@ -186,6 +187,7 @@
 	async function handleExport(format: 'json' | 'png'): Promise<void> {
 		isExporting = true;
 		showExportDropdown = false;
+		localError = null;
 		try {
 			if (format === 'json') {
 				await exportCardAsJson(card);
@@ -193,7 +195,7 @@
 				await exportCardAsPng(card);
 			}
 		} catch (err) {
-			chat.error = err instanceof Error ? err.message : 'Failed to export card';
+			localError = err instanceof Error ? err.message : 'Failed to export card';
 		} finally {
 			isExporting = false;
 		}
@@ -396,64 +398,76 @@
 
 		<!-- Sticky footer -->
 		<div class="modal__footer">
-			<!-- Delete button (leftmost, separated) -->
-			{#if !showDeleteConfirm}
-				<button
-					class="modal__delete-btn"
-					onclick={() => (showDeleteConfirm = true)}
-					aria-label="Delete character"
-				>
+			{#if localError}
+				<div class="modal__error">
 					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+						<circle cx="12" cy="12" r="10"/>
+						<line x1="12" y1="8" x2="12" y2="12"/>
+						<line x1="12" y1="16" x2="12.01" y2="16"/>
 					</svg>
-					Delete
-				</button>
-			{:else}
-				<div class="modal__delete-confirm">
-					<span>Delete this character?</span>
-					<button class="modal__confirm-yes" onclick={handleDelete} disabled={isDeleting}>
-						{isDeleting ? '...' : 'Yes'}
-					</button>
-					<button class="modal__confirm-no" onclick={() => (showDeleteConfirm = false)}>
-						No
-					</button>
+					{localError}
 				</div>
 			{/if}
-
-			<div class="modal__footer-right">
-				<!-- Export dropdown -->
-				<div class="modal__export-wrapper">
+			<div class="modal__footer-buttons">
+				<!-- Delete button (leftmost, separated) -->
+				{#if !showDeleteConfirm}
 					<button
-						class="modal__export-btn"
-						onclick={() => (showExportDropdown = !showExportDropdown)}
-						disabled={isExporting}
-						aria-label="Export character"
+						class="modal__delete-btn"
+						onclick={() => (showDeleteConfirm = true)}
+						aria-label="Delete character"
 					>
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+							<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
 						</svg>
-						Export
+						Delete
 					</button>
-					{#if showExportDropdown}
-						<div class="modal__export-dropdown">
-							<button class="modal__export-option" onclick={() => handleExport('json')}>
-								.json (without avatar)
-							</button>
-							<button class="modal__export-option" onclick={() => handleExport('png')}>
-								.png (with avatar)
-							</button>
-						</div>
-					{/if}
-				</div>
+				{:else}
+					<div class="modal__delete-confirm">
+						<span>Delete this character?</span>
+						<button class="modal__confirm-yes" onclick={handleDelete} disabled={isDeleting}>
+							{isDeleting ? '...' : 'Yes'}
+						</button>
+						<button class="modal__confirm-no" onclick={() => (showDeleteConfirm = false)}>
+							No
+						</button>
+					</div>
+				{/if}
 
-				<!-- New Play button -->
-				<button
-					class="modal__start-btn"
-					disabled={!canPlay()}
-					onclick={handleStartPlay}
-				>
-					New Play
-				</button>
+				<div class="modal__footer-right">
+					<!-- Export dropdown -->
+					<div class="modal__export-wrapper">
+						<button
+							class="modal__export-btn"
+							onclick={() => (showExportDropdown = !showExportDropdown)}
+							disabled={isExporting}
+							aria-label="Export character"
+						>
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+							</svg>
+							Export
+						</button>
+						{#if showExportDropdown}
+							<div class="modal__export-dropdown">
+								<button class="modal__export-option" onclick={() => handleExport('json')}>
+									.json (without avatar)
+								</button>
+								<button class="modal__export-option" onclick={() => handleExport('png')}>
+									.png (with avatar)
+								</button>
+							</div>
+						{/if}
+					</div>
+
+					<!-- New Play button -->
+					<button
+						class="modal__start-btn"
+						disabled={!canPlay()}
+						onclick={handleStartPlay}
+					>
+						New Play
+					</button>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -827,8 +841,27 @@
 		padding: var(--space-3) var(--space-5);
 		border-top: 1px solid var(--border);
 		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	.modal__error {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-2) var(--space-3);
+		background: var(--color-error-bg, rgba(239, 68, 68, 0.1));
+		color: var(--color-error, #ef4444);
+		border: 1px solid var(--color-error-border, rgba(239, 68, 68, 0.3));
+		border-radius: var(--radius-md);
+		font-size: var(--font-size-sm);
+	}
+
+	.modal__footer-buttons {
+		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		width: 100%;
 	}
 
 	.modal__footer-right {
