@@ -10,6 +10,7 @@
  *   DELETE /api/cards/:id        delete a card
  */
 import type { FastifyInstance } from 'fastify';
+import { readFileSync } from 'node:fs';
 import {
   createCharacterCard,
   deleteCharacterCard,
@@ -24,7 +25,7 @@ import type {
 } from '../models/character.js';
 import { extractCardJsonFromPng, embedTextChunks } from '../cards/pngText.js';
 import { parseSillyTavernCard, saveAvatarLocally } from '../cards/sillytavern.js';
-import { deleteEntityDir } from '../storage.js';
+import { deleteEntityDir, getEntityPath } from '../storage.js';
 
 export async function characterRoutes(app: FastifyInstance): Promise<void> {
   // ── GET /api/cards ───────────────────────────────────────────────────
@@ -534,32 +535,45 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Get the avatar image — first from avatars array, or card default
-      const avatarUrl = card.avatars[0]?.image ?? card.avatar ?? card.cover_image;
-      if (!avatarUrl) {
-        return reply.code(400).send({
-          error: { code: 'no_avatar', message: 'Card has no avatar image to embed' },
-        });
-      }
-
-      // Fetch the avatar image
+      // Get the avatar image — prefer local file, fall back to legacy URL
       let imageBuffer: Buffer;
-      try {
-        if (avatarUrl.startsWith('data:')) {
-          // Data URI — extract base64 portion
-          const base64 = avatarUrl.split(',')[1] ?? '';
-          imageBuffer = Buffer.from(base64, 'base64');
-        } else {
-          // URL — fetch it
-          const resp = await fetch(avatarUrl);
-          if (!resp.ok) throw new Error(`Failed to fetch avatar: ${resp.status}`);
-          const arrayBuf = await resp.arrayBuffer();
-          imageBuffer = Buffer.from(arrayBuf);
+      if (card.avatar_file) {
+        // Local file — read from disk
+        const filePath = getEntityPath('characters', card.id, card.avatar_file);
+        if (!filePath) {
+          return reply.code(400).send({
+            error: { code: 'no_avatar', message: 'Card has no avatar image to embed' },
+          });
         }
-      } catch (err) {
-        return reply.code(500).send({
-          error: { code: 'avatar_fetch_failed', message: `Failed to fetch avatar: ${err instanceof Error ? err.message : 'unknown error'}` },
-        });
+        try {
+          imageBuffer = readFileSync(filePath);
+        } catch {
+          return reply.code(404).send({
+            error: { code: 'avatar_not_found', message: `Avatar file not found: ${card.avatar_file}` },
+          });
+        }
+      } else {
+        // Legacy URL or data URI
+        const avatarUrl = card.avatars[0]?.image ?? card.avatar ?? card.cover_image;
+        if (!avatarUrl) {
+          return reply.code(400).send({
+            error: { code: 'no_avatar', message: 'Card has no avatar image to embed' },
+          });
+        }
+        try {
+          if (avatarUrl.startsWith('data:')) {
+            const base64 = avatarUrl.split(',')[1] ?? '';
+            imageBuffer = Buffer.from(base64, 'base64');
+          } else {
+            const resp = await fetch(avatarUrl);
+            if (!resp.ok) throw new Error(`Failed to fetch avatar: ${resp.status}`);
+            imageBuffer = Buffer.from(await resp.arrayBuffer());
+          }
+        } catch (err) {
+          return reply.code(500).send({
+            error: { code: 'avatar_fetch_failed', message: `Failed to fetch avatar: ${err instanceof Error ? err.message : 'unknown error'}` },
+          });
+        }
       }
 
       // Check if the image is PNG (PNG signature: 137 80 78 71)
