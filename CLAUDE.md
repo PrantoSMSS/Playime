@@ -1,4 +1,4 @@
-# AGENTS.md
+# CLAUDE.md
 
 Guidance for any agent working in this repo. Read this before making changes.
 
