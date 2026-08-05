@@ -1,9 +1,11 @@
 // backend/src/storage.ts
 import { mkdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
-const DATA_DIR = join(__dirname, '../data');
-const ENTITIES_DIR = join(DATA_DIR, 'entities');
+// ESM-compatible dirname — import.meta.dirname is available in Node 20.11+
+const CURRENT_DIR = import.meta.dirname;
+const DATA_DIR = join(CURRENT_DIR, '../data');
+const ENTITIES_DIR = resolve(DATA_DIR, 'entities');
 
 export const ENTITY_TYPES = ['characters', 'personas', 'stories'] as const;
 export type EntityType = typeof ENTITY_TYPES[number];
@@ -31,11 +33,12 @@ export function ensureEntityDir(type: EntityType, id: string): string {
  * Returns null if path would escape entities directory (traversal guard).
  */
 export function getEntityPath(type: EntityType, id: string, filename: string): string | null {
-  const dir = join(ENTITIES_DIR, type, id);
-  const filePath = join(dir, filename);
+  // Resolve to absolute canonical path first — this resolves any `..` sequences
+  const filePath = resolve(join(ENTITIES_DIR, type, id, filename));
 
-  // Path traversal guard
-  if (!filePath.startsWith(ENTITIES_DIR)) {
+  // Path traversal guard: resolved path must be strictly inside ENTITIES_DIR
+  // Using resolve() ensures `..` is expanded before comparison
+  if (!filePath.startsWith(ENTITIES_DIR + '/') && filePath !== ENTITIES_DIR) {
     return null;
   }
 
