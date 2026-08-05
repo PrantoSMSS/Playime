@@ -14,13 +14,16 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
-/** Directory containing schema.sql and (by default) the db file. */
+/** Directory containing schema.sql (schema lives alongside db.ts in src/../db). */
 const DB_DIR = fileURLToPath(new URL('../db/', import.meta.url));
 const SCHEMA_PATH = join(DB_DIR, 'schema.sql');
 
+/** Data directory — holds the database and entity files. */
+const DATA_DIR = fileURLToPath(new URL('../data/', import.meta.url));
+
 /** Default database file location, overridable via PLAYIME_DB_PATH. */
 export function defaultDbPath(): string {
-  return process.env.PLAYIME_DB_PATH ?? join(DB_DIR, 'playime.db');
+  return process.env.PLAYIME_DB_PATH ?? join(DATA_DIR, 'playime.db');
 }
 
 /**
