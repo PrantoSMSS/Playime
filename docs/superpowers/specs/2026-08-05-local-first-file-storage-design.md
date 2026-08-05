@@ -26,7 +26,6 @@ The fix: store every asset as a local file on disk, referenced by relative path.
 
 - No image processing pipeline (resize, thumbnail, format conversion).
 - No cloud sync or multi-device file sharing.
-- No cleanup of orphaned files (manual or future task).
 
 ## Directory Layout
 
@@ -211,6 +210,43 @@ The spec recommends **Option A** for zero-downtime upgrades.
 | Path traversal attempt | 403 with `{ error: { code: 'forbidden', message: 'Invalid path' } }` |
 | Upload fails (disk full, permissions) | 500 with descriptive message |
 | Card has no avatar | `avatar_file` is NULL — frontend shows initials/fallback |
+
+## Cascade Cleanup
+
+When an entity is deleted from the database, its entire entity folder is removed
+from disk. This mirrors SQLite's `ON DELETE CASCADE` behavior for messages.
+
+### Delete handlers
+
+```typescript
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
+
+const ENTITIES_DIR = join(__dirname, '../../data/entities');
+
+function deleteEntityFolder(type: string, id: string): void {
+  const dir = join(ENTITIES_DIR, type, id);
+  rmSync(dir, { recursive: true, force: true });
+}
+```
+
+### When it runs
+
+| Entity | Delete trigger | Folder removed |
+|--------|---------------|----------------|
+| Character | `DELETE /api/cards/:id` | `entities/characters/{id}/` |
+| Persona | `DELETE /api/personas/:id` | `entities/personas/{id}/` |
+| Story | `DELETE /api/stories/:id` | `entities/stories/{id}/` |
+
+The `force: true` flag means no error if the folder doesn't exist (card imported
+without avatar, or already partially cleaned up). The `recursive: true` flag
+removes the folder and all contents including `gallery/` subdirectories.
+
+### Session deletion does NOT remove entity folders
+
+Sessions are ephemeral play instances. Deleting a session removes messages but
+not the character/persona/story folders — those are reusable entities shared
+across sessions.
 
 ## Frontend Changes
 
