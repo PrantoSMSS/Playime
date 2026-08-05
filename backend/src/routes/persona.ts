@@ -16,6 +16,7 @@ import {
   updatePersona,
 } from '../models/persona.js';
 import type { CreatePersonaInput, UpdatePersonaInput } from '../models/persona.js';
+import { deleteEntityDir } from '../storage.js';
 
 export async function personaRoutes(app: FastifyInstance): Promise<void> {
   // ── GET /api/personas ────────────────────────────────────────────────
@@ -141,6 +142,7 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
           error: { code: 'persona_not_found', message: `Persona ${id} not found` },
         });
       }
+      deleteEntityDir('personas', id);
       return reply.code(204).send();
     },
   );

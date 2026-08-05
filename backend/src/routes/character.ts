@@ -24,6 +24,7 @@ import type {
 } from '../models/character.js';
 import { extractCardJsonFromPng, embedTextChunks } from '../cards/pngText.js';
 import { parseSillyTavernCard, saveAvatarLocally } from '../cards/sillytavern.js';
+import { deleteEntityDir } from '../storage.js';
 
 export async function characterRoutes(app: FastifyInstance): Promise<void> {
   // ── GET /api/cards ───────────────────────────────────────────────────
@@ -617,6 +618,7 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
           error: { code: 'card_not_found', message: `Card ${id} not found` },
         });
       }
+      deleteEntityDir('characters', id);
       return reply.code(204).send();
     },
   );
