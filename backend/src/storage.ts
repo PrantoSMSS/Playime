@@ -1,6 +1,6 @@
 // backend/src/storage.ts
 import { mkdirSync, rmSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 
 // ESM-compatible dirname — import.meta.dirname is available in Node 20.11+
 const CURRENT_DIR = import.meta.dirname;
@@ -38,7 +38,8 @@ export function getEntityPath(type: EntityType, id: string, filename: string): s
 
   // Path traversal guard: resolved path must be strictly inside ENTITIES_DIR
   // Using resolve() ensures `..` is expanded before comparison
-  if (!filePath.startsWith(ENTITIES_DIR + '/') && filePath !== ENTITIES_DIR) {
+  // Use path separator (not hardcoded '/') for cross-platform correctness
+  if (!filePath.startsWith(ENTITIES_DIR + sep) && filePath !== ENTITIES_DIR) {
     return null;
   }
 

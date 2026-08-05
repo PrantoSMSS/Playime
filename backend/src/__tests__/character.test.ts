@@ -1,16 +1,21 @@
 /**
- * Tests for character card model — avatars and starting scenarios.
+ * Tests for character card model — avatars, starting scenarios, and entity storage.
  *
  * Uses Node's built-in test runner (node:test).
  * Run with: node --import tsx --test src/__tests__/character.test.ts
  */
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, rmSync, mkdtempSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   normalizeAvatars,
   normalizeStartingScenarios,
   resolveAvatar,
   resolveStartingScenario,
+  createCharacterCard,
+  deleteCharacterCard,
 } from '../models/character.js';
 import type { CharacterCard, AvatarOption, StartingScenario } from '../models/character.js';
 
@@ -247,5 +252,54 @@ describe('session creation with avatar/scenario snapshots', () => {
     ];
     const card = makeCard({ starting_scenarios: scenarios });
     assert.equal(resolveStartingScenario(card, 'nonexistent'), undefined);
+  });
+});
+
+// ── Entity directory creation ────────────────────────────────────────────
+
+describe('createCharacterCard entity directory', () => {
+  let origDbPath: string | undefined;
+  let tempDir: string;
+
+  before(() => {
+    origDbPath = process.env.PLAYIME_DB_PATH;
+    tempDir = mkdtempSync(join(tmpdir(), 'playime-char-test-'));
+    process.env.PLAYIME_DB_PATH = join(tempDir, 'test.db');
+  });
+
+  after(() => {
+    // Restore original env
+    if (origDbPath === undefined) {
+      delete process.env.PLAYIME_DB_PATH;
+    } else {
+      process.env.PLAYIME_DB_PATH = origDbPath;
+    }
+    // Clean up temp dir (may fail on Windows if DB handle is still open)
+    try { rmSync(tempDir, { recursive: true, force: true }); } catch { /* best effort */ }
+  });
+
+  it('creates entity directory on character creation', () => {
+    const card = createCharacterCard({ name: 'Entity Dir Test' });
+    assert.ok(card.id, 'card should have an id');
+
+    // Entity directory should exist at data/entities/characters/<id>/
+    const entityDir = join(import.meta.dirname, '../../data/entities/characters', card.id);
+    assert.ok(existsSync(entityDir), `entity directory should exist at ${entityDir}`);
+
+    // Clean up
+    deleteCharacterCard(card.id);
+    rmSync(entityDir, { recursive: true, force: true });
+  });
+
+  it('creates entity directory even when no avatar is provided', () => {
+    const card = createCharacterCard({ name: 'No Avatar Test' });
+    assert.ok(card.id);
+
+    const entityDir = join(import.meta.dirname, '../../data/entities/characters', card.id);
+    assert.ok(existsSync(entityDir), 'entity directory should exist without avatar');
+
+    // Clean up
+    deleteCharacterCard(card.id);
+    rmSync(entityDir, { recursive: true, force: true });
   });
 });

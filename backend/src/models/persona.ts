@@ -11,6 +11,7 @@
  */
 import { getDb } from '../db.js';
 import { allocateId } from '../id.js';
+import { ensureEntityDir } from '../storage.js';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -127,6 +128,7 @@ export function createPersona(input: CreatePersonaInput): Persona {
     );
 
     db.exec('COMMIT');
+    ensureEntityDir('personas', id);
     return getPersona(id)!;
   } catch (err) {
     db.exec('ROLLBACK');

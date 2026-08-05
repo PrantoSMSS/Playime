@@ -131,7 +131,24 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
           error: { code: 'invalid_body', message: 'Request body is required' },
         });
       }
-      const card = createCharacterCard(body);
+      let card = createCharacterCard(body);
+
+      // Save avatar to disk if it's a data URL or HTTP URL
+      const avatarFile = await saveAvatarLocally(card.id, body.avatar ?? null);
+      if (avatarFile) {
+        let avatars = body.avatars ?? [];
+        if (avatars.length === 0) {
+          // Build a default avatar entry from the saved file
+          avatars = [{ id: 'default', name: 'Default', image: avatarFile }];
+        } else {
+          avatars = avatars.map((a, i) =>
+            i === 0 ? { ...a, image: avatarFile } : a
+          );
+        }
+        updateCharacterCard(card.id, { avatar_file: avatarFile, avatars });
+        card = getCharacterCard(card.id)!;
+      }
+
       return reply.code(201).send(card);
     },
   );
@@ -244,15 +261,21 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
         card.sourceId = null;
       }
 
-      const created = createCharacterCard(card as CreateCharacterCardInput);
+      let created = createCharacterCard(card as CreateCharacterCardInput);
 
       // Save avatar locally and update avatar_file + avatars[].image
       const avatarFile = await saveAvatarLocally(created.id, card.avatar ?? null);
       if (avatarFile) {
-        const avatars = (card.avatars ?? []).map((a, i) =>
-          i === 0 ? { ...a, image: avatarFile } : a
-        );
+        let avatars = card.avatars ?? [];
+        if (avatars.length === 0) {
+          avatars = [{ id: 'default', name: 'Default', image: avatarFile }];
+        } else {
+          avatars = avatars.map((a, i) =>
+            i === 0 ? { ...a, image: avatarFile } : a
+          );
+        }
         updateCharacterCard(created.id, { avatar_file: avatarFile, avatars });
+        created = getCharacterCard(created.id)!;
       }
       return reply.code(201).send(created);
     },
@@ -442,12 +465,25 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
           error: { code: 'invalid_body', message: 'Request body is required' },
         });
       }
-      const card = updateCharacterCard(id, body);
+      let card = updateCharacterCard(id, body);
       if (!card) {
         return reply.code(404).send({
           error: { code: 'card_not_found', message: `Card ${id} not found` },
         });
       }
+
+      // Save avatar to disk if a new data URL or HTTP URL was provided
+      if (body.avatar !== undefined) {
+        const avatarFile = await saveAvatarLocally(id, body.avatar);
+        if (avatarFile) {
+          const avatars = (body.avatars ?? card.avatars).map((a, i) =>
+            i === 0 ? { ...a, image: avatarFile } : a
+          );
+          updateCharacterCard(id, { avatar_file: avatarFile, avatars });
+          card = getCharacterCard(id)!;
+        }
+      }
+
       return reply.send(card);
     },
   );

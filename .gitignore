@@ -31,3 +31,4 @@ references/
 
 # Test data
 test_files/
+backend/data/entities/

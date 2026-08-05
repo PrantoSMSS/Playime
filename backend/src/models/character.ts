@@ -13,6 +13,7 @@
  */
 import { getDb } from '../db.js';
 import { allocateId } from '../id.js';
+import { ensureEntityDir } from '../storage.js';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -408,7 +409,7 @@ export function createCharacterCard(input: CreateCharacterCardInput): CharacterC
         character_version, world_info, extensions, avatar_file, cover_file,
         cover_image, creator_name, tags, description, prologue_preview, stats,
         source, source_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       input.name,
@@ -448,6 +449,7 @@ export function createCharacterCard(input: CreateCharacterCardInput): CharacterC
     );
 
     db.exec('COMMIT');
+    ensureEntityDir('characters', id);
     return getCharacterCard(id)!;
   } catch (err) {
     db.exec('ROLLBACK');

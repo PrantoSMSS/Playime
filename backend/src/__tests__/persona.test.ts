@@ -1,11 +1,14 @@
 /**
- * Tests for persona model — CRUD and reuse across sessions.
+ * Tests for persona model — CRUD, entity storage, and reuse across sessions.
  *
  * Uses Node's built-in test runner (node:test).
  * Run with: node --import tsx --test src/__tests__/persona.test.ts
  */
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, rmSync, mkdtempSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   createPersona,
   deletePersona,
@@ -62,5 +65,52 @@ describe('default persona', () => {
     assert.equal(DEFAULT_PERSONA.appearance, '');
     assert.equal(DEFAULT_PERSONA.personality, '');
     assert.equal(DEFAULT_PERSONA.pronouns, '');
+  });
+});
+
+// ── Entity directory creation ────────────────────────────────────────────
+
+describe('createPersona entity directory', () => {
+  let origDbPath: string | undefined;
+  let tempDir: string;
+
+  before(() => {
+    origDbPath = process.env.PLAYIME_DB_PATH;
+    tempDir = mkdtempSync(join(tmpdir(), 'playime-persona-test-'));
+    process.env.PLAYIME_DB_PATH = join(tempDir, 'test.db');
+  });
+
+  after(() => {
+    if (origDbPath === undefined) {
+      delete process.env.PLAYIME_DB_PATH;
+    } else {
+      process.env.PLAYIME_DB_PATH = origDbPath;
+    }
+    // Clean up temp dir (may fail on Windows if DB handle is still open)
+    try { rmSync(tempDir, { recursive: true, force: true }); } catch { /* best effort */ }
+  });
+
+  it('creates entity directory on persona creation', () => {
+    const persona = createPersona({ name: 'Entity Dir Persona' });
+    assert.ok(persona.id, 'persona should have an id');
+
+    const entityDir = join(import.meta.dirname, '../../data/entities/personas', persona.id);
+    assert.ok(existsSync(entityDir), `entity directory should exist at ${entityDir}`);
+
+    // Clean up
+    deletePersona(persona.id);
+    rmSync(entityDir, { recursive: true, force: true });
+  });
+
+  it('creates entity directory even without avatar', () => {
+    const persona = createPersona({ name: 'No Avatar Persona' });
+    assert.ok(persona.id);
+
+    const entityDir = join(import.meta.dirname, '../../data/entities/personas', persona.id);
+    assert.ok(existsSync(entityDir), 'entity directory should exist without avatar');
+
+    // Clean up
+    deletePersona(persona.id);
+    rmSync(entityDir, { recursive: true, force: true });
   });
 });

@@ -128,10 +128,8 @@ function runMigrations(db: DatabaseSync): void {
   } catch {
     // Column already exists — ignore.
   }
-
-  // Reserve sequence numbers from existing IDs so future allocateId() calls don't collide.
-  // This MUST run after seed data is inserted so it can see seed IDs.
-  reserveExistingIdSequences(db);
+  // NOTE: reserveExistingIdSequences() is NOT called here.
+  // It must run AFTER seed data is inserted (see index.ts main()).
 }
 
 /**
@@ -150,7 +148,12 @@ function runMigrations(db: DatabaseSync): void {
  * Note: 'story' type is declared in EntityType for future use but has no
  * story_card table yet — it is not migrated here.
  */
-function reserveExistingIdSequences(db: DatabaseSync): void {
+/**
+ * Scan existing entity tables and reserve sequence numbers in id_sequences.
+ * MUST be called AFTER all seed/entity data has been inserted.
+ * Idempotent — safe to call on every startup.
+ */
+export function reserveExistingIdSequences(db: DatabaseSync): void {
   const patterns: Array<{ type: string; table: string; hasSlug: boolean }> = [
     { type: 'char', table: 'character_card', hasSlug: true },
     { type: 'persona', table: 'persona', hasSlug: true },
