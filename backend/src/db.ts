@@ -176,7 +176,14 @@ function reserveExistingIdSequences(db: DatabaseSync): void {
         ? id.match(new RegExp(`^${type}_([a-z0-9-]+)_(\\d+)$`))
         : id.match(new RegExp(`^${type}_(\\d+)$`));
 
-      if (!match) continue;
+      if (!match) {
+        // Legacy ID that doesn't match the structured format (e.g. raw UUIDs
+        // like 'yehwa' or '215fb191-...'). Reserve one sequence slot to
+        // prevent allocateId from generating a colliding ID. We use the
+        // special slug '_legacy' for all non-matching IDs of a given type.
+        maxSequences.set('_legacy', (maxSequences.get('_legacy') ?? 0) + 1);
+        continue;
+      }
 
       const slug = hasSlug ? (match[1] ?? '') : '';
       const seq = Number(match[hasSlug ? 2 : 1] ?? '0');

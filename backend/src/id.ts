@@ -74,7 +74,27 @@ export function allocateId(
   }
 
   // Allocated number is next_seq - 1
-  const seq = row.next_seq - 1;
-  const padded = seq.toString().padStart(padding, '0');
-  return `${prefix}${padded}`;
+  let seq = row.next_seq - 1;
+  let padded = seq.toString().padStart(padding, '0');
+  let candidate = `${prefix}${padded}`;
+
+  // Safety net: if the generated ID already exists (e.g. from legacy seed data
+  // that wasn't parsed by reserveExistingIdSequences), keep incrementing until
+  // we find an unused one. This is rare — only happens during migration of
+  // databases with non-structured IDs.
+  const checkExists = db.prepare(`SELECT 1 FROM ${type === 'char' ? 'character_card' : type === 'persona' ? 'persona' : type === 'sess' ? 'session' : 'message'} WHERE id = ?`);
+  while (checkExists.get(candidate)) {
+    db.prepare(
+      `INSERT INTO id_sequences (type, slug, next_seq) VALUES (?, ?, ?)
+       ON CONFLICT (type, slug) DO UPDATE SET next_seq = next_seq + 1`
+    ).run(type, slug, seq + 2);
+    const rerow = db.prepare(
+      `SELECT next_seq FROM id_sequences WHERE type = ? AND slug = ?`
+    ).get(type, slug) as { next_seq: number };
+    seq = rerow.next_seq - 1;
+    padded = seq.toString().padStart(padding, '0');
+    candidate = `${prefix}${padded}`;
+  }
+
+  return candidate;
 }
