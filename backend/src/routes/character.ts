@@ -18,10 +18,11 @@ import {
   updateCharacterCard,
 } from '../models/character.js';
 import type {
+  CharacterCard,
   CreateCharacterCardInput,
   UpdateCharacterCardInput,
 } from '../models/character.js';
-import { extractCardJsonFromPng } from '../cards/pngText.js';
+import { extractCardJsonFromPng, embedTextChunks } from '../cards/pngText.js';
 import { parseSillyTavernCard } from '../cards/sillytavern.js';
 
 export async function characterRoutes(app: FastifyInstance): Promise<void> {
@@ -425,6 +426,168 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
         });
       }
       return reply.send(card);
+    },
+  );
+
+  // ── Export helpers ───────────────────────────────────────────────────
+
+  /**
+   * Convert a Playime CharacterCard to SillyTavern V2 format.
+   * Spec: { spec: 'chara_card_v2', spec_version: '2.0', data: { ... } }
+   */
+  function cardToV2Json(card: CharacterCard): Record<string, unknown> {
+    // Build character_book entries from world_info
+    const character_book = card.world_info.length > 0 ? {
+      name: `${card.name}'s World`,
+      entries: card.world_info.map((entry, i) => ({
+        uid: i,
+        key: entry.keys,
+        keysecondary: entry.secondary_keys ?? [],
+        selective: entry.selective ?? false,
+        selectiveLogic: entry.selective_logic === 'NOT' ? 1 : 0,
+        constant: entry.constant ?? false,
+        content: entry.content,
+        insertion_order: entry.insertion_order,
+        position: entry.position === 'after_char' ? 1 : 0,
+        case_sensitive: entry.case_sensitive ?? false,
+        enabled: entry.enabled,
+      })),
+    } : undefined;
+
+    return {
+      spec: 'chara_card_v2',
+      spec_version: '2.0',
+      data: {
+        name: card.name,
+        description: card.description ?? card.tagline ?? '',
+        personality: card.personality,
+        scenario: card.scenario,
+        first_mes: card.first_message ?? '',
+        mes_example: card.mes_example ?? '',
+        creator_notes: card.creator_notes ?? card.creator ?? '',
+        system_prompt: card.system_prompt ?? '',
+        post_history_instructions: card.post_history_instructions ?? '',
+        alternate_greetings: card.alternate_greetings,
+        character_book,
+        tags: card.tags,
+        creator: card.creator ?? card.creator_name ?? '',
+        character_version: card.character_version ?? '',
+        extensions: card.extensions,
+      },
+    };
+  }
+
+  // ── GET /api/cards/:id/export.json ──────────────────────────────────
+  app.get(
+    '/api/cards/:id/export.json',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const card = getCharacterCard(id);
+      if (!card) {
+        return reply.code(404).send({
+          error: { code: 'card_not_found', message: `Card ${id} not found` },
+        });
+      }
+      const v2Json = cardToV2Json(card);
+      return reply
+        .header('Content-Type', 'application/json')
+        .header('Content-Disposition', `attachment; filename="${card.name}.json"`)
+        .send(v2Json);
+    },
+  );
+
+  // ── GET /api/cards/:id/export.png ───────────────────────────────────
+  // Export character card as PNG with embedded tEXt chunk (SillyTavern-compatible).
+  app.get(
+    '/api/cards/:id/export.png',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const card = getCharacterCard(id);
+      if (!card) {
+        return reply.code(404).send({
+          error: { code: 'card_not_found', message: `Card ${id} not found` },
+        });
+      }
+
+      // Get the avatar image — first from avatars array, or card default
+      const avatarUrl = card.avatars[0]?.image ?? card.avatar ?? card.cover_image;
+      if (!avatarUrl) {
+        return reply.code(400).send({
+          error: { code: 'no_avatar', message: 'Card has no avatar image to embed' },
+        });
+      }
+
+      // Fetch the avatar image
+      let imageBuffer: Buffer;
+      try {
+        if (avatarUrl.startsWith('data:')) {
+          // Data URI — extract base64 portion
+          const base64 = avatarUrl.split(',')[1] ?? '';
+          imageBuffer = Buffer.from(base64, 'base64');
+        } else {
+          // URL — fetch it
+          const resp = await fetch(avatarUrl);
+          if (!resp.ok) throw new Error(`Failed to fetch avatar: ${resp.status}`);
+          const arrayBuf = await resp.arrayBuffer();
+          imageBuffer = Buffer.from(arrayBuf);
+        }
+      } catch (err) {
+        return reply.code(500).send({
+          error: { code: 'avatar_fetch_failed', message: `Failed to fetch avatar: ${err instanceof Error ? err.message : 'unknown error'}` },
+        });
+      }
+
+      // Check if the image is PNG (PNG signature: 137 80 78 71)
+      const isPng = imageBuffer.length >= 4
+        && imageBuffer[0] === 137
+        && imageBuffer[1] === 0x50 // 'P'
+        && imageBuffer[2] === 0x4E // 'N'
+        && imageBuffer[3] === 0x47; // 'G'
+
+      if (!isPng) {
+        return reply.code(400).send({
+          error: {
+            code: 'avatar_not_png',
+            message: 'Avatar must be a PNG image for PNG export. Use JSON export for JPEG/other formats.',
+          },
+        });
+      }
+
+      // Embed V2 JSON as base64-encoded tEXt chunk
+      const v2Json = cardToV2Json(card);
+      const v2Base64 = Buffer.from(JSON.stringify(v2Json), 'utf-8').toString('base64');
+
+      let pngWithCard: Buffer;
+      try {
+        pngWithCard = embedTextChunks(imageBuffer, [{ keyword: 'chara', text: v2Base64 }]);
+      } catch (err) {
+        return reply.code(500).send({
+          error: { code: 'png_embedding_failed', message: `Failed to embed card data: ${err instanceof Error ? err.message : 'unknown error'}` },
+        });
+      }
+
+      return reply
+        .header('Content-Type', 'image/png')
+        .header('Content-Disposition', `attachment; filename="${card.name}.png"`)
+        .send(pngWithCard);
     },
   );
 
