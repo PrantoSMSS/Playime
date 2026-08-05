@@ -232,6 +232,18 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
+      // Determine source and sourceId.
+      // Priority:
+      // 1. Preserve existing source if already set (e.g. re-importing a Playime card)
+      // 2. Otherwise, source = 'unknown' (SillyTavern format ≠ SillyTavern origin)
+      if (!card.source) {
+        card.source = 'unknown';
+      }
+      // sourceId: preserved from parsed card if present, otherwise null
+      if (card.sourceId === undefined) {
+        card.sourceId = null;
+      }
+
       const created = createCharacterCard(card as CreateCharacterCardInput);
 
       // Save avatar locally and update avatar_file + avatars[].image

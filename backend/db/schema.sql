@@ -98,6 +98,10 @@ CREATE TABLE IF NOT EXISTS character_card (
   prologue_preview TEXT,                              -- excerpt shown before starting
   stats           TEXT NOT NULL DEFAULT '{"replay_count":0,"like_count":0,"comment_count":0}',
 
+  -- Import provenance
+  source          TEXT NOT NULL DEFAULT 'playime',    -- original origin: 'playime' | 'chub' | 'sillytavern' | 'unknown'
+  source_id       TEXT,                               -- original external ID (null if created in Playime)
+
   -- Timestamps
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL
@@ -133,4 +137,15 @@ CREATE TABLE IF NOT EXISTS persona (
   pronouns        TEXT NOT NULL DEFAULT '',            -- e.g. "she/her"
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL
+);
+
+-- ──────────────────────────────────────────────────────────────────────
+-- Structured ID sequence counters
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS id_sequences (
+  type      TEXT NOT NULL,    -- 'char', 'story', 'persona', 'sess', 'msg'
+  slug      TEXT NOT NULL,    -- slug for named entities, '' for sessions/messages
+  next_seq  INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (type, slug)
 );

@@ -104,6 +104,100 @@ function runMigrations(db: DatabaseSync): void {
   } catch {
     // Column already exists — ignore.
   }
+
+  // id_sequences table — ensure it exists for older DBs
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS id_sequences (
+      type      TEXT NOT NULL,
+      slug      TEXT NOT NULL,
+      next_seq  INTEGER NOT NULL DEFAULT 1,
+      PRIMARY KEY (type, slug)
+    )`);
+  } catch {
+    // Table already exists — ignore.
+  }
+
+  // source / source_id columns on character_card
+  try {
+    db.exec(`ALTER TABLE character_card ADD COLUMN source TEXT NOT NULL DEFAULT 'playime'`);
+  } catch {
+    // Column already exists — ignore.
+  }
+  try {
+    db.exec(`ALTER TABLE character_card ADD COLUMN source_id TEXT`);
+  } catch {
+    // Column already exists — ignore.
+  }
+
+  // Reserve sequence numbers from existing IDs so future allocateId() calls don't collide.
+  // This MUST run after seed data is inserted so it can see seed IDs.
+  reserveExistingIdSequences(db);
+}
+
+/**
+ * Scan existing entity tables and reserve sequence numbers in id_sequences.
+ *
+ * For each (type, slug) pair, finds the MAXIMUM existing sequence number
+ * and sets next_seq to max + 1. This handles multiple existing IDs per slug
+ * (e.g. char_yehwa_0001, char_yehwa_0002, char_yehwa_0007 → next_seq = 8).
+ *
+ * Idempotent — existing counters are only advanced, never reduced.
+ * Uses MAX(next_seq, excluded.next_seq) so re-running won't lower a counter.
+ *
+ * Only matches IDs prefixed with the expected type for that table
+ * (e.g. char_... in character_card, not persona_... in character_card).
+ *
+ * Note: 'story' type is declared in EntityType for future use but has no
+ * story_card table yet — it is not migrated here.
+ */
+function reserveExistingIdSequences(db: DatabaseSync): void {
+  const patterns: Array<{ type: string; table: string; hasSlug: boolean }> = [
+    { type: 'char', table: 'character_card', hasSlug: true },
+    { type: 'persona', table: 'persona', hasSlug: true },
+    { type: 'sess', table: 'session', hasSlug: false },
+    { type: 'msg', table: 'message', hasSlug: false },
+  ];
+
+  for (const { type, table, hasSlug } of patterns) {
+    // Only process tables that exist
+    const tableExists = db.prepare(
+      `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`
+    ).get(table);
+    if (!tableExists) continue;
+
+    const rows = db.prepare(`SELECT id FROM ${table}`).all() as Array<{ id: string }>;
+
+    // Collect the MAXIMUM sequence per slug
+    const maxSequences = new Map<string, number>();
+
+    for (const { id } of rows) {
+      // Only match IDs with the EXPECTED type prefix for this table
+      const match = hasSlug
+        ? id.match(new RegExp(`^${type}_([a-z0-9-]+)_(\\d+)$`))
+        : id.match(new RegExp(`^${type}_(\\d+)$`));
+
+      if (!match) continue;
+
+      const slug = hasSlug ? (match[1] ?? '') : '';
+      const seq = Number(match[hasSlug ? 2 : 1] ?? '0');
+
+      if (!Number.isSafeInteger(seq) || seq < 1) continue;
+
+      maxSequences.set(slug, Math.max(maxSequences.get(slug) ?? 0, seq));
+    }
+
+    // Upsert with MAX — only advance counters, never reduce
+    const upsert = db.prepare(`
+      INSERT INTO id_sequences (type, slug, next_seq)
+      VALUES (?, ?, ?)
+      ON CONFLICT (type, slug)
+      DO UPDATE SET next_seq = MAX(id_sequences.next_seq, excluded.next_seq)
+    `);
+
+    for (const [slug, maxSeq] of maxSequences) {
+      upsert.run(type, slug, maxSeq + 1);
+    }
+  }
 }
 
 let singleton: DatabaseSync | undefined;

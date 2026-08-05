@@ -5,8 +5,8 @@
  * Routes and the chat service go through these helpers — no raw SQL in
  * business code (CLAUDE.md conventions).
  */
-import { randomUUID } from 'node:crypto';
 import { getDb } from '../db.js';
+import { allocateId } from '../id.js';
 import type { AvatarOption, StartingScenario } from './character.js';
 import type { Persona } from './persona.js';
 
@@ -66,42 +66,50 @@ export interface CreateSessionInput {
 export function createSession(input: CreateSessionInput = {}): SessionRow {
   const db = getDb();
   const now = Date.now();
-  const id = randomUUID();
   const sessionClass: SessionClass = input.class ?? 'character';
   const provider = input.provider ?? 'opencode';
-  db.prepare(
-    `INSERT INTO session (id, class, created_at, provider, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    id,
-    sessionClass,
-    now,
-    provider,
-    input.character_card_id ?? null,
-    input.avatar_selection ?? null,
-    input.starting_scenario_id ?? null,
-    input.avatar_snapshot ? JSON.stringify(input.avatar_snapshot) : null,
-    input.starting_scenario_snapshot ? JSON.stringify(input.starting_scenario_snapshot) : null,
-    input.persona_id ?? null,
-    input.persona_snapshot ? JSON.stringify(input.persona_snapshot) : null,
-    input.persona_source ?? null,
-  );
-  return {
-    id,
-    class: sessionClass,
-    created_at: now,
-    provider,
-    model: null,
-    small_model: null,
-    character_card_id: input.character_card_id ?? null,
-    avatar_selection: input.avatar_selection ?? null,
-    starting_scenario_id: input.starting_scenario_id ?? null,
-    avatar_snapshot: input.avatar_snapshot ?? null,
-    starting_scenario_snapshot: input.starting_scenario_snapshot ?? null,
-    persona_id: input.persona_id ?? null,
-    persona_snapshot: input.persona_snapshot ?? null,
-    persona_source: input.persona_source ?? null,
-  };
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const id = allocateId(db, 'sess');
+    db.prepare(
+      `INSERT INTO session (id, class, created_at, provider, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id,
+      sessionClass,
+      now,
+      provider,
+      input.character_card_id ?? null,
+      input.avatar_selection ?? null,
+      input.starting_scenario_id ?? null,
+      input.avatar_snapshot ? JSON.stringify(input.avatar_snapshot) : null,
+      input.starting_scenario_snapshot ? JSON.stringify(input.starting_scenario_snapshot) : null,
+      input.persona_id ?? null,
+      input.persona_snapshot ? JSON.stringify(input.persona_snapshot) : null,
+      input.persona_source ?? null,
+    );
+    db.exec('COMMIT');
+    return {
+      id,
+      class: sessionClass,
+      created_at: now,
+      provider,
+      model: null,
+      small_model: null,
+      character_card_id: input.character_card_id ?? null,
+      avatar_selection: input.avatar_selection ?? null,
+      starting_scenario_id: input.starting_scenario_id ?? null,
+      avatar_snapshot: input.avatar_snapshot ?? null,
+      starting_scenario_snapshot: input.starting_scenario_snapshot ?? null,
+      persona_id: input.persona_id ?? null,
+      persona_snapshot: input.persona_snapshot ?? null,
+      persona_source: input.persona_source ?? null,
+    };
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 }
 
 export function getSession(id: string): SessionRow | undefined {
@@ -185,23 +193,31 @@ export interface InsertMessageInput {
 export function insertMessage(input: InsertMessageInput): MessageRow {
   const db = getDb();
   const now = Date.now();
-  const id = randomUUID();
-  const visible = input.visible ?? 1;
-  const ooc = input.ooc ?? 0;
-  db.prepare(
-    `INSERT INTO message (id, session_id, seq, role, content, created_at, visible, ooc)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(id, input.session_id, input.seq, input.role, input.content, now, visible, ooc);
-  return {
-    id,
-    session_id: input.session_id,
-    seq: input.seq,
-    role: input.role,
-    content: input.content,
-    created_at: now,
-    visible,
-    ooc,
-  };
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const id = allocateId(db, 'msg');
+    const visible = input.visible ?? 1;
+    const ooc = input.ooc ?? 0;
+    db.prepare(
+      `INSERT INTO message (id, session_id, seq, role, content, created_at, visible, ooc)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(id, input.session_id, input.seq, input.role, input.content, now, visible, ooc);
+    db.exec('COMMIT');
+    return {
+      id,
+      session_id: input.session_id,
+      seq: input.seq,
+      role: input.role,
+      content: input.content,
+      created_at: now,
+      visible,
+      ooc,
+    };
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 }
 
 /**

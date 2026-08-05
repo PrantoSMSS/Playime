@@ -11,8 +11,8 @@
  * `relationship_state` here is the card's starting state; per-session
  * evolution lands with Phase 2's structured extraction.
  */
-import { randomUUID } from 'node:crypto';
 import { getDb } from '../db.js';
+import { allocateId } from '../id.js';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -148,6 +148,11 @@ export interface CharacterCard {
   description: string | null;
   prologue_preview: string | null;
   stats: CardStats;
+
+  // Import provenance
+  source: 'playime' | 'chub' | 'sillytavern' | 'unknown';
+  sourceId: string | null;
+
   created_at: number;
   updated_at: number;
 }
@@ -197,6 +202,8 @@ interface CharacterCardRow {
   description: string | null;
   prologue_preview: string | null;
   stats: string;
+  source: string;
+  source_id: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -243,6 +250,8 @@ function rowToCard(row: CharacterCardRow): CharacterCard {
       like_count: 0,
       comment_count: 0,
     }),
+    source: row.source as 'playime' | 'chub' | 'sillytavern' | 'unknown',
+    sourceId: row.source_id,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -308,7 +317,7 @@ const SELECT_COLS = [
   'mes_example', 'system_prompt', 'post_history_instructions', 'creator',
   'creator_notes', 'character_version', 'world_info', 'extensions',
   'avatar_file', 'cover_file', 'cover_image', 'creator_name', 'tags', 'description', 'prologue_preview',
-  'stats', 'created_at', 'updated_at',
+  'stats', 'source', 'source_id', 'created_at', 'updated_at',
 ].join(', ');
 
 /** List all character cards, newest first. */
@@ -359,76 +368,91 @@ export interface CreateCharacterCardInput {
   description?: string | undefined;
   prologue_preview?: string | undefined;
   stats?: CardStats | undefined;
+
+  // Import provenance
+  source?: 'playime' | 'chub' | 'sillytavern' | 'unknown' | undefined;
+  sourceId?: string | null | undefined;
 }
 
 /** Create a character card, returning the full row. */
 export function createCharacterCard(input: CreateCharacterCardInput): CharacterCard {
   const db = getDb();
   const now = Date.now();
-  const id = randomUUID();
 
-  const rel = input.relationship_state ?? { affection: 0, trust: 0, flags: [] };
-  const stats = input.stats ?? { replay_count: 0, like_count: 0, comment_count: 0 };
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const id = allocateId(db, 'char', input.name);
 
-  // Build default avatars and starting_scenarios from legacy fields if not provided
-  const avatars = input.avatars ?? (input.avatar
-    ? [{ id: 'default', name: 'Default', image: input.avatar }]
-    : []);
-  const startingScenarios = input.starting_scenarios ?? (input.scenario || input.first_message
-    ? [{
-        id: 'default',
-        name: 'Default',
-        scenario: input.scenario ?? '',
-        first_message: input.first_message ?? '',
-      }]
-    : []);
+    const rel = input.relationship_state ?? { affection: 0, trust: 0, flags: [] };
+    const stats = input.stats ?? { replay_count: 0, like_count: 0, comment_count: 0 };
 
-  db.prepare(
-    `INSERT INTO character_card (
-      id, name, avatar, tagline, personality, speech_style, likes_and_dislikes,
-      scenario, first_message, relationship_state, length_guidance,
-      avatars, starting_scenarios, default_persona, alternate_greetings, mes_example,
-      system_prompt, post_history_instructions, creator, creator_notes,
-      character_version, world_info, extensions, avatar_file, cover_file,
-      cover_image, creator_name, tags, description, prologue_preview, stats, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    id,
-    input.name,
-    input.avatar ?? null,
-    input.tagline ?? '',
-    input.personality ?? '',
-    input.speech_style ?? '',
-    input.likes_and_dislikes ?? '',
-    input.scenario ?? '',
-    input.first_message ?? null,
-    JSON.stringify(rel),
-    input.length_guidance ?? null,
-    JSON.stringify(avatars),
-    JSON.stringify(startingScenarios),
-    input.default_persona ? JSON.stringify(input.default_persona) : null,
-    JSON.stringify(input.alternate_greetings ?? []),
-    input.mes_example ?? null,
-    input.system_prompt ?? null,
-    input.post_history_instructions ?? null,
-    input.creator ?? null,
-    input.creator_notes ?? null,
-    input.character_version ?? null,
-    JSON.stringify(input.world_info ?? []),
-    JSON.stringify(input.extensions ?? {}),
-    input.avatar_file ?? null,
-    input.cover_file ?? null,
-    input.cover_image ?? null,
-    input.creator_name ?? null,
-    JSON.stringify(input.tags ?? []),
-    input.description ?? null,
-    input.prologue_preview ?? null,
-    JSON.stringify(stats),
-    now,
-    now,
-  );
+    // Build default avatars and starting_scenarios from legacy fields if not provided
+    const avatars = input.avatars ?? (input.avatar
+      ? [{ id: 'default', name: 'Default', image: input.avatar }]
+      : []);
+    const startingScenarios = input.starting_scenarios ?? (input.scenario || input.first_message
+      ? [{
+          id: 'default',
+          name: 'Default',
+          scenario: input.scenario ?? '',
+          first_message: input.first_message ?? '',
+        }]
+      : []);
 
-  return getCharacterCard(id)!;
+    db.prepare(
+      `INSERT INTO character_card (
+        id, name, avatar, tagline, personality, speech_style, likes_and_dislikes,
+        scenario, first_message, relationship_state, length_guidance,
+        avatars, starting_scenarios, default_persona, alternate_greetings, mes_example,
+        system_prompt, post_history_instructions, creator, creator_notes,
+        character_version, world_info, extensions, avatar_file, cover_file,
+        cover_image, creator_name, tags, description, prologue_preview, stats,
+        source, source_id, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id,
+      input.name,
+      input.avatar ?? null,
+      input.tagline ?? '',
+      input.personality ?? '',
+      input.speech_style ?? '',
+      input.likes_and_dislikes ?? '',
+      input.scenario ?? '',
+      input.first_message ?? null,
+      JSON.stringify(rel),
+      input.length_guidance ?? null,
+      JSON.stringify(avatars),
+      JSON.stringify(startingScenarios),
+      input.default_persona ? JSON.stringify(input.default_persona) : null,
+      JSON.stringify(input.alternate_greetings ?? []),
+      input.mes_example ?? null,
+      input.system_prompt ?? null,
+      input.post_history_instructions ?? null,
+      input.creator ?? null,
+      input.creator_notes ?? null,
+      input.character_version ?? null,
+      JSON.stringify(input.world_info ?? []),
+      JSON.stringify(input.extensions ?? {}),
+      input.avatar_file ?? null,
+      input.cover_file ?? null,
+      input.cover_image ?? null,
+      input.creator_name ?? null,
+      JSON.stringify(input.tags ?? []),
+      input.description ?? null,
+      input.prologue_preview ?? null,
+      JSON.stringify(stats),
+      input.source ?? 'playime',
+      input.sourceId ?? null,
+      now,
+      now,
+    );
+
+    db.exec('COMMIT');
+    return getCharacterCard(id)!;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 }
 
 /** Partial patch for updating a card. All fields optional. */
@@ -524,7 +548,7 @@ export function deleteCharacterCard(id: string): boolean {
  * a real persona to talk to before card CRUD exists (Phase 1, item 3).
  */
 export const YEHWA_CARD: CharacterCard = {
-  id: 'yehwa',
+  id: 'char_yehwa_0001',
   name: 'Yehwa',
   avatar: null,
   tagline: 'Senior disciple of the Orthodox Murim, first in line under Master Jeong.',
@@ -598,6 +622,8 @@ export const YEHWA_CARD: CharacterCard = {
   description: null,
   prologue_preview: null,
   stats: { replay_count: 0, like_count: 0, comment_count: 0 },
+  source: 'playime',
+  sourceId: null,
   created_at: 0,
   updated_at: 0,
 };
@@ -606,7 +632,7 @@ export const YEHWA_CARD: CharacterCard = {
  * Miko test card — a childhood friend who shows up unannounced.
  */
 export const MIKO_CARD: CharacterCard = {
-  id: '215fb191-9d97-45eb-8029-394ab92fe0d7',
+  id: 'char_miko_0001',
   name: 'Miko',
   avatar: null,
   tagline: 'Your childhood friend who always shows up when you least expect it.',
@@ -670,6 +696,8 @@ export const MIKO_CARD: CharacterCard = {
   description: null,
   prologue_preview: null,
   stats: { replay_count: 0, like_count: 0, comment_count: 0 },
+  source: 'playime',
+  sourceId: null,
   created_at: 0,
   updated_at: 0,
 };

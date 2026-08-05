@@ -9,8 +9,8 @@
  * A Session references a Persona via persona_id and stores a persona_snapshot
  * at creation time for historical consistency.
  */
-import { randomUUID } from 'node:crypto';
 import { getDb } from '../db.js';
+import { allocateId } from '../id.js';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -106,24 +106,32 @@ export interface CreatePersonaInput {
 export function createPersona(input: CreatePersonaInput): Persona {
   const db = getDb();
   const now = Date.now();
-  const id = randomUUID();
 
-  db.prepare(
-    `INSERT INTO persona (id, name, avatar, description, appearance, personality, pronouns, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    id,
-    input.name,
-    input.avatar ?? null,
-    input.description ?? '',
-    input.appearance ?? '',
-    input.personality ?? '',
-    input.pronouns ?? '',
-    now,
-    now,
-  );
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const id = allocateId(db, 'persona', input.name);
 
-  return getPersona(id)!;
+    db.prepare(
+      `INSERT INTO persona (id, name, avatar, description, appearance, personality, pronouns, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id,
+      input.name,
+      input.avatar ?? null,
+      input.description ?? '',
+      input.appearance ?? '',
+      input.personality ?? '',
+      input.pronouns ?? '',
+      now,
+      now,
+    );
+
+    db.exec('COMMIT');
+    return getPersona(id)!;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 }
 
 /** Partial patch for updating a persona. All fields optional. */
