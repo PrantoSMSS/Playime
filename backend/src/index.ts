@@ -146,9 +146,9 @@ function seedTestCard(): void {
       scenario, first_message, relationship_state, length_guidance,
       avatars, starting_scenarios, default_persona, alternate_greetings, mes_example,
       system_prompt, post_history_instructions, creator, creator_notes,
-      character_version, world_info, extensions, cover_image, creator_name,
-      tags, description, prologue_preview, stats, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      character_version, world_info, extensions, avatar_file, cover_file,
+      cover_image, creator_name, tags, description, prologue_preview, stats, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     c.id, c.name, c.avatar, c.tagline, c.personality, c.speech_style,
     c.likes_and_dislikes, c.scenario, c.first_message,
@@ -158,7 +158,8 @@ function seedTestCard(): void {
     JSON.stringify(c.alternate_greetings), c.mes_example, c.system_prompt,
     c.post_history_instructions, c.creator, c.creator_notes,
     c.character_version, JSON.stringify(c.world_info),
-    JSON.stringify(c.extensions), c.cover_image, c.creator_name,
+    JSON.stringify(c.extensions), c.avatar_file, c.cover_file,
+    c.cover_image, c.creator_name,
     JSON.stringify(c.tags), c.description, c.prologue_preview,
     JSON.stringify(c.stats), now, now,
   );
@@ -173,9 +174,9 @@ function seedTestCard(): void {
         scenario, first_message, relationship_state, length_guidance,
         avatars, starting_scenarios, default_persona, alternate_greetings, mes_example,
         system_prompt, post_history_instructions, creator, creator_notes,
-        character_version, world_info, extensions, cover_image, creator_name,
-        tags, description, prologue_preview, stats, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        character_version, world_info, extensions, avatar_file, cover_file,
+        cover_image, creator_name, tags, description, prologue_preview, stats, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       m.id, m.name, m.avatar, m.tagline, m.personality, m.speech_style,
       m.likes_and_dislikes, m.scenario, m.first_message,
@@ -185,7 +186,8 @@ function seedTestCard(): void {
       JSON.stringify(m.alternate_greetings), m.mes_example, m.system_prompt,
       m.post_history_instructions, m.creator, m.creator_notes,
       m.character_version, JSON.stringify(m.world_info),
-      JSON.stringify(m.extensions), m.cover_image, m.creator_name,
+      JSON.stringify(m.extensions), m.avatar_file, m.cover_file,
+      m.cover_image, m.creator_name,
       JSON.stringify(m.tags), m.description, m.prologue_preview,
       JSON.stringify(m.stats), now, now,
     );
