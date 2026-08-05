@@ -1,8 +1,10 @@
 // backend/src/routes/files.ts
 import type { FastifyInstance } from 'fastify';
 import { join } from 'node:path';
-import { accessSync } from 'node:fs';
-import { ENTITY_TYPES, type EntityType, getEntityPath } from '../storage.js';
+import { accessSync, createWriteStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import { randomUUID } from 'node:crypto';
+import { ENTITY_TYPES, type EntityType, ensureEntityDir, getEntityPath } from '../storage.js';
 
 const ENTITIES_DIR = join(import.meta.dirname, '../../data/entities');
 
@@ -41,5 +43,41 @@ export default async function filesRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return reply.sendFile(filename, join(ENTITIES_DIR, type, id));
+  });
+
+  /**
+   * POST /api/upload/:type/:id
+   * Upload file to entity folder
+   */
+  app.post<{
+    Params: { type: string; id: string };
+    Body: { file: any };
+  }>('/api/upload/:type/:id', async (request, reply) => {
+    const { type, id } = request.params;
+
+    if (!ENTITY_TYPES.includes(type as EntityType)) {
+      return reply.code(400).send({
+        error: { code: 'invalid_type', message: 'Invalid entity type' },
+      });
+    }
+
+    const data = await request.file();
+    if (!data) {
+      return reply.code(400).send({
+        error: { code: 'no_file', message: 'No file uploaded' },
+      });
+    }
+
+    const entityDir = ensureEntityDir(type as EntityType, id);
+    const ext = data.filename.split('.').pop() || 'png';
+    const filename = `avatar.${ext}`;
+    const filePath = join(entityDir, filename);
+
+    const writeStream = createWriteStream(filePath);
+    await pipeline(data.file, writeStream);
+
+    const relativePath = `${type}/${id}/${filename}`;
+
+    return { filename, path: relativePath };
   });
 }
