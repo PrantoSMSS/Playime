@@ -67,6 +67,8 @@ function runMigrations(db: DatabaseSync): void {
     ['avatars', "TEXT NOT NULL DEFAULT '[]'"],
     ['starting_scenarios', "TEXT NOT NULL DEFAULT '[]'"],
     ['default_persona', 'TEXT'],
+    ['avatar_file', 'TEXT'],
+    ['cover_file', 'TEXT'],
   ];
   for (const [col, typedef] of cardColumns) {
     try {
@@ -91,6 +93,13 @@ function runMigrations(db: DatabaseSync): void {
     )`);
   } catch {
     // Table already exists — ignore.
+  }
+
+  // Add avatar_file to persona for existing DBs
+  try {
+    db.exec(`ALTER TABLE persona ADD COLUMN avatar_file TEXT`);
+  } catch {
+    // Column already exists — ignore.
   }
 }
 
