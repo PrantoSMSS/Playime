@@ -1,4 +1,5 @@
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { spawn, execSync, type ChildProcess } from 'node:child_process';
 import { getCharacterCard } from './models/character.js';
@@ -6,6 +7,7 @@ import { YEHWA_CARD, MIKO_CARD } from './models/character.js';
 import { characterRoutes } from './routes/character.js';
 import { chatRoutes } from './routes/chat.js';
 import { personaRoutes } from './routes/persona.js';
+import filesRoutes from './routes/files.js';
 import { getDb } from './db.js';
 
 const app = Fastify({ logger: true });
@@ -23,6 +25,10 @@ await app.register(cors, {
 app.register(chatRoutes);
 app.register(characterRoutes);
 app.register(personaRoutes);
+
+// Static file serving — provides reply.sendFile() for entity files
+await app.register(fastifyStatic, { root: '' });
+app.register(filesRoutes);
 
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? '127.0.0.1';
