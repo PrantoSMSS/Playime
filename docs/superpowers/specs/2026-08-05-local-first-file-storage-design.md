@@ -156,7 +156,7 @@ const avatarUrl = `${BASE}/api/files/${card.avatar}`;
 
 ## Migration
 
-### On startup: check for missing `entities/` directory
+### On startup: ensure base directories exist
 
 ```typescript
 import { mkdirSync } from 'node:fs';
@@ -168,6 +168,32 @@ mkdirSync(join(ENTITIES_DIR, 'characters'), { recursive: true });
 mkdirSync(join(ENTITIES_DIR, 'personas'), { recursive: true });
 mkdirSync(join(ENTITIES_DIR, 'stories'), { recursive: true });
 ```
+
+### On character/persona/story creation: always create entity folder
+
+When creating or importing a new entity:
+
+1. Ensure the type directory exists (`entities/characters/` — create if missing).
+2. Always create the entity folder (`entities/characters/{id}/`).
+3. Save files into it if there are any (avatar, etc.).
+4. If no files to save, the folder is still created (empty but present).
+
+```typescript
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+function ensureEntityDir(type: string, id: string): string {
+  const dir = join(ENTITIES_DIR, type, id);
+  mkdirSync(dir, { recursive: true });  // creates type dir + entity dir
+  return dir;
+}
+```
+
+The `recursive: true` flag handles both cases:
+- `entities/characters/` doesn't exist → creates `characters/` then `{id}/`
+- `entities/characters/` exists → creates only `{id}/`
+
+This is called before any file write — avatar upload, card import, etc.
 
 ### Card import: download external avatars
 
