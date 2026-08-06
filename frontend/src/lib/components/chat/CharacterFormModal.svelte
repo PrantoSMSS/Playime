@@ -98,6 +98,13 @@
 	let expandedScenarioIds = $state<Record<string, boolean>>({});
 	let scenarioErrors = $state<Record<string, Record<string, string>>>({});
 
+	// Auto-expand first scenario on mount
+	$effect(() => {
+		if (scenarios.length > 0 && Object.keys(expandedScenarioIds).length === 0) {
+			expandedScenarioIds[scenarios[0].id] = true;
+		}
+	});
+
 	function toggleExpanded(id: string): void {
 		expandedScenarioIds[id] = !expandedScenarioIds[id];
 	}
