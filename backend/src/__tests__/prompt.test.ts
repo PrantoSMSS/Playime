@@ -138,6 +138,7 @@ describe('renderCharacterSystemPrompt', () => {
       appearance: 'Tall with silver hair',
       personality: 'Curious and brave',
       pronouns: 'she/her',
+      avatar_file: null,
       created_at: 0,
       updated_at: 0,
     };
@@ -165,6 +166,7 @@ describe('renderCharacterSystemPrompt', () => {
       appearance: 'Tall, sharp eyes',
       personality: 'Disciplined, observant',
       pronouns: 'they/them',
+      avatar_file: null,
       created_at: 0,
       updated_at: 0,
     };
@@ -184,6 +186,7 @@ describe('renderCharacterSystemPrompt', () => {
       appearance: '',
       personality: '',
       pronouns: '',
+      avatar_file: null,
       created_at: 0,
       updated_at: 0,
     };

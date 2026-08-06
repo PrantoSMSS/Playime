@@ -436,6 +436,7 @@ export function postMessage(sessionId: string, content: string): Promise<SendMes
 export interface CreatePersonaInput {
 	name: string;
 	avatar?: string | null;
+	avatar_file?: string | null;
 	description?: string;
 	appearance?: string;
 	personality?: string;
@@ -446,6 +447,7 @@ export interface CreatePersonaInput {
 export interface UpdatePersonaInput {
 	name?: string;
 	avatar?: string | null;
+	avatar_file?: string | null;
 	description?: string;
 	appearance?: string;
 	personality?: string;

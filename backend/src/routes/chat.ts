@@ -203,6 +203,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
           id: `default_${card!.id}`,
           name: body.player_name.trim(),
           avatar: null,
+          avatar_file: null,
           description: dp.role ?? '',
           appearance: dp.appearance ?? '',
           personality: dp.personality ?? '',

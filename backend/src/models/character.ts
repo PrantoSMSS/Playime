@@ -13,7 +13,7 @@
  */
 import { getDb } from '../db.js';
 import { allocateId } from '../id.js';
-import { ensureEntityDir } from '../storage.js';
+import { ensureEntityDir, normalizeAvatarPath } from '../storage.js';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -207,16 +207,6 @@ interface CharacterCardRow {
   source_id: string | null;
   created_at: number;
   updated_at: number;
-}
-
-/**
- * Normalize a bare avatar filename (e.g. 'avatar.png') to the full relative
- * path expected by resolveFileUrl() (e.g. 'characters/<id>/avatar.png').
- * Paths already containing a '/' are returned unchanged.
- */
-function normalizeAvatarPath(path: string | null, entityId: string): string | null {
-  if (!path || path.includes('/')) return path;
-  return `characters/${entityId}/${path}`;
 }
 
 /** Deserialize a DB row into a full `CharacterCard`. */

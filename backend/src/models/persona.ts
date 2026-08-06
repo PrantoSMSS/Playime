@@ -11,7 +11,7 @@
  */
 import { getDb } from '../db.js';
 import { allocateId } from '../id.js';
-import { ensureEntityDir } from '../storage.js';
+import { ensureEntityDir, normalizeAvatarPath } from '../storage.js';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -21,6 +21,8 @@ export interface Persona {
   name: string;
   /** User's profile image (URL or data URI). */
   avatar: string | null;
+  /** Local filename (e.g. "avatar.png"), resolved to full path on read. */
+  avatar_file: string | null;
   /** Short role description, e.g. "Apprentice Mage". */
   description: string;
   /** Physical appearance for prompt context. */
@@ -50,6 +52,7 @@ interface PersonaRow {
   id: string;
   name: string;
   avatar: string | null;
+  avatar_file: string | null;
   description: string;
   appearance: string;
   personality: string;
@@ -63,6 +66,7 @@ function rowToPersona(row: PersonaRow): Persona {
     id: row.id,
     name: row.name,
     avatar: row.avatar,
+    avatar_file: normalizeAvatarPath(row.avatar_file, row.id, 'personas'),
     description: row.description,
     appearance: row.appearance,
     personality: row.personality,
@@ -73,7 +77,7 @@ function rowToPersona(row: PersonaRow): Persona {
 }
 
 const SELECT_COLS = [
-  'id', 'name', 'avatar', 'description', 'appearance',
+  'id', 'name', 'avatar', 'avatar_file', 'description', 'appearance',
   'personality', 'pronouns', 'created_at', 'updated_at',
 ].join(', ');
 
@@ -97,6 +101,7 @@ export function getPersona(id: string): Persona | undefined {
 export interface CreatePersonaInput {
   name: string;
   avatar?: string | undefined;
+  avatar_file?: string | null | undefined;
   description?: string | undefined;
   appearance?: string | undefined;
   personality?: string | undefined;
@@ -113,12 +118,13 @@ export function createPersona(input: CreatePersonaInput): Persona {
     const id = allocateId(db, 'persona', input.name);
 
     db.prepare(
-      `INSERT INTO persona (id, name, avatar, description, appearance, personality, pronouns, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO persona (id, name, avatar, avatar_file, description, appearance, personality, pronouns, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       input.name,
       input.avatar ?? null,
+      input.avatar_file ?? null,
       input.description ?? '',
       input.appearance ?? '',
       input.personality ?? '',
@@ -140,6 +146,7 @@ export function createPersona(input: CreatePersonaInput): Persona {
 export interface UpdatePersonaInput {
   name?: string | undefined;
   avatar?: string | null | undefined;
+  avatar_file?: string | null | undefined;
   description?: string | undefined;
   appearance?: string | undefined;
   personality?: string | undefined;
@@ -194,6 +201,7 @@ export const DEFAULT_PERSONA: Persona = {
   id: 'myself',
   name: 'Myself',
   avatar: null,
+  avatar_file: null,
   description: 'Default persona — just me',
   appearance: '',
   personality: '',

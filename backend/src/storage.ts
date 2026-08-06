@@ -56,6 +56,20 @@ export function deleteEntityDir(type: EntityType, id: string): void {
 }
 
 /**
+ * Normalize a bare avatar filename (e.g. 'avatar.png') to the full relative
+ * path expected by resolveFileUrl() (e.g. 'characters/<id>/avatar.png').
+ * Paths already containing a '/' are returned unchanged.
+ */
+export function normalizeAvatarPath(
+  path: string | null,
+  entityId: string,
+  entityType: EntityType = 'characters',
+): string | null {
+  if (!path || path.includes('/')) return path;
+  return `${entityType}/${entityId}/${path}`;
+}
+
+/**
  * Ensure base entity directories exist on startup.
  */
 export function initializeStorage(): void {
