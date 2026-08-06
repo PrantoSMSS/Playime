@@ -23,8 +23,13 @@ await app.register(cors, {
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 });
 
-// Multipart form data — needed for file uploads
-await app.register(multipart);
+// Multipart form data — needed for file uploads.
+// Enforce a 10 MB limit so oversized payloads are rejected before they hit
+// route handlers (the routes also check, but busboy streams the full body
+// by default, making mid-stream size checks unreliable).
+await app.register(multipart, {
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 app.register(chatRoutes);
 app.register(characterRoutes);

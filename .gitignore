@@ -32,3 +32,17 @@ references/
 # Test data
 test_files/
 backend/data/entities/
+
+# Skill development workspaces
+*-workspace/
+
+# Superpowers dev artifacts
+.superpowers/
+
+# Janitor quarantine
+.janitor/
+
+# Test artifacts
+test_*.png
+test_*.sh
+big_test.png

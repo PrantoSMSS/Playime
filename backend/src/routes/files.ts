@@ -29,10 +29,9 @@ export default async function filesRoutes(app: FastifyInstance): Promise<void> {
    * Serve entity files (avatars, gallery images, etc.)
    */
   app.get<{
-    Params: { type: string; id: string; filename: string; '*': string };
-  }>('/api/files/:type/:id/:filename/*', async (request, reply) => {
-    const { type, id } = request.params;
-    const filename = request.params.filename + (request.params['*'] ? '/' + request.params['*'] : '');
+    Params: { type: string; id: string; filename: string };
+  }>('/api/files/:type/:id/:filename', async (request, reply) => {
+    const { type, id, filename } = request.params;
 
     // Validate entity type
     if (!ENTITY_TYPES.includes(type as EntityType)) {
@@ -99,7 +98,7 @@ export default async function filesRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    // Collect file buffer and check size
+    // Collect file buffer and check size (check both during streaming and after)
     const chunks: Buffer[] = [];
     let totalSize = 0;
     for await (const chunk of data.file) {
@@ -112,6 +111,16 @@ export default async function filesRoutes(app: FastifyInstance): Promise<void> {
       chunks.push(chunk);
     }
     const inputBuffer = Buffer.concat(chunks);
+
+    // Belt-and-suspenders: check after collection too (some multipart
+    // implementations buffer the entire payload before streaming).
+    // Also check data.file.truncated — busboy's fileSize limit truncates the
+    // stream to exactly MAX_UPLOAD_SIZE, so the > check alone misses it.
+    if (inputBuffer.length > MAX_UPLOAD_SIZE || data.file.truncated) {
+      return reply.code(400).send({
+        error: { code: 'file_too_large', message: 'Image must be under 10MB' },
+      });
+    }
 
     // Decode with sharp (validates not corrupted), resize if needed, convert to PNG
     let outputBuffer: Buffer;

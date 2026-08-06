@@ -405,7 +405,7 @@ export async function exportCardAsPng(card: ApiCharacterCard): Promise<void> {
 	const avatarPath = card.avatars[0]?.image ?? card.avatar_file;
 	const avatarUrl = resolveFileUrl(avatarPath);
 	if (!avatarUrl) {
-		throw new ApiError(400, 'Card has no avatar to export');
+		throw new ApiError(400, 'no_avatar', 'Card has no avatar to export');
 	}
 
 	const url = new URL(`/api/cards/${encodeURIComponent(card.id)}/export.png`, BASE);

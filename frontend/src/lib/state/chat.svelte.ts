@@ -183,6 +183,7 @@ export function openCreateCardModal(importedData?: Partial<CreateCardInput>): vo
 
 /** Open the character form modal for editing an existing card. */
 export function openEditCardModal(card: ApiCharacterCard): void {
+	chat.cardInfoModal = null; // Close info modal if open
 	chat.characterFormModal = { mode: 'edit', card };
 }
 

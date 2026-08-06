@@ -472,16 +472,35 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Save avatar to disk if a new data URL or HTTP URL was provided
+      // Save avatar to disk if a new data URL or HTTP URL was provided,
+      // or update the database if it's already a relative path (uploaded via FormData)
       if (body.avatar !== undefined) {
         const avatarFile = await saveAvatarLocally(id, body.avatar);
+
+        // Determine the final avatar path
+        let finalAvatarPath: string | null;
         if (avatarFile) {
-          const avatars = (body.avatars ?? card.avatars).map((a, i) =>
-            i === 0 ? { ...a, image: avatarFile } : a
-          );
-          updateCharacterCard(id, { avatar_file: avatarFile, avatars, avatar: null });
-          card = getCharacterCard(id)!;
+          // Saved to disk by saveAvatarLocally (data URI or HTTP URL)
+          finalAvatarPath = avatarFile;
+        } else if (body.avatar && !body.avatar.startsWith('data:') && !body.avatar.startsWith('http')) {
+          // Already a relative path — file is on disk, just use it directly
+          finalAvatarPath = body.avatar;
+        } else {
+          // null or unrecognized — clear avatar
+          finalAvatarPath = null;
         }
+
+        // Update database
+        if (finalAvatarPath) {
+          const avatars = (body.avatars ?? card.avatars).map((a, i) =>
+            i === 0 ? { ...a, image: finalAvatarPath! } : a
+          );
+          updateCharacterCard(id, { avatar_file: finalAvatarPath, avatars, avatar: null });
+        } else {
+          // Clear avatar from database
+          updateCharacterCard(id, { avatar_file: null, avatars: [], avatar: null });
+        }
+        card = getCharacterCard(id)!;
       }
 
       return reply.send(card);
