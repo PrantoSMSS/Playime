@@ -10,7 +10,7 @@
  *   DELETE /api/cards/:id        delete a card
  */
 import type { FastifyInstance } from 'fastify';
-import { readFileSync, unlinkSync } from 'node:fs';
+import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import {
   createCharacterCard,
   deleteCharacterCard,
@@ -23,9 +23,9 @@ import type {
   CreateCharacterCardInput,
   UpdateCharacterCardInput,
 } from '../models/character.js';
-import { extractCardJsonFromPng, embedTextChunks } from '../cards/pngText.js';
+import { extractCardJsonFromPng, embedTextChunks, stripTextChunks } from '../cards/pngText.js';
 import { parseSillyTavernCard, saveAvatarLocally } from '../cards/sillytavern.js';
-import { deleteEntityDir, getEntityPath } from '../storage.js';
+import { deleteEntityDir, ensureEntityDir, getEntityPath } from '../storage.js';
 
 export async function characterRoutes(app: FastifyInstance): Promise<void> {
   // ── GET /api/cards ───────────────────────────────────────────────────
@@ -175,6 +175,9 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
       }
 
       let rawJson: Record<string, unknown> | null = null;
+      // When importing from PNG, hold the decoded buffer so we can save the
+      // image (with tEXt chunks stripped) as the character's avatar.
+      let pngBuffer: Buffer | null = null;
 
       // Case 1: body has a `data` field — could be base64 PNG or base64 JSON
       if (typeof body['data'] === 'string') {
@@ -189,6 +192,7 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
           decoded[3] === 0x47;
 
         if (isPng) {
+          pngBuffer = decoded;
           const jsonStr = extractCardJsonFromPng(decoded);
           if (!jsonStr) {
             return reply.code(400).send({
@@ -264,14 +268,27 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
       let created = createCharacterCard(card as CreateCharacterCardInput);
 
       // Save avatar locally and update avatar_file + avatars[].image
-      const avatarFile = await saveAvatarLocally(created.id, card.avatar ?? null);
+      let avatarFile: string | null = null;
+
+      if (pngBuffer) {
+        // Imported from PNG — save the image (with tEXt chunks stripped) as avatar
+        const entityDir = ensureEntityDir('characters', created.id);
+        const avatarPath = `${entityDir}/avatar.png`;
+        const cleanPng = stripTextChunks(pngBuffer);
+        writeFileSync(avatarPath, cleanPng);
+        avatarFile = 'avatar.png';
+      } else {
+        // Imported from JSON — try saving avatar from URL/data URI
+        avatarFile = await saveAvatarLocally(created.id, card.avatar ?? null);
+      }
+
       if (avatarFile) {
         let avatars = card.avatars ?? [];
         if (avatars.length === 0) {
           avatars = [{ id: 'default', name: 'Default', image: avatarFile }];
         } else {
           avatars = avatars.map((a, i) =>
-            i === 0 ? { ...a, image: avatarFile } : a
+            i === 0 ? { ...a, image: avatarFile! } : a
           );
         }
         updateCharacterCard(created.id, { avatar_file: avatarFile, avatars, avatar: null });

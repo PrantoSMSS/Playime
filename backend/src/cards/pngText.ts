@@ -102,6 +102,55 @@ export function readPngTextChunks(image: Buffer): PngTextChunk[] {
 }
 
 /**
+ * Strip all tEXt chunks from a PNG buffer, returning a clean image.
+ * All other chunks (IHDR, IDAT, IEND, etc.) are preserved unchanged.
+ */
+export function stripTextChunks(image: Buffer): Buffer {
+  if (image.length < 8) {
+    throw new Error('PNG too short — missing signature');
+  }
+
+  // Validate PNG signature
+  for (let i = 0; i < 8; i++) {
+    if (image[i] !== PNG_SIGNATURE[i]) {
+      throw new Error('Not a valid PNG file');
+    }
+  }
+
+  // Collect byte ranges of non-tEXt chunks
+  const ranges: Array<{ start: number; length: number }> = [];
+  let offset = 8; // skip signature
+
+  while (offset + 8 <= image.length) {
+    const dataLength = image.readUInt32BE(offset);
+    const chunkType = image.readUInt32BE(offset + 4);
+    const chunkTotal = 12 + dataLength; // length(4) + type(4) + data(N) + crc(4)
+
+    if (offset + chunkTotal > image.length) {
+      break;
+    }
+
+    if (chunkType !== CHUNK_TYPE_TEXT) {
+      ranges.push({ start: offset, length: chunkTotal });
+    }
+
+    offset += chunkTotal;
+  }
+
+  // Rebuild: signature + non-tEXt chunks
+  const totalLength = 8 + ranges.reduce((sum, r) => sum + r.length, 0);
+  const result = Buffer.alloc(totalLength);
+  image.copy(result, 0, 0, 8); // signature
+  let pos = 8;
+  for (const range of ranges) {
+    image.copy(result, pos, range.start, range.start + range.length);
+    pos += range.length;
+  }
+
+  return result;
+}
+
+/**
  * Extract character card JSON from a PNG buffer.
  * Prefers `ccv3` (V3) over `chara` (V2), matching SillyTavern/RisuAI behavior.
  * Returns the raw JSON string, or null if no character data found.
