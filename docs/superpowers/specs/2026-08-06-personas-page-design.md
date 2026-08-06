@@ -83,16 +83,29 @@ A tabbed modal, same pattern as `CharacterFormModal`. Two tabs:
 - Backend pre-checks for referencing sessions (same pattern as the character delete fix) → returns 409 with count if sessions exist
 - On success: persona removed from grid, entity directory cleaned up
 
-### "John Doe" Built-in
+### "John Doe" Built-in — The Fluid Default
 
+"John Doe" is a **blank-slate persona** — it has no personality, appearance, pronouns, or other fields of its own. It is a placeholder meaning "use whatever the card author defined."
+
+**How it works:**
+- Each Character Card has a `default_persona` field (already exists in the data model) where the author defines who the player is in that character's story: role, background, personality, appearance, pronouns, etc.
+- When the user selects "John Doe" at New Play time, the system resolves the player identity from the **Character Card's `default_persona`**, not from a stored persona.
+- If the card has no `default_persona`, John Doe means "plain yourself" — no persona context injected into the prompt.
+
+**On the Personas page:**
 - Always appears first in the grid
 - Shows a generic placeholder avatar (initials "JD" or a default SVG)
 - Name: "John Doe"
-- Description: "Just be yourself"
-- Clicking opens a small read-only info popup (not the full form modal) — just name + description
+- Description: "Defined by each character card"
+- Clicking opens a small read-only info popup — just the name + description
 - Cannot be edited, deleted, or reordered
-- When selected at New Play time, means "no persona" — the AI responds without persona context
 - The card is visually distinct (slightly muted or bordered differently) to signal it's the built-in default
+
+**Example flow:**
+1. User picks "John Doe" persona at New Play for character "Yuna"
+2. Yuna's card has `default_persona: { label: "Childhood friend", name: "{{player_name}}", role: "Neighbor", personality: "Shy but curious" }`
+3. The prompt assembler injects Yuna's `default_persona` as the player identity
+4. User only needs to provide their name — everything else comes from the card author's intent
 
 ### Backward Compatibility
 
@@ -113,7 +126,7 @@ A tabbed modal, same pattern as `CharacterFormModal`. Two tabs:
 
 - Persona usage stats (how many sessions used this persona)
 - Persona sharing / export / import
-- Default Persona editing (that lives on Character Cards)
+- **Default Persona editing on Character Cards** — the `default_persona` field exists on CharacterCard and is used by John Doe at runtime, but editing it from the Character Form Modal is a separate feature (not part of this page)
 - Persona-specific prompt customization (beyond appearance/personality)
 - Avatar cropping / editing tools
 
