@@ -3,6 +3,8 @@
 	import { parseMessage } from '$lib/messageParse';
 	import { chat, removeCard, closeCardInfoModal, openEditCardModal } from '$lib/state/chat.svelte';
 	import { exportCardAsJson, exportCardAsPng, resolveFileUrl } from '$lib/api/chat';
+	import Modal from './Modal.svelte';
+	import DeleteConfirmButton from './DeleteConfirmButton.svelte';
 
 	let {
 		card,
@@ -42,7 +44,6 @@
 	let personaSelectValue = $state('myself');
 	let playerName = $state('');
 	let showPersonaInfo = $state(false);
-	let showDeleteConfirm = $state(false);
 	let showExportDropdown = $state(false);
 	let isDeleting = $state(false);
 	let isExporting = $state(false);
@@ -160,14 +161,6 @@
 		}
 	}
 
-	function handleBackdropClick(e: MouseEvent): void {
-		if (e.target === e.currentTarget) onclose();
-	}
-
-	function handleKeydown(e: KeyboardEvent): void {
-		if (e.key === 'Escape') onclose();
-	}
-
 	function handleClickOutside(e: MouseEvent): void {
 		const target = e.target as HTMLElement;
 		if (!target.closest('.modal__export-wrapper')) {
@@ -183,13 +176,12 @@
 			if (success) {
 				closeCardInfoModal();
 			} else {
-				localError = chat.error ?? 'Failed to delete character.';
+				localError = chat.cardsError ?? 'Failed to delete character.';
 			}
 		} catch (err) {
 			localError = err instanceof Error ? err.message : 'Failed to delete character.';
 		} finally {
 			isDeleting = false;
-			showDeleteConfirm = false;
 		}
 	}
 
@@ -211,358 +203,257 @@
 	}
 </script>
 
-<svelte:window onkeydown={handleKeydown} onpointerdown={handleClickOutside} />
+<svelte:window onpointerdown={handleClickOutside} />
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="modal-backdrop" onclick={handleBackdropClick}>
-	<div class="modal" role="dialog" aria-labelledby="card-info-title">
-		<div class="modal__header">
-			<h2 id="card-info-title" class="modal__header-title">Character Information</h2>
-			<button class="modal__close" onclick={onclose} aria-label="Close">
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M18 6L6 18M6 6l12 12" />
+<Modal title="Character Information" {onclose} aria-labelledby="card-info-title">
+	<!-- Top section: image left, info right -->
+	<div class="modal__top">
+		{#if displayImage()}
+			<div class="modal__image">
+				<img src={displayImage()!} alt={card.name} />
+			</div>
+		{/if}
+
+		<div class="modal__info">
+			<div class="modal__name-row">
+				<h3 class="modal__name">{card.name}</h3>
+			</div>
+
+			{#if card.creator_name}
+				<p class="modal__creator">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>
+					{card.creator_name}
+				</p>
+			{/if}
+
+			{#if card.tags.length > 0}
+				<div class="modal__tags">
+					{#each card.tags as tag}
+						<span class="modal__tag">{tag}</span>
+					{/each}
+				</div>
+			{/if}
+
+			{#if card.tagline}
+				<p class="modal__tagline">{card.tagline}</p>
+			{/if}
+
+			<!-- Hashtag-style tags -->
+			{#if card.tags.length > 0}
+				<p class="modal__hashtags">
+					{#each card.tags as tag, i (tag)}{i > 0 ? ' ' : ''}#{tag}{/each}
+				</p>
+			{/if}
+
+			<!-- Stats -->
+			<div class="modal__stats">
+				<span class="modal__stat">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+					{card.stats.replay_count.toLocaleString()}
+				</span>
+				<span class="modal__stat">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-6 0v1H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-5z"/></svg>
+					{card.stats.like_count.toLocaleString()}
+				</span>
+				<span class="modal__stat">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+					{card.stats.comment_count.toLocaleString()}
+				</span>
+			</div>
+		</div>
+	</div>
+
+	<!-- Detailed Description -->
+	{#if card.description}
+		<div class="modal__section">
+			<h3 class="modal__section-title">Detailed Description</h3>
+			<p class="modal__section-text">{card.description}</p>
+		</div>
+	{/if}
+
+	<!-- ═══ PERSONA PICKER (always visible, first) ═══ -->
+	<div class="modal__section">
+		<div class="modal__persona-header">
+			<h3 class="modal__section-title">Your Persona</h3>
+			<!-- Info button -->
+			<button
+				class="modal__info-btn"
+				onclick={() => (showPersonaInfo = !showPersonaInfo)}
+				aria-label="What is a Persona?"
+			>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<circle cx="12" cy="12" r="10"/>
+					<path d="M12 16v-4M12 8h.01"/>
 				</svg>
 			</button>
 		</div>
 
-		<div class="modal__body">
-			<!-- Top section: image left, info right -->
-			<div class="modal__top">
-				{#if displayImage()}
-					<div class="modal__image">
-						<img src={displayImage()!} alt={card.name} />
-					</div>
-				{/if}
-
-				<div class="modal__info">
-					<div class="modal__name-row">
-						<h3 class="modal__name">{card.name}</h3>
-					</div>
-
-					{#if card.creator_name}
-						<p class="modal__creator">
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>
-							{card.creator_name}
-						</p>
-					{/if}
-
-					{#if card.tags.length > 0}
-						<div class="modal__tags">
-							{#each card.tags as tag}
-								<span class="modal__tag">{tag}</span>
-							{/each}
-						</div>
-					{/if}
-
-					{#if card.tagline}
-						<p class="modal__tagline">{card.tagline}</p>
-					{/if}
-
-					<!-- Hashtag-style tags -->
-					{#if card.tags.length > 0}
-						<p class="modal__hashtags">
-							{#each card.tags as tag, i (tag)}{i > 0 ? ' ' : ''}#{tag}{/each}
-						</p>
-					{/if}
-
-					<!-- Stats -->
-					<div class="modal__stats">
-						<span class="modal__stat">
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-							{card.stats.replay_count.toLocaleString()}
-						</span>
-						<span class="modal__stat">
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-6 0v1H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-5z"/></svg>
-							{card.stats.like_count.toLocaleString()}
-						</span>
-						<span class="modal__stat">
-							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-							{card.stats.comment_count.toLocaleString()}
-						</span>
-					</div>
-				</div>
+		{#if showPersonaInfo}
+			<div class="modal__info-tooltip">
+				<p><strong>Persona is who you are in the story.</strong></p>
+				<p>It can affect how characters treat you, what they call you, and how they react to your background.</p>
+				<p><em>Example: a respected athlete might be treated with admiration, while someone with a feared reputation may be treated more cautiously.</em></p>
 			</div>
+		{/if}
 
-			<!-- Detailed Description -->
-			{#if card.description}
-				<div class="modal__section">
-					<h3 class="modal__section-title">Detailed Description</h3>
-					<p class="modal__section-text">{card.description}</p>
-				</div>
+		<div class="modal__personas">
+			<select
+				class="modal__persona-select"
+				value={personaSelectValue}
+				onchange={handlePersonaSelect}
+			>
+				<option value="myself">Myself</option>
+				{#if hasDefaultPersona}
+					<option value="default">{defaultPersonaLabel()}</option>
+				{/if}
+				{#each chat.personas as persona (persona.id)}
+					<option value="custom:{persona.id}">
+						{persona.name}{persona.description ? ` — ${persona.description}` : ''}
+					</option>
+				{/each}
+			</select>
+
+			{#if personaDescription()}
+				<p class="modal__persona-selected-desc">{personaDescription()}</p>
 			{/if}
 
-			<!-- ═══ PERSONA PICKER (always visible, first) ═══ -->
-			<div class="modal__section">
-				<div class="modal__persona-header">
-					<h3 class="modal__section-title">Your Persona</h3>
-					<!-- Info button -->
-					<button
-						class="modal__info-btn"
-						onclick={() => (showPersonaInfo = !showPersonaInfo)}
-						aria-label="What is a Persona?"
-					>
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<circle cx="12" cy="12" r="10"/>
-							<path d="M12 16v-4M12 8h.01"/>
-						</svg>
-					</button>
-				</div>
-
-				{#if showPersonaInfo}
-					<div class="modal__info-tooltip">
-						<p><strong>Persona is who you are in the story.</strong></p>
-						<p>It can affect how characters treat you, what they call you, and how they react to your background.</p>
-						<p><em>Example: a respected athlete might be treated with admiration, while someone with a feared reputation may be treated more cautiously.</em></p>
-					</div>
-				{/if}
-
-				<div class="modal__personas">
-					<select
-						class="modal__persona-select"
-						value={personaSelectValue}
-						onchange={handlePersonaSelect}
-					>
-						<option value="myself">Myself</option>
-						{#if hasDefaultPersona}
-							<option value="default">{defaultPersonaLabel()}</option>
-						{/if}
-						{#each chat.personas as persona (persona.id)}
-							<option value="custom:{persona.id}">
-								{persona.name}{persona.description ? ` — ${persona.description}` : ''}
-							</option>
-						{/each}
-					</select>
-
-					{#if personaDescription()}
-						<p class="modal__persona-selected-desc">{personaDescription()}</p>
-					{/if}
-
-					{#if selectedPersonaType === 'default' && hasDefaultPersona}
-						<p class="modal__persona-recommend">✦ Recommended for the best roleplay experience</p>
-					{/if}
-				</div>
-			</div>
-
-			<!-- ═══ NAME FIELD (only when Default persona selected) ═══ -->
 			{#if selectedPersonaType === 'default' && hasDefaultPersona}
-				<div class="modal__section">
-					<h3 class="modal__section-title">What will be your name?</h3>
-					<input
-						class="modal__name-input"
-						type="text"
-						placeholder="Enter your name..."
-						bind:value={playerName}
-					/>
-				</div>
+				<p class="modal__persona-recommend">✦ Recommended for the best roleplay experience</p>
 			{/if}
-
-			<!-- ═══ SCENARIO PICKER (always visible) ═══ -->
-			<div class="modal__section">
-				<h3 class="modal__section-title">Starting Scenario</h3>
-				<p class="modal__section-subtitle">What situation is being played?</p>
-				{#if scenarios.length === 1}
-					<!-- Single scenario: show name only -->
-					<div class="modal__scenario-single">
-						<span class="modal__scenario-name">{scenarios[0]!.name}</span>
-						{#if scenarios[0]!.description}
-							<span class="modal__scenario-desc">{scenarios[0]!.description}</span>
-						{/if}
-					</div>
-				{:else}
-					<!-- Multiple scenarios: selectable buttons -->
-					<div class="modal__scenarios">
-						{#each scenarios as scenario}
-							<button
-								class="modal__scenario-btn"
-								class:modal__scenario-btn--selected={selectedScenarioId === scenario.id}
-								onclick={() => (selectedScenarioId = scenario.id)}
-							>
-								<span class="modal__scenario-name">{scenario.name}</span>
-								{#if scenario.description}
-									<span class="modal__scenario-desc">{scenario.description}</span>
-								{/if}
-							</button>
-						{/each}
-					</div>
-				{/if}
-			</div>
-
-			<!-- Intro Preview -->
-			{#if introSegments().length > 0}
-				<div class="modal__section">
-					<h3 class="modal__section-title">Intro Preview</h3>
-					<p class="modal__section-subtitle">{card.name}</p>
-					<div class="modal__intro">
-						{#each introSegments() as seg, i (i)}
-							<span
-								class="modal__intro-seg"
-								class:modal__intro-seg--dialogue={seg.type === 'dialogue'}
-							>{seg.text}</span>
-						{/each}
-					</div>
-				</div>
-			{/if}
-		</div>
-
-		<!-- Sticky footer -->
-		<div class="modal__footer">
-			{#if localError}
-				<div class="modal__error">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<circle cx="12" cy="12" r="10"/>
-						<line x1="12" y1="8" x2="12" y2="12"/>
-						<line x1="12" y1="16" x2="12.01" y2="16"/>
-					</svg>
-					{localError}
-				</div>
-			{/if}
-			<div class="modal__footer-buttons">
-				{#if source !== 'conversation'}
-					<!-- Delete button (leftmost, separated) -->
-					{#if !showDeleteConfirm}
-						<button
-							class="modal__delete-btn"
-							onclick={() => (showDeleteConfirm = true)}
-							aria-label="Delete character"
-						>
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-							</svg>
-							Delete
-						</button>
-					{:else}
-						<div class="modal__delete-confirm">
-							<span>Delete this character?</span>
-							<button class="modal__confirm-yes" onclick={handleDelete} disabled={isDeleting}>
-								{isDeleting ? '...' : 'Yes'}
-							</button>
-							<button class="modal__confirm-no" onclick={() => (showDeleteConfirm = false)}>
-								No
-							</button>
-						</div>
-					{/if}
-				{/if}
-
-				<div class="modal__footer-right">
-					{#if source !== 'conversation'}
-						<!-- Edit button -->
-						<button
-							class="modal__edit-btn"
-							onclick={() => onedit(card)}
-							aria-label="Edit character"
-						>
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-								<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-							</svg>
-							Edit
-						</button>
-
-						<!-- Export dropdown -->
-						<div class="modal__export-wrapper">
-							<button
-								class="modal__export-btn"
-								onclick={() => (showExportDropdown = !showExportDropdown)}
-								disabled={isExporting}
-								aria-label="Export character"
-							>
-								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-								</svg>
-								Export
-							</button>
-							{#if showExportDropdown}
-								<div class="modal__export-dropdown">
-									<button class="modal__export-option" onclick={() => handleExport('json')}>
-										.json (without avatar)
-									</button>
-									<button class="modal__export-option" onclick={() => handleExport('png')}>
-										.png (with avatar)
-									</button>
-								</div>
-							{/if}
-						</div>
-					{/if}
-
-					<!-- New Play button -->
-					<button
-						class="modal__start-btn"
-						disabled={!canPlay()}
-						onclick={handleStartPlay}
-					>
-						New Play
-					</button>
-				</div>
-			</div>
 		</div>
 	</div>
-</div>
+
+	<!-- ═══ NAME FIELD (only when Default persona selected) ═══ -->
+	{#if selectedPersonaType === 'default' && hasDefaultPersona}
+		<div class="modal__section">
+			<h3 class="modal__section-title">What will be your name?</h3>
+			<input
+				class="modal__name-input"
+				type="text"
+				placeholder="Enter your name..."
+				bind:value={playerName}
+			/>
+		</div>
+	{/if}
+
+	<!-- ═══ SCENARIO PICKER (always visible) ═══ -->
+	<div class="modal__section">
+		<h3 class="modal__section-title">Starting Scenario</h3>
+		<p class="modal__section-subtitle">What situation is being played?</p>
+		{#if scenarios.length === 1}
+			<!-- Single scenario: show name only -->
+			<div class="modal__scenario-single">
+				<span class="modal__scenario-name">{scenarios[0]!.name}</span>
+				{#if scenarios[0]!.description}
+					<span class="modal__scenario-desc">{scenarios[0]!.description}</span>
+				{/if}
+			</div>
+		{:else}
+			<!-- Multiple scenarios: selectable buttons -->
+			<div class="modal__scenarios">
+				{#each scenarios as scenario}
+					<button
+						class="modal__scenario-btn"
+						class:modal__scenario-btn--selected={selectedScenarioId === scenario.id}
+						onclick={() => (selectedScenarioId = scenario.id)}
+					>
+						<span class="modal__scenario-name">{scenario.name}</span>
+						{#if scenario.description}
+							<span class="modal__scenario-desc">{scenario.description}</span>
+						{/if}
+					</button>
+				{/each}
+			</div>
+		{/if}
+	</div>
+
+	<!-- Intro Preview -->
+	{#if introSegments().length > 0}
+		<div class="modal__section">
+			<h3 class="modal__section-title">Intro Preview</h3>
+			<p class="modal__section-subtitle">{card.name}</p>
+			<div class="modal__intro">
+				{#each introSegments() as seg, i (i)}
+					<span
+						class="modal__intro-seg"
+						class:modal__intro-seg--dialogue={seg.type === 'dialogue'}
+					>{seg.text}</span>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
+	{#snippet footer()}
+		{#if localError}
+			<div class="modal__error">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<circle cx="12" cy="12" r="10"/>
+					<line x1="12" y1="8" x2="12" y2="12"/>
+					<line x1="12" y1="16" x2="12.01" y2="16"/>
+				</svg>
+				{localError}
+			</div>
+		{/if}
+		<div class="modal__footer-buttons">
+			{#if source !== 'conversation'}
+				<DeleteConfirmButton label="Delete this character?" onconfirm={handleDelete} disabled={isDeleting} />
+			{/if}
+
+			<div class="modal__footer-right">
+				{#if source !== 'conversation'}
+					<!-- Edit button -->
+					<button
+						class="modal__edit-btn"
+						onclick={() => onedit(card)}
+						aria-label="Edit character"
+					>
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+							<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+						</svg>
+						Edit
+					</button>
+
+					<!-- Export dropdown -->
+					<div class="modal__export-wrapper">
+						<button
+							class="modal__export-btn"
+							onclick={() => (showExportDropdown = !showExportDropdown)}
+							disabled={isExporting}
+							aria-label="Export character"
+						>
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+							</svg>
+							Export
+						</button>
+						{#if showExportDropdown}
+							<div class="modal__export-dropdown">
+								<button class="modal__export-option" onclick={() => handleExport('json')}>
+									.json (without avatar)
+								</button>
+								<button class="modal__export-option" onclick={() => handleExport('png')}>
+									.png (with avatar)
+								</button>
+							</div>
+						{/if}
+					</div>
+				{/if}
+
+				<!-- New Play button -->
+				<button
+					class="modal__start-btn"
+					disabled={!canPlay()}
+					onclick={handleStartPlay}
+				>
+					New Play
+				</button>
+			</div>
+		</div>
+	{/snippet}
+</Modal>
 
 <style>
-	.modal-backdrop {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.6);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 100;
-		padding: var(--space-4);
-	}
-
-	.modal {
-		position: relative;
-		background: var(--surface-elevated);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-		box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
-		max-width: 560px;
-		width: 100%;
-		max-height: 80vh;
-		display: flex;
-		flex-direction: column;
-	}
-
-	/* Header */
-	.modal__header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: var(--space-4) var(--space-5);
-		border-bottom: 1px solid var(--border);
-	}
-
-	.modal__header-title {
-		margin: 0;
-		font-size: var(--font-size-base);
-		font-weight: var(--font-weight-semibold);
-		color: var(--text);
-	}
-
-	.modal__close {
-		width: 32px;
-		height: 32px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: 50%;
-		background: var(--bg-raised);
-		color: var(--icon);
-		transition: background var(--transition-fast), color var(--transition-fast);
-	}
-	.modal__close:hover {
-		background: var(--accent-soft);
-		color: var(--icon-hover);
-	}
-
-	/* Body */
-	.modal__body {
-		flex: 1;
-		overflow-y: auto;
-		padding: var(--space-5);
-	}
-
 	/* Top: image left, info right */
 	.modal__top {
 		display: flex;
@@ -863,14 +754,6 @@
 	}
 
 	/* Footer */
-	.modal__footer {
-		padding: var(--space-3) var(--space-5);
-		border-top: 1px solid var(--border);
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-
 	.modal__error {
 		display: flex;
 		align-items: center;
@@ -881,6 +764,7 @@
 		border: 1px solid var(--color-error-border, rgba(239, 68, 68, 0.3));
 		border-radius: var(--radius-md);
 		font-size: var(--font-size-sm);
+		margin-bottom: var(--space-2);
 	}
 
 	.modal__footer-buttons {
@@ -894,26 +778,6 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
-	}
-
-	/* Delete button */
-	.modal__delete-btn {
-		display: flex;
-		align-items: center;
-		gap: var(--space-1);
-		padding: var(--space-2) var(--space-3);
-		background: transparent;
-		color: var(--text-muted);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		font-size: var(--font-size-sm);
-		cursor: pointer;
-		transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
-	}
-	.modal__delete-btn:hover {
-		color: #ef4444;
-		border-color: #ef4444;
-		background: rgba(239, 68, 68, 0.1);
 	}
 
 	/* Edit button */
@@ -934,49 +798,6 @@
 		color: var(--text);
 		border-color: var(--text-muted);
 		background: var(--bg-raised);
-	}
-
-	/* Delete confirmation */
-	.modal__delete-confirm {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		font-size: var(--font-size-sm);
-		color: var(--text-muted);
-	}
-
-	.modal__confirm-yes {
-		padding: var(--space-1) var(--space-3);
-		background: #ef4444;
-		color: white;
-		border: none;
-		border-radius: var(--radius-md);
-		font-size: var(--font-size-xs);
-		font-weight: var(--font-weight-semibold);
-		cursor: pointer;
-		transition: opacity var(--transition-fast);
-	}
-	.modal__confirm-yes:hover:not(:disabled) {
-		opacity: 0.9;
-	}
-	.modal__confirm-yes:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.modal__confirm-no {
-		padding: var(--space-1) var(--space-3);
-		background: transparent;
-		color: var(--text-muted);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		font-size: var(--font-size-xs);
-		cursor: pointer;
-		transition: color var(--transition-fast), border-color var(--transition-fast);
-	}
-	.modal__confirm-no:hover {
-		color: var(--text);
-		border-color: var(--text-muted);
 	}
 
 	/* Export button */
