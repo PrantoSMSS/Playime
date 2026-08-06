@@ -6,34 +6,35 @@
 
 ## Problem
 
-The nav already has a "Personas" link, but it leads nowhere. The backend already has full Persona CRUD (table, model, routes, API client), but there's no UI to browse, create, edit, or delete personas. Users have no way to manage their roleplay identities.
+The nav already has a "Personas" link (internal id: `my-titles`), but it leads to a "Coming soon" placeholder. The backend already has full Persona CRUD (table, model, routes, API client), but there's no UI to browse, create, edit, or delete personas. Users have no way to manage their roleplay identities.
 
 ## Goal
 
 Add a Personas page accessible from the nav that lets users browse their personas in a card grid, create new ones, edit existing ones, and delete them — using the same UI patterns as the Characters page.
 
-## What Already Works (No Changes Needed)
+## What Already Works
 
 | Layer | Status |
 |---|---|
 | `persona` table (id, name, avatar, avatar_file, description, appearance, personality, pronouns) | ✅ DB schema |
 | `Persona` type + `CreatePersonaInput` + `UpdatePersonaInput` | ✅ Backend model |
 | `createPersona`, `getPersona`, `listPersonas`, `updatePersona`, `deletePersona` | ✅ Backend CRUD |
-| GET/POST/PATCH/DELETE `/api/personas` routes | ✅ API |
-| `listPersonas()` in frontend API client | ✅ Frontend API |
+| GET/POST/PATCH `/api/personas` routes | ✅ API |
+| `listPersonas`, `getPersona`, `createPersona`, `updatePersona`, `deletePersona` in `frontend/src/lib/api/chat.ts` | ✅ Frontend API (full CRUD) |
 | `ApiPersona` type in frontend | ✅ Frontend types |
 | `deleteEntityDir('personas', id)` on delete | ✅ Filesystem cleanup |
 | Avatar upload pattern (same as characters) | ✅ Storage |
+| `DELETE /api/personas/:id` route | ⚠️ Exists but deletes unconditionally — no session-reference guard (needs fix, see Task 1) |
 
 ## Design
 
 ### Page Layout
 
-A card grid page, accessed from the nav "Personas" link. Follows the same layout pattern as the Characters page.
+A card grid component (`PersonaGrid.svelte`) rendered inside the existing `+page.svelte` when `nav.activeView === 'my-titles'`. Follows the same layout pattern as the Characters page.
 
 **Grid items (in order):**
 
-1. **"John Doe" card** — built-in default persona, always first, cannot be edited or deleted. Shows a generic/placeholder avatar + "John Doe" + "Just be yourself" description. Clicking opens a read-only info display (name + description only, no form).
+1. **"John Doe" card** — built-in default persona, always first, cannot be edited or deleted. Shows a generic/placeholder avatar + "John Doe" + "Defined by each character card" description. Clicking opens a read-only info popup (name + description only, no form). The card is visually distinct (slightly muted or bordered differently) to signal it's the built-in default.
 2. **User persona cards** — one per persona in the DB. Avatar thumbnail + name + pronouns + description.
 3. **"+" card** — always last, opens the create modal.
 
@@ -51,11 +52,14 @@ A card grid page, accessed from the nav "Personas" link. Follows the same layout
 **Card interactions:**
 - Click card → opens Persona Form Modal in edit mode
 - Click "+" → opens Persona Form Modal in create mode
-- Right-click or long-press → context menu with Delete (with confirmation)
+
+**Empty state:** When no user personas exist (only "John Doe" + "+"), show a subtle hint below the grid: "Create a persona to define who you play as."
+
+**Loading state:** Show a skeleton grid (3 placeholder cards) while personas load from the API.
 
 ### Persona Form Modal
 
-A tabbed modal, same pattern as `CharacterFormModal`. Two tabs:
+A tabbed modal (`PersonaFormModal.svelte`), same pattern as `CharacterFormModal`. Two tabs:
 
 **Tab 1: Identity**
 | Field | Type | Required | Notes |
@@ -72,16 +76,23 @@ A tabbed modal, same pattern as `CharacterFormModal`. Two tabs:
 
 **Avatar:** Upload button at the top of the modal (before tabs), same pattern as character form. Shows current avatar with upload/remove controls.
 
-**Save:** Builds `CreatePersonaInput` or `UpdatePersonaInput` from form state. Only `name` is required. All other fields are optional — empty strings are sent as-is (backend handles defaults).
+**Save behavior:** Save button is always visible but **disabled** when name is empty. No click-and-block — the button is grayed out. When the user fills in the name, it enables.
 
-**Validation:** Save blocked if name is empty. Inline red border + "Required" on the name field.
+**Tab-switch on validation:** If the user somehow triggers validation (shouldn't happen with disabled button, but defensively), and the error is on a field not currently visible, auto-switch to the tab containing the first error.
+
+**Save action:** Builds `CreatePersonaInput` or `UpdatePersonaInput` from form state. Only `name` is required. All other fields are optional — empty strings are sent as-is (backend handles defaults).
+
+**Delete in modal (edit mode only):** A "Delete" button at the bottom-left of the modal footer (same pattern as `CardInfoModal`). Clicking it swaps to an inline confirmation: "Delete this persona? Yes / No". On "Yes": calls `DELETE /api/personas/:id`. On success: closes modal and removes card from grid. On 409 (active sessions): shows error in the modal footer.
 
 ### Delete Flow
 
-- Click delete on a persona card → confirmation dialog ("Delete this persona?")
-- On confirm: calls `DELETE /api/personas/:id`
-- Backend pre-checks for referencing sessions (same pattern as the character delete fix) → returns 409 with count if sessions exist
-- On success: persona removed from grid, entity directory cleaned up
+1. User opens Persona Form Modal in edit mode
+2. Clicks "Delete" in the modal footer
+3. Button swaps to inline "Delete this persona? Yes / No" confirmation
+4. On "Yes": calls `DELETE /api/personas/:id`
+5. Backend pre-checks for referencing sessions → returns 409 with count if sessions exist
+6. On success: modal closes, card removed from grid, entity directory cleaned up
+7. On 409: error message shown in modal footer ("Cannot delete — N conversation(s) still reference this persona. Delete the conversations first.")
 
 ### "John Doe" Built-in — The Fluid Default
 
@@ -90,7 +101,7 @@ A tabbed modal, same pattern as `CharacterFormModal`. Two tabs:
 **How it works:**
 - Each Character Card has a `default_persona` field (already exists in the data model) where the author defines who the player is in that character's story: role, background, personality, appearance, pronouns, etc.
 - When the user selects "John Doe" at New Play time, the system resolves the player identity from the **Character Card's `default_persona`**, not from a stored persona.
-- If the card has no `default_persona`, John Doe means "plain yourself" — no persona context injected into the prompt.
+- If the card has no `default_persona`, the backend currently returns a `400 no_default_persona` error. **This behavior is kept as-is for this feature.** The New Play UI should prevent selecting John Doe on cards without a `default_persona`, or show the backend error if it slips through. Graceful fallback (silently injecting no persona context) is a future enhancement, not part of this scope.
 
 **On the Personas page:**
 - Always appears first in the grid
@@ -99,13 +110,29 @@ A tabbed modal, same pattern as `CharacterFormModal`. Two tabs:
 - Description: "Defined by each character card"
 - Clicking opens a small read-only info popup — just the name + description
 - Cannot be edited, deleted, or reordered
-- The card is visually distinct (slightly muted or bordered differently) to signal it's the built-in default
+- The card is visually distinct (slightly muted or bordered differently)
 
 **Example flow:**
 1. User picks "John Doe" persona at New Play for character "Yuna"
 2. Yuna's card has `default_persona: { label: "Childhood friend", name: "{{player_name}}", role: "Neighbor", personality: "Shy but curious" }`
 3. The prompt assembler injects Yuna's `default_persona` as the player identity
 4. User only needs to provide their name — everything else comes from the card author's intent
+
+### `DEFAULT_PERSONA` Constant — Naming Note
+
+There is an existing `DEFAULT_PERSONA` constant in `backend/src/models/persona.ts` (lines 193–203) with `id: 'myself'`, `name: 'Myself'`. It is exported but **unused in production code** — only referenced in a test file. It is **not** the mechanism that powers John Doe or default-persona resolution (that's a separate code path in `routes/chat.ts` that merges `card.default_persona` with `player_name`).
+
+**Decision:** Leave `DEFAULT_PERSONA` and its test in place. It is unrelated to John Doe — it represents the "just be yourself" option for sessions that don't pick any persona. Renaming or removing it is a separate cleanup task, not part of this feature. A future reader should not conflate it with the John Doe implementation.
+
+### Nav ID Rename
+
+The nav item currently has `id: 'my-titles'` but `label: 'Personas'`. The `NavView` type in `nav.svelte.ts` includes `'my-titles'` as a valid view.
+
+**Decision:** Rename the id from `'my-titles'` to `'personas'` for semantic clarity. This requires:
+1. Update `NavRail.svelte`: change `id: 'my-titles'` → `id: 'personas'`
+2. Update `nav.svelte.ts`: change `'my-titles'` → `'personas'` in the `NavView` type union
+3. Update `+page.svelte`: change `nav.activeView === 'my-titles'` → `nav.activeView === 'personas'`
+4. Grep the entire codebase for `'my-titles'` post-change to confirm no stale references remain
 
 ### Backward Compatibility
 
@@ -117,27 +144,35 @@ A tabbed modal, same pattern as `CharacterFormModal`. Two tabs:
 
 | File | Change |
 |---|---|
-| `frontend/src/routes/personas/+page.svelte` | New page — card grid |
-| `frontend/src/lib/components/chat/PersonaFormModal.svelte` | New component — create/edit modal |
-| `frontend/src/lib/state/chat.svelte.ts` | Add persona CRUD state functions |
-| `frontend/src/lib/components/chat/NavRail.svelte` | Wire "Personas" nav link to the new page |
+| `frontend/src/lib/components/chat/PersonaGrid.svelte` | New component — card grid (replaces the "Coming soon" placeholder for `'personas'` view) |
+| `frontend/src/lib/components/chat/PersonaFormModal.svelte` | New component — create/edit modal with delete-in-modal |
+| `frontend/src/routes/+page.svelte` | Add `{:else if nav.activeView === 'personas'}` branch to render `PersonaGrid`; update existing `nav.activeView === 'my-titles'` reference to `'personas'` |
+| `frontend/src/lib/state/chat.svelte.ts` | Add persona CRUD state functions (load, create, update, delete) |
+| `frontend/src/lib/state/nav.svelte.ts` | Rename `'my-titles'` → `'personas'` in `NavView` type |
+| `frontend/src/lib/components/chat/NavRail.svelte` | Rename nav item id from `'my-titles'` → `'personas'` |
+| `backend/src/models/persona.ts` | Add `countSessionsForPersona(id)` helper |
+| `backend/src/routes/persona.ts` | Add session pre-check to DELETE handler (409 on active sessions) |
 
 ## Out of Scope
 
 - Persona usage stats (how many sessions used this persona)
 - Persona sharing / export / import
-- **Default Persona editing on Character Cards** — the `default_persona` field exists on CharacterCard and is used by John Doe at runtime, but editing it from the Character Form Modal is a separate feature (not part of this page)
+- **Default Persona editing on Character Cards** — the `default_persona` field exists on CharacterCard and is used by John Doe at runtime, but editing it from the Character Form Modal is a separate feature
+- **Graceful fallback for `no_default_persona`** — the backend currently returns 400 when John Doe is selected on a card without `default_persona`. Changing this to silently inject no persona context is a future enhancement
 - Persona-specific prompt customization (beyond appearance/personality)
 - Avatar cropping / editing tools
+- Removing or renaming the existing `DEFAULT_PERSONA` constant (separate cleanup)
 
 ## Verification
 
 1. Navigate to Personas page from nav — verify grid shows "John Doe" + any existing personas + "+"
-2. Click "+" — verify create modal opens with empty fields
-3. Fill in name + appearance, save — verify card appears in grid
-4. Click existing persona card — verify edit modal opens with correct data
-5. Edit name, save — verify grid updates
-6. Delete a persona — verify confirmation, card removed, no DB errors
-7. Try deleting a persona with active sessions — verify 409 error shown
-8. Try saving with empty name — verify validation blocks save
-9. Verify "John Doe" card cannot be edited or deleted
+2. Verify "John Doe" card is visually distinct and cannot be edited or deleted
+3. Click "+" — verify create modal opens with empty fields, Save button disabled (name empty)
+4. Fill in name — verify Save button enables
+5. Fill in name + appearance, save — verify card appears in grid
+6. Click existing persona card — verify edit modal opens with correct data
+7. Edit name, save — verify grid updates
+8. Open edit modal, click Delete, confirm — verify card removed, modal closes
+9. Try deleting a persona with active sessions — verify 409 error shown in modal
+10. Try saving with empty name — verify Save button is disabled (no click-through)
+11. Grep codebase for `'my-titles'` post-change — verify no stale references remain
