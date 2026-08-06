@@ -11,7 +11,7 @@
 		{ id: 'story', label: 'Story' },
 		{ id: 'character', label: 'Character' },
 		{ id: 'chats', label: 'Chats' },
-		{ id: 'my-titles', label: 'My Titles' },
+		{ id: 'my-titles', label: 'Personas' },
 		{ id: 'notifications', label: 'Notifications' }
 	];
 </script>
