@@ -38,6 +38,7 @@
 {#if chat.cardInfoModal}
 	<CardInfoModal
 		card={chat.cardInfoModal.card}
+		source={chat.cardInfoModal.source}
 		onclose={closeCardInfoModal}
 		onstartplay={startNewPlay}
 		onedit={(card) => openEditCardModal(card)}

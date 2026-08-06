@@ -23,7 +23,7 @@
 
 	function handleTitleClick(): void {
 		const cardId = session?.cardId ?? 'yehwa';
-		void openCardInfoModal(cardId);
+		void openCardInfoModal(cardId, 'conversation');
 	}
 </script>
 

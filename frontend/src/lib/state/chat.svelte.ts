@@ -41,7 +41,7 @@ export const chat = $state({
 	/** Last send failure message (cleared on the next send). */
 	error: null as string | null,
 	/** Card info modal state. */
-	cardInfoModal: null as { card: ApiCharacterCard } | null,
+	cardInfoModal: null as { card: ApiCharacterCard; source?: 'card-browser' | 'conversation' } | null,
 	/** Available personas for the New Play persona picker. */
 	personas: [] as ApiPersona[],
 	/** All loaded character cards. */
@@ -74,10 +74,10 @@ export function activeMessages(): ChatMessage[] {
 }
 
 /** Open the card info modal for a given card. */
-export async function openCardInfoModal(cardId: string): Promise<void> {
+export async function openCardInfoModal(cardId: string, source?: 'card-browser' | 'conversation'): Promise<void> {
 	try {
 		const [card, personas] = await Promise.all([getCard(cardId), listPersonas()]);
-		chat.cardInfoModal = { card };
+		chat.cardInfoModal = { card, source };
 		chat.personas = personas;
 	} catch (err) {
 		chat.error = err instanceof Error ? err.message : 'Failed to load card';
