@@ -11,12 +11,14 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   createPersona,
+  countSessionsForPersona,
   deletePersona,
   getPersona,
   listPersonas,
   updatePersona,
   DEFAULT_PERSONA,
 } from '../models/persona.js';
+import { getDb } from '../db.js';
 
 describe('persona CRUD', () => {
   it('creates and retrieves a persona', () => {
@@ -55,6 +57,46 @@ describe('persona CRUD', () => {
 
   it('returns undefined for nonexistent persona', () => {
     assert.equal(getPersona('nonexistent-id'), undefined);
+  });
+
+  it('persists and returns avatar_file on create', () => {
+    const persona = createPersona({ name: 'Avatar Test', avatar_file: 'avatar.png' });
+    assert.equal(persona.avatar_file, `personas/${persona.id}/avatar.png`);
+    const fetched = getPersona(persona.id);
+    assert.ok(fetched);
+    assert.equal(fetched.avatar_file, `personas/${persona.id}/avatar.png`);
+  });
+
+  it('round-trips avatar_file on update', () => {
+    const persona = createPersona({ name: 'Avatar Update' });
+    assert.equal(persona.avatar_file, null);
+    const updated = updatePersona(persona.id, { avatar_file: 'profile.jpg' });
+    assert.ok(updated);
+    assert.equal(updated.avatar_file, `personas/${persona.id}/profile.jpg`);
+  });
+
+  it('returns null avatar_file when not set', () => {
+    const persona = createPersona({ name: 'No Avatar File' });
+    assert.equal(persona.avatar_file, null);
+  });
+
+  it('counts sessions referencing a persona', () => {
+    const persona = createPersona({ name: 'Session Count Test' });
+    assert.equal(countSessionsForPersona(persona.id), 0);
+
+    // Insert a session referencing this persona
+    const db = getDb();
+    const sessId = `sess_test_${Date.now()}`;
+    db.prepare(
+      `INSERT INTO session (id, class, created_at, provider, persona_id) VALUES (?, 'character', ?, 'opencode', ?)`,
+    ).run(sessId, Date.now(), persona.id);
+
+    assert.equal(countSessionsForPersona(persona.id), 1);
+
+    // Clean up
+    db.prepare('DELETE FROM session WHERE id = ?').run(sessId);
+    deletePersona(persona.id);
+    assert.equal(countSessionsForPersona(persona.id), 0);
   });
 });
 

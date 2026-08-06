@@ -10,6 +10,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   createPersona,
+  countSessionsForPersona,
   deletePersona,
   getPersona,
   listPersonas,
@@ -58,6 +59,7 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
           properties: {
             name: { type: 'string' },
             avatar: { type: 'string' },
+            avatar_file: { type: ['string', 'null'] },
             description: { type: 'string' },
             appearance: { type: 'string' },
             personality: { type: 'string' },
@@ -75,8 +77,17 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
           error: { code: 'invalid_body', message: 'Request body is required' },
         });
       }
-      const persona = createPersona(body);
-      return reply.code(201).send(persona);
+      try {
+        const persona = createPersona(body);
+        return reply.code(201).send(persona);
+      } catch (err) {
+        return reply.code(500).send({
+          error: {
+            code: 'create_failed',
+            message: `Failed to create persona: ${err instanceof Error ? err.message : 'unknown error'}`,
+          },
+        });
+      }
     },
   );
 
@@ -95,6 +106,7 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
           properties: {
             name: { type: 'string' },
             avatar: { type: ['string', 'null'] },
+            avatar_file: { type: ['string', 'null'] },
             description: { type: 'string' },
             appearance: { type: 'string' },
             personality: { type: 'string' },
@@ -112,13 +124,22 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
           error: { code: 'invalid_body', message: 'Request body is required' },
         });
       }
-      const persona = updatePersona(id, body);
-      if (!persona) {
-        return reply.code(404).send({
-          error: { code: 'persona_not_found', message: `Persona ${id} not found` },
+      try {
+        const persona = updatePersona(id, body);
+        if (!persona) {
+          return reply.code(404).send({
+            error: { code: 'persona_not_found', message: `Persona ${id} not found` },
+          });
+        }
+        return reply.send(persona);
+      } catch (err) {
+        return reply.code(500).send({
+          error: {
+            code: 'update_failed',
+            message: `Failed to update persona: ${err instanceof Error ? err.message : 'unknown error'}`,
+          },
         });
       }
-      return reply.send(persona);
     },
   );
 
@@ -136,14 +157,35 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const deleted = deletePersona(id);
-      if (!deleted) {
-        return reply.code(404).send({
-          error: { code: 'persona_not_found', message: `Persona ${id} not found` },
+
+      // Pre-check: sessions referencing this persona block deletion
+      const sessionCount = countSessionsForPersona(id);
+      if (sessionCount > 0) {
+        return reply.code(409).send({
+          error: {
+            code: 'has_active_sessions',
+            message: `Cannot delete — ${sessionCount} conversation(s) still reference this persona. Delete the conversations first.`,
+          },
         });
       }
-      deleteEntityDir('personas', id);
-      return reply.code(204).send();
+
+      try {
+        const deleted = deletePersona(id);
+        if (!deleted) {
+          return reply.code(404).send({
+            error: { code: 'persona_not_found', message: `Persona ${id} not found` },
+          });
+        }
+        deleteEntityDir('personas', id);
+        return reply.code(204).send();
+      } catch (err) {
+        return reply.code(500).send({
+          error: {
+            code: 'delete_failed',
+            message: `Failed to delete persona: ${err instanceof Error ? err.message : 'unknown error'}`,
+          },
+        });
+      }
     },
   );
 }

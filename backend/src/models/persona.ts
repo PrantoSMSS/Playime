@@ -191,6 +191,16 @@ export function deletePersona(id: string): boolean {
   return result.changes > 0;
 }
 
+/**
+ * Count sessions referencing a persona.
+ */
+export function countSessionsForPersona(personaId: string): number {
+  const row = getDb()
+    .prepare('SELECT COUNT(*) AS cnt FROM session WHERE persona_id = ?')
+    .get(personaId) as { cnt: number };
+  return row.cnt;
+}
+
 // ── Default persona ────────────────────────────────────────────────────
 
 /**
