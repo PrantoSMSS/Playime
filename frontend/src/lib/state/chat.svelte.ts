@@ -38,8 +38,11 @@ export const chat = $state({
 	responseLength: 'Normal' as ResponseLength,
 	/** True while a send is awaiting the backend reply. */
 	sending: false,
-	/** Last send failure message (cleared on the next send). */
-	error: null as string | null,
+	/** Scoped error fields — each cleared independently by its owning domain. */
+	cardsError: null as string | null,
+	sessionsError: null as string | null,
+	messageError: null as string | null,
+	newPlayError: null as string | null,
 	/** Card info modal state. */
 	cardInfoModal: null as { card: ApiCharacterCard; source?: 'card-browser' | 'conversation' } | null,
 	/** Available personas for the New Play persona picker. */
@@ -80,7 +83,7 @@ export async function openCardInfoModal(cardId: string, source?: 'card-browser' 
 		chat.cardInfoModal = { card, source };
 		chat.personas = personas;
 	} catch (err) {
-		chat.error = err instanceof Error ? err.message : 'Failed to load card';
+		chat.cardsError = err instanceof Error ? err.message : 'Failed to load card';
 	}
 }
 
@@ -94,7 +97,7 @@ export async function loadCards(): Promise<void> {
 	try {
 		chat.cards = await listCards();
 	} catch (err) {
-		chat.error = err instanceof Error ? err.message : 'Failed to load cards';
+		chat.cardsError = err instanceof Error ? err.message : 'Failed to load cards';
 	}
 }
 
@@ -128,7 +131,7 @@ export async function loadSessions(): Promise<void> {
 		const validSessions = apiSessions.filter((s) => s.character_card_id != null);
 		chat.sessions = validSessions.map((s) => sessionFromApi(s, chat.cards));
 	} catch (err) {
-		chat.error = err instanceof Error ? err.message : 'Failed to load sessions';
+		chat.sessionsError = err instanceof Error ? err.message : 'Failed to load sessions';
 	}
 }
 
@@ -138,7 +141,7 @@ export async function loadSessionMessages(sessionId: string): Promise<void> {
 		const apiMessages = await listSessionMessages(sessionId);
 		chat.messagesBySession[sessionId] = apiMessages.map(messageFromApi);
 	} catch (err) {
-		chat.error = err instanceof Error ? err.message : 'Failed to load messages';
+		chat.sessionsError = err instanceof Error ? err.message : 'Failed to load messages';
 	}
 }
 
@@ -159,7 +162,7 @@ export async function saveCard(
 		chat.cards = await listCards();
 		return card;
 	} catch (err) {
-		chat.error = err instanceof Error ? err.message : 'Failed to save card';
+		chat.cardsError = err instanceof Error ? err.message : 'Failed to save card';
 		return null;
 	}
 }
@@ -171,7 +174,7 @@ export async function removeCard(id: string): Promise<boolean> {
 		chat.cards = chat.cards.filter((c) => c.id !== id);
 		return true;
 	} catch (err) {
-		chat.error = err instanceof Error ? err.message : 'Failed to delete card';
+		chat.cardsError = err instanceof Error ? err.message : 'Failed to delete card';
 		return false;
 	}
 }
@@ -208,7 +211,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
 		await deleteSessionApi(sessionId);
 	} catch (err) {
 		// Keep the conversation — the list must reflect the database.
-		chat.error = err instanceof Error ? err.message : 'Failed to delete conversation';
+		chat.sessionsError = err instanceof Error ? err.message : 'Failed to delete conversation';
 		return;
 	}
 	chat.sessions = chat.sessions.filter((s) => s.id !== sessionId);
@@ -228,7 +231,7 @@ export async function resetSession(sessionId: string): Promise<void> {
 	try {
 		await deleteSessionMessages(sessionId);
 	} catch (err) {
-		chat.error = err instanceof Error ? err.message : 'Failed to reset conversation';
+		chat.sessionsError = err instanceof Error ? err.message : 'Failed to reset conversation';
 		return;
 	}
 
@@ -378,7 +381,7 @@ export async function startNewPlay(selections: {
 		nav.activeView = 'conversation';
 		chat.cardInfoModal = null;
 	} catch (err) {
-		chat.error = err instanceof Error ? err.message : 'Failed to start new play';
+		chat.newPlayError = err instanceof Error ? err.message : 'Failed to start new play';
 	}
 }
 
@@ -435,7 +438,7 @@ export async function sendMessage(content: string): Promise<void> {
 	});
 
 	chat.sending = true;
-	chat.error = null;
+	chat.messageError = null;
 
 	const dropStreaming = (): void => {
 		const idx = list.findIndex((m) => m.id === streamId);
@@ -458,7 +461,7 @@ export async function sendMessage(content: string): Promise<void> {
 				if (s) s.preview = res.message.content;
 			},
 			onError: (_code, message) => {
-				chat.error = message;
+				chat.messageError = message;
 				dropStreaming();
 				// Also remove the optimistic user message so the user can retry cleanly
 				const optIdx = list.findIndex((m) => m.id === optimisticId);
@@ -466,7 +469,7 @@ export async function sendMessage(content: string): Promise<void> {
 			},
 		});
 	} catch (err) {
-		chat.error =
+		chat.messageError =
 			err instanceof Error ? err.message : 'Could not reach the server. Is it running?';
 		dropStreaming();
 	} finally {

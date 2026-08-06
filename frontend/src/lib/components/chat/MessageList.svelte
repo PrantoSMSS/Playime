@@ -45,8 +45,8 @@
 		{/if}
 	{/each}
 
-	{#if chat.error}
-		<div class="error" role="alert">{chat.error}</div>
+	{#if chat.messageError}
+		<div class="error" role="alert">{chat.messageError}</div>
 	{/if}
 </div>
 
