@@ -21,6 +21,14 @@
 	type Tab = 'identity' | 'personality' | 'scenario';
 	let activeTab = $state<Tab>('identity');
 
+	type ScenarioEntry = {
+		id: string;
+		name: string;
+		description: string;
+		scenario: string;
+		first_message: string;
+	};
+
 	// ── Form fields (initialized from importedData, card, or empty) ────────
 	// We intentionally capture the prop's initial value here — the modal is
 	// created fresh per open, so reactivity is not needed.
@@ -30,8 +38,59 @@
 	let personality = $state(importedData?.personality ?? card?.personality ?? '');
 	let speechStyle = $state(importedData?.speech_style ?? card?.speech_style ?? '');
 	let likesAndDislikes = $state(importedData?.likes_and_dislikes ?? card?.likes_and_dislikes ?? '');
-	let scenario = $state(importedData?.scenario ?? card?.scenario ?? '');
-	let firstMessage = $state(importedData?.first_message ?? card?.first_message ?? '');
+	/** Initialize scenario list from card data, imported data, or a single blank entry. */
+	function initScenarios(): ScenarioEntry[] {
+		// Edit mode: use card's starting_scenarios, or wrap legacy fields
+		if (card) {
+			if (card.starting_scenarios.length > 0) {
+				return card.starting_scenarios.map((s) => ({
+					id: s.id,
+					name: s.name,
+					description: s.description ?? '',
+					scenario: s.scenario,
+					first_message: s.first_message,
+				}));
+			}
+			if (card.scenario || card.first_message) {
+				return [{
+					id: 'default',
+					name: 'Default',
+					description: '',
+					scenario: card.scenario,
+					first_message: card.first_message ?? '',
+				}];
+			}
+			return [createBlankScenario()];
+		}
+
+		// Create mode with import
+		if (importedData?.starting_scenarios && importedData.starting_scenarios.length > 0) {
+			return importedData.starting_scenarios.map((s) => ({
+				id: s.id,
+				name: s.name,
+				description: s.description ?? '',
+				scenario: s.scenario,
+				first_message: s.first_message,
+			}));
+		}
+		if (importedData?.scenario || importedData?.first_message) {
+			return [{
+				id: 'default',
+				name: 'Default',
+				description: '',
+				scenario: importedData.scenario ?? '',
+				first_message: importedData.first_message ?? '',
+			}];
+		}
+
+		return [createBlankScenario()];
+	}
+
+	function createBlankScenario(): ScenarioEntry {
+		return { id: crypto.randomUUID(), name: '', description: '', scenario: '', first_message: '' };
+	}
+
+	let scenarios = $state<ScenarioEntry[]>(initScenarios());
 
 	// ── Avatar ────────────────────────────────────────────────────────────
 	let avatarPreview = $state<string | null>(resolveFileUrl(importedData?.avatar ?? card?.avatar ?? card?.avatar_file ?? null));
@@ -50,8 +109,6 @@
 	// ── Submission state ───────────────────────────────────────────────────
 	let saving = $state(false);
 	let errorMessage = $state<string | null>(null);
-
-	const canSave = $derived(name.trim().length > 0 && !saving);
 
 	// ── Handlers ──────────────────────────────────────────────────────────
 	function handleAvatarClick(): void {
