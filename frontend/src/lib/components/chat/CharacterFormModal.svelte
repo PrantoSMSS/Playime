@@ -92,6 +92,8 @@
 
 	let scenarios = $state<ScenarioEntry[]>(initScenarios());
 
+	const canSave = $derived(name.trim().length > 0 && !saving);
+
 	// ── Scenario helpers ───────────────────────────────────────────────────
 	let expandedScenarioIds = $state<Record<string, boolean>>({});
 	let scenarioErrors = $state<Record<string, Record<string, string>>>({});
@@ -130,6 +132,30 @@
 
 	function scenarioDisplayName(entry: ScenarioEntry, index: number): string {
 		return entry.name.trim() || `Scenario ${index + 1}`;
+	}
+
+	function validateScenarios(): boolean {
+		scenarioErrors = {};
+		let firstErrorId: string | null = null;
+
+		for (const entry of scenarios) {
+			const errors: Record<string, string> = {};
+			if (!entry.name.trim()) errors.name = 'Required';
+			if (!entry.scenario.trim()) errors.scenario = 'Required';
+			if (!entry.first_message.trim()) errors.first_message = 'Required';
+
+			if (Object.keys(errors).length > 0) {
+				scenarioErrors[entry.id] = errors;
+				if (!firstErrorId) firstErrorId = entry.id;
+			}
+		}
+
+		// Auto-expand the first card with errors
+		if (firstErrorId) {
+			expandedScenarioIds[firstErrorId] = true;
+		}
+
+		return Object.keys(scenarioErrors).length === 0;
 	}
 
 	/** Clear a specific field error when the user types. */
@@ -236,6 +262,7 @@
 
 	async function handleSave(): Promise<void> {
 		if (!canSave) return;
+		if (!validateScenarios()) return;
 
 		saving = true;
 		errorMessage = null;
@@ -247,12 +274,10 @@
 				// Build base input from form fields (without avatar — uploaded separately)
 				const baseInput: CreateCardInput = {
 					name: name.trim(),
-					tagline: tagline.trim(),
-					personality: personality.trim(),
-					speech_style: speechStyle.trim(),
-					likes_and_dislikes: likesAndDislikes.trim(),
-					scenario: scenario.trim(),
-					...(firstMessage.trim() ? { first_message: firstMessage.trim() } : {}),
+					tagline: tagline.trim() || undefined,
+					personality: personality.trim() || undefined,
+					speech_style: speechStyle.trim() || undefined,
+					likes_and_dislikes: likesAndDislikes.trim() || undefined,
 					...(description.trim() ? { description: description.trim() } : {}),
 				};
 
@@ -272,8 +297,14 @@
 					...(importedData?.system_prompt ? { system_prompt: importedData.system_prompt } : {}),
 					...(importedData?.post_history_instructions ? { post_history_instructions: importedData.post_history_instructions } : {}),
 					...(importedData?.mes_example ? { mes_example: importedData.mes_example } : {}),
-					...(importedData?.starting_scenarios ? { starting_scenarios: importedData.starting_scenarios } : {}),
 					...(importedData?.default_persona ? { default_persona: importedData.default_persona } : {}),
+					starting_scenarios: scenarios.map((s) => ({
+						id: s.id,
+						name: s.name.trim(),
+						description: s.description.trim() || undefined,
+						scenario: s.scenario.trim(),
+						first_message: s.first_message.trim(),
+					})),
 				};
 
 				result = await saveCard('create', input);
@@ -292,13 +323,18 @@
 				// Edit mode: only send fields the form controls
 				const input: UpdateCardInput = {
 					name: name.trim(),
-					tagline: tagline.trim(),
-					personality: personality.trim(),
-					speech_style: speechStyle.trim(),
-					likes_and_dislikes: likesAndDislikes.trim(),
-					scenario: scenario.trim(),
-					...(firstMessage.trim() ? { first_message: firstMessage.trim() } : {}),
+					tagline: tagline.trim() || undefined,
+					personality: personality.trim() || undefined,
+					speech_style: speechStyle.trim() || undefined,
+					likes_and_dislikes: likesAndDislikes.trim() || undefined,
 					...(description.trim() ? { description: description.trim() } : {}),
+					starting_scenarios: scenarios.map((s) => ({
+						id: s.id,
+						name: s.name.trim(),
+						description: s.description.trim() || undefined,
+						scenario: s.scenario.trim(),
+						first_message: s.first_message.trim(),
+					})),
 				};
 
 				result = await saveCard('edit', input, card?.id);
