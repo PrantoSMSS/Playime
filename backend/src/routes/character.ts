@@ -146,9 +146,15 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
         const entityDir = ensureEntityDir('characters', card.id);
         const avatarPath = join(entityDir, 'avatar.png');
         writeFileSync(avatarPath, cleanPng);
-        avatarFile = 'avatar.png';
+        avatarFile = `characters/${card.id}/avatar.png`;
       } else {
-        avatarFile = await saveAvatarLocally(card.id, avatarValue);
+        const bareFile = await saveAvatarLocally(card.id, avatarValue);
+        // Convert bare filename to full relative path for resolveFileUrl()
+        avatarFile = bareFile
+          ? (bareFile.startsWith('characters/') || bareFile.startsWith('personas/')
+              ? bareFile
+              : `characters/${card.id}/${bareFile}`)
+          : null;
       }
       if (avatarFile) {
         let avatars = body.avatars ?? [];
@@ -291,10 +297,16 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
         const avatarPath = `${entityDir}/avatar.png`;
         const cleanPng = stripTextChunks(pngBuffer);
         writeFileSync(avatarPath, cleanPng);
-        avatarFile = 'avatar.png';
+        avatarFile = `characters/${created.id}/avatar.png`;
       } else {
         // Imported from JSON — try saving avatar from URL/data URI
-        avatarFile = await saveAvatarLocally(created.id, card.avatar ?? null);
+        const bareFile = await saveAvatarLocally(created.id, card.avatar ?? null);
+        // Convert bare filename to full relative path for resolveFileUrl()
+        avatarFile = bareFile
+          ? (bareFile.startsWith('characters/') || bareFile.startsWith('personas/')
+              ? bareFile
+              : `characters/${created.id}/${bareFile}`)
+          : null;
       }
 
       if (avatarFile) {
@@ -513,7 +525,10 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
         let finalAvatarPath: string | null;
         if (avatarFile) {
           // Saved to disk by saveAvatarLocally (data URI or HTTP URL)
-          finalAvatarPath = avatarFile;
+          // Convert bare filename to full relative path for resolveFileUrl()
+          finalAvatarPath = avatarFile.startsWith('characters/') || avatarFile.startsWith('personas/')
+            ? avatarFile
+            : `characters/${id}/${avatarFile}`;
         } else if (body.avatar && !body.avatar.startsWith('data:') && !body.avatar.startsWith('http')) {
           // Already a relative path — file is on disk, just use it directly
           finalAvatarPath = body.avatar;

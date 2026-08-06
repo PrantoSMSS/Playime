@@ -209,6 +209,16 @@ interface CharacterCardRow {
   updated_at: number;
 }
 
+/**
+ * Normalize a bare avatar filename (e.g. 'avatar.png') to the full relative
+ * path expected by resolveFileUrl() (e.g. 'characters/<id>/avatar.png').
+ * Paths already containing a '/' are returned unchanged.
+ */
+function normalizeAvatarPath(path: string | null, entityId: string): string | null {
+  if (!path || path.includes('/')) return path;
+  return `characters/${entityId}/${path}`;
+}
+
 /** Deserialize a DB row into a full `CharacterCard`. */
 function rowToCard(row: CharacterCardRow): CharacterCard {
   return {
@@ -227,7 +237,10 @@ function rowToCard(row: CharacterCardRow): CharacterCard {
       flags: [],
     }),
     length_guidance: row.length_guidance,
-    avatars: parseJson<AvatarOption[]>(row.avatars, []),
+    avatars: parseJson<AvatarOption[]>(row.avatars, []).map(a => ({
+      ...a,
+      image: normalizeAvatarPath(a.image, row.id) ?? a.image,
+    })),
     starting_scenarios: parseJson<StartingScenario[]>(row.starting_scenarios, []),
     default_persona: parseJson<DefaultPersona | null>(row.default_persona, null),
     alternate_greetings: parseJson<string[]>(row.alternate_greetings, []),
@@ -239,7 +252,7 @@ function rowToCard(row: CharacterCardRow): CharacterCard {
     character_version: row.character_version,
     world_info: parseJson<WorldInfoEntry[]>(row.world_info, []),
     extensions: parseJson<Record<string, unknown>>(row.extensions, {}),
-    avatar_file: row.avatar_file ?? null,
+    avatar_file: normalizeAvatarPath(row.avatar_file, row.id),
     cover_file: row.cover_file ?? null,
     cover_image: row.cover_image,
     creator_name: row.creator_name,
