@@ -10,7 +10,7 @@
  *   DELETE /api/cards/:id        delete a card
  */
 import type { FastifyInstance } from 'fastify';
-import { readFileSync } from 'node:fs';
+import { readFileSync, unlinkSync } from 'node:fs';
 import {
   createCharacterCard,
   deleteCharacterCard,
@@ -497,6 +497,27 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
           );
           updateCharacterCard(id, { avatar_file: finalAvatarPath, avatars, avatar: null });
         } else {
+          // Delete avatar files from disk before clearing the DB
+          if (card.avatar_file) {
+            const filename = card.avatar_file.includes('/')
+              ? card.avatar_file.split('/').pop()!
+              : card.avatar_file;
+            const filePath = getEntityPath('characters', id, filename);
+            if (filePath) {
+              try { unlinkSync(filePath); } catch { /* file may not exist */ }
+            }
+          }
+          for (const opt of card.avatars) {
+            if (opt.image) {
+              const imgFilename = opt.image.includes('/')
+                ? opt.image.split('/').pop()!
+                : opt.image;
+              const imgPath = getEntityPath('characters', id, imgFilename);
+              if (imgPath) {
+                try { unlinkSync(imgPath); } catch { /* file may not exist */ }
+              }
+            }
+          }
           // Clear avatar from database
           updateCharacterCard(id, { avatar_file: null, avatars: [], avatar: null });
         }
