@@ -5,9 +5,7 @@
 	let { message }: { message: ChatMessage } = $props();
 
 	// An OOC/stage-direction note (*…*) renders italic + muted to read as
-	// meta, not dialogue — the same distinction the backend draws. The
-	// surrounding asterisks are stripped from view, matching how the
-	// assistant renderer treats *…* (italic narration).
+	// meta, not dialogue — the same distinction the backend draws.
 	const isOoc = $derived(
 		message.content.length > 2 &&
 			message.content.startsWith('*') &&
@@ -43,7 +41,11 @@
 		background: var(--user-bg);
 		border-color: var(--user-border);
 	}
+	.user-bubble__seg {
+		font-style: italic;
+	}
 	.user-bubble__seg--dialogue {
-		font-weight: var(--font-weight-medium);
+		font-style: normal;
+		font-weight: 600;
 	}
 </style>

@@ -108,6 +108,7 @@ export function renderCharacterSystemPrompt(
     `- Stay fully in character as ${card.name}. Never mention being an AI, a model, a system, or "the user".`,
     '- Address the user directly, in character.',
     '- Produce ONLY the final in-character response text. No reasoning, no planning, no narration of your thought process, no meta-commentary.',
+    '- Wrap narration and actions in asterisks: *She smiles warmly.* Dialogue is plain text with no markers. Example: *She smiles.* Hey, you made it!',
     '- Let the relationship state and memories shape your tone and attitude. Refer to shared past naturally — never by listing it.',
     `- Keep responses ${card.length_guidance ?? DEFAULT_LENGTH_GUIDANCE}.`,
     "- Never re-describe your own card, scenario, or the scene's premise.",

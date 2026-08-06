@@ -1,22 +1,16 @@
 /**
- * Splits an assistant message into visually-distinct segments for the
- * MessageBubble (docs/PLAYIME_PROMPT_SPEC §1 + the shell's message-styling
- * rules).
+ * Splits a message into visually-distinct segments for the message bubbles.
  *
- * There are exactly two kinds of text: spoken and not-spoken.
+ * There are exactly two kinds of text:
  *
- * - `"…"` / `“…”` → dialogue   (bold, full-contrast; the surrounding
- *                                quotation marks are stripped from view)
- * - anything else  → narration  (italic, muted). This includes `*…*` spans —
- *   the asterisks are a stage-direction markup convention and are stripped
- *   from view, but the text is the same category as any other description:
- *   scene-setting, not speech.
+ * - `*…*` → narration (italic, muted; asterisks stripped from display)
+ * - anything else → dialogue (normal text)
  */
 export type MessageSegment =
 	| { type: 'narration'; text: string }
 	| { type: 'dialogue'; text: string };
 
-const TOKEN = /"([^"\\]|\\.)*"|“([^“”])*?”|\*[^*\n]+\*/g;
+const TOKEN = /\*[^*\n]+\*/g;
 
 export function parseMessage(content: string): MessageSegment[] {
 	const segments: MessageSegment[] = [];
@@ -24,30 +18,22 @@ export function parseMessage(content: string): MessageSegment[] {
 
 	let match: RegExpExecArray | null;
 	while ((match = TOKEN.exec(content)) !== null) {
-		if (match.index > last) pushNarration(content.slice(last, match.index));
+		if (match.index > last) pushDialogue(content.slice(last, match.index));
 
-		const token = match[0];
-		if (token.startsWith('"') || token.startsWith('“')) {
-			// Quotation marks are a markup convention, not part of the line —
-			// drop them so the dialogue reads plainly. The bold full-contrast
-			// styling still marks it as dialogue.
-			segments.push({ type: 'dialogue', text: token.slice(1, -1) });
-		} else {
-			// `*…*` is a stage-direction markup convention — the asterisks are
-			// dropped so the text reads plainly, but it's still narration.
-			pushNarration(token.slice(1, -1));
-		}
-		last = match.index + token.length;
+		// `*…*` narration — strip asterisks from display, render as italic.
+		pushNarration(match[0].slice(1, -1));
+		last = match.index + match[0].length;
 	}
 
-	if (last < content.length) pushNarration(content.slice(last));
+	if (last < content.length) pushDialogue(content.slice(last));
 	return mergeAdjacent(segments);
 
-	// Preserve whitespace (including space-only runs between tokens) so the
-	// segments can be rendered inline — one flowing block — without losing
-	// the original word spacing.
 	function pushNarration(text: string): void {
 		if (text.length > 0) segments.push({ type: 'narration', text });
+	}
+
+	function pushDialogue(text: string): void {
+		if (text.length > 0) segments.push({ type: 'dialogue', text });
 	}
 }
 

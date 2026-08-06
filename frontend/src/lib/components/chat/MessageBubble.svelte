@@ -89,7 +89,7 @@
 	.bubble__seg--dialogue {
 		color: var(--ai-dialogue);
 		font-style: normal;
-		font-weight: var(--font-weight-medium);
+		font-weight: 600;
 	}
 
 	/* Typing indicator: the live streaming placeholder shows animated dots
