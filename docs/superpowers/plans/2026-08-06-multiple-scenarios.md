@@ -704,9 +704,10 @@ git commit -m "feat: auto-expand first scenario on modal open"
 
 1. Create character with 2 scenarios
 2. Start a New Play with scenario 1
-3. Go back, edit character, remove scenario 1
-4. Verify: existing session still works (its snapshot is intact)
-5. Verify: CardInfoModal now shows only scenario 2
+3. Go back, edit character, remove scenario 1, save
+4. Verify: existing session still works (its snapshot is intact — first message unchanged)
+5. Open CardInfoModal for the character — verify only scenario 2 appears in the picker
+6. Start a new session from the same character — verify the picker only offers scenario 2 (not the removed one)
 
 - [ ] **Step 6: Commit final state**
 
