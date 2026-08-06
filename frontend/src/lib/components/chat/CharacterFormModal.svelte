@@ -92,6 +92,56 @@
 
 	let scenarios = $state<ScenarioEntry[]>(initScenarios());
 
+	// ── Scenario helpers ───────────────────────────────────────────────────
+	let expandedScenarioIds = $state<Record<string, boolean>>({});
+	let scenarioErrors = $state<Record<string, Record<string, string>>>({});
+
+	function toggleExpanded(id: string): void {
+		expandedScenarioIds[id] = !expandedScenarioIds[id];
+	}
+
+	function isExpanded(id: string): boolean {
+		return expandedScenarioIds[id] ?? false;
+	}
+
+	function addScenario(): void {
+		if (scenarios.length >= 12) return;
+		const entry = createBlankScenario();
+		scenarios.push(entry);
+		expandedScenarioIds[entry.id] = true;
+		// Scroll into view after DOM update
+		requestAnimationFrame(() => {
+			const el = document.getElementById(`scenario-card-${entry.id}`);
+			el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		});
+	}
+
+	function removeScenario(id: string): void {
+		const idx = scenarios.findIndex((s) => s.id === id);
+		if (idx < 0) return;
+		const s = scenarios[idx];
+		// Confirmation only if scenario/first_message/description have content
+		const needsConfirm = s.scenario.trim() || s.first_message.trim() || s.description.trim();
+		if (needsConfirm && !confirm('Remove this scenario?')) return;
+		scenarios.splice(idx, 1);
+		delete expandedScenarioIds[id];
+		delete scenarioErrors[id];
+	}
+
+	function scenarioDisplayName(entry: ScenarioEntry, index: number): string {
+		return entry.name.trim() || `Scenario ${index + 1}`;
+	}
+
+	/** Clear a specific field error when the user types. */
+	function clearScenarioError(id: string, field: string): void {
+		if (scenarioErrors[id]) {
+			delete scenarioErrors[id][field];
+			if (Object.keys(scenarioErrors[id]).length === 0) {
+				delete scenarioErrors[id];
+			}
+		}
+	}
+
 	// ── Avatar ────────────────────────────────────────────────────────────
 	let avatarPreview = $state<string | null>(resolveFileUrl(importedData?.avatar ?? card?.avatar ?? card?.avatar_file ?? null));
 	let fileInput = $state<HTMLInputElement>();
@@ -498,27 +548,115 @@
 			{/if}
 
 			{#if activeTab === 'scenario'}
-				<div class="modal__field">
-					<label class="modal__label" for="char-scenario">Scenario</label>
-					<textarea
-						id="char-scenario"
-						class="modal__textarea"
-						rows="5"
-						placeholder="Setting, context, and situation for the character"
-						bind:value={scenario}
-					></textarea>
+				<div class="scenario-list">
+					{#each scenarios as entry, i (entry.id)}
+						<div
+							class="scenario-card"
+							class:scenario-card--expanded={isExpanded(entry.id)}
+							id="scenario-card-{entry.id}"
+						>
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="scenario-card__header"
+								onclick={() => toggleExpanded(entry.id)}
+							>
+								<span class="scenario-card__title">
+									{scenarioDisplayName(entry, i)}
+									{#if i === 0}
+										<span class="scenario-card__badge">Default</span>
+									{/if}
+								</span>
+								<div class="scenario-card__header-actions">
+									{#if scenarios.length > 1}
+										<button
+											class="scenario-card__remove"
+											title="Remove scenario"
+											onclick={(e) => { e.stopPropagation(); removeScenario(entry.id); }}
+										>
+											×
+										</button>
+									{/if}
+									<span class="scenario-card__chevron">
+										{isExpanded(entry.id) ? '▾' : '▸'}
+									</span>
+								</div>
+							</div>
+
+							{#if isExpanded(entry.id)}
+								<div class="scenario-card__body">
+									<div class="modal__field">
+										<label class="modal__label" for="scenario-name-{entry.id}">Name</label>
+										<input
+											id="scenario-name-{entry.id}"
+											class="modal__input"
+											class:modal__input--error={scenarioErrors[entry.id]?.name}
+											type="text"
+											placeholder="e.g. Summer Vacation, Dark Timeline"
+											bind:value={entry.name}
+											oninput={() => clearScenarioError(entry.id, 'name')}
+										/>
+										{#if scenarioErrors[entry.id]?.name}
+											<span class="modal__field-error">{scenarioErrors[entry.id].name}</span>
+										{/if}
+									</div>
+
+									<div class="modal__field">
+										<label class="modal__label" for="scenario-desc-{entry.id}">Description <span class="modal__label-optional">(optional)</span></label>
+										<input
+											id="scenario-desc-{entry.id}"
+											class="modal__input"
+											type="text"
+											placeholder="Short subtitle for the scenario picker"
+											bind:value={entry.description}
+										/>
+									</div>
+
+									<div class="modal__field">
+										<label class="modal__label" for="scenario-text-{entry.id}">Scenario</label>
+										<textarea
+											id="scenario-text-{entry.id}"
+											class="modal__textarea"
+											class:modal__textarea--error={scenarioErrors[entry.id]?.scenario}
+											rows="5"
+											placeholder="Setting, context, and situation for this starting scenario"
+											bind:value={entry.scenario}
+											oninput={() => clearScenarioError(entry.id, 'scenario')}
+										></textarea>
+										{#if scenarioErrors[entry.id]?.scenario}
+											<span class="modal__field-error">{scenarioErrors[entry.id].scenario}</span>
+										{/if}
+									</div>
+
+									<div class="modal__field">
+										<label class="modal__label" for="scenario-first-{entry.id}">First Message</label>
+										<textarea
+											id="scenario-first-{entry.id}"
+											class="modal__textarea"
+											class:modal__textarea--error={scenarioErrors[entry.id]?.first_message}
+											rows="6"
+											placeholder="The character's opening message for this scenario"
+											bind:value={entry.first_message}
+											oninput={() => clearScenarioError(entry.id, 'first_message')}
+										></textarea>
+										{#if scenarioErrors[entry.id]?.first_message}
+											<span class="modal__field-error">{scenarioErrors[entry.id].first_message}</span>
+										{/if}
+									</div>
+								</div>
+							{/if}
+						</div>
+					{/each}
 				</div>
 
-				<div class="modal__field">
-					<label class="modal__label" for="char-first-msg">First Message</label>
-					<textarea
-						id="char-first-msg"
-						class="modal__textarea"
-						rows="6"
-						placeholder="The character's opening message (shown as the first AI reply)"
-						bind:value={firstMessage}
-					></textarea>
-				</div>
+				<button
+					class="scenario-add-btn"
+					disabled={scenarios.length >= 12}
+					title={scenarios.length >= 12 ? 'Maximum 12 scenarios' : 'Add another starting scenario'}
+					onclick={addScenario}
+				>
+					+ Add Scenario
+				</button>
 			{/if}
 		</div>
 
@@ -906,5 +1044,129 @@
 	.modal__btn--save:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	/* ── Scenario cards ──────────────────────────────────────────────── */
+	.scenario-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	.scenario-card {
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		transition: border-color var(--transition-fast);
+	}
+	.scenario-card--expanded {
+		border-color: var(--accent-muted);
+	}
+
+	.scenario-card__header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: var(--space-3) var(--space-4);
+		cursor: pointer;
+		user-select: none;
+		transition: background var(--transition-fast);
+	}
+	.scenario-card__header:hover {
+		background: var(--accent-soft);
+	}
+
+	.scenario-card__title {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-medium);
+		color: var(--text);
+	}
+
+	.scenario-card__badge {
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-medium);
+		color: var(--accent);
+		background: var(--accent-soft);
+		padding: 1px 6px;
+		border-radius: var(--radius-pill);
+	}
+
+	.scenario-card__header-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.scenario-card__remove {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		font-size: 16px;
+		color: var(--icon);
+		transition: background var(--transition-fast), color var(--transition-fast);
+	}
+	.scenario-card__remove:hover {
+		background: var(--danger-soft, rgba(239, 68, 68, 0.12));
+		color: var(--danger, #ef4444);
+	}
+
+	.scenario-card__chevron {
+		color: var(--icon);
+		font-size: 12px;
+	}
+
+	.scenario-card__body {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		padding: 0 var(--space-4) var(--space-4);
+	}
+
+	.scenario-add-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-2);
+		width: 100%;
+		padding: var(--space-3);
+		border: 1px dashed var(--border);
+		border-radius: var(--radius-md);
+		background: transparent;
+		color: var(--text-secondary);
+		font-size: var(--font-size-sm);
+		transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+	}
+	.scenario-add-btn:hover:not(:disabled) {
+		border-color: var(--accent-muted);
+		color: var(--accent);
+		background: var(--accent-soft);
+	}
+	.scenario-add-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	/* ── Validation error styles ─────────────────────────────────────── */
+	.modal__input--error,
+	.modal__textarea--error {
+		border-color: var(--danger, #ef4444) !important;
+	}
+
+	.modal__field-error {
+		font-size: var(--font-size-xs);
+		color: var(--danger, #ef4444);
+		margin-top: 2px;
+	}
+
+	.modal__label-optional {
+		font-weight: var(--font-weight-normal);
+		color: var(--text-muted);
+		font-size: var(--font-size-xs);
 	}
 </style>
