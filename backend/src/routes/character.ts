@@ -18,6 +18,7 @@ import {
   getCharacterCard,
   listCharacterCards,
   updateCharacterCard,
+  countSessionsForCard,
 } from '../models/character.js';
 import type {
   CharacterCard,
@@ -780,6 +781,18 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+
+      // Pre-check: sessions referencing this card block deletion
+      const sessionCount = countSessionsForCard(id);
+      if (sessionCount > 0) {
+        return reply.code(409).send({
+          error: {
+            code: 'has_active_sessions',
+            message: `Cannot delete — ${sessionCount} conversation(s) still reference this character. Delete the conversations first.`,
+          },
+        });
+      }
+
       const deleted = deleteCharacterCard(id);
       if (!deleted) {
         return reply.code(404).send({

@@ -556,6 +556,16 @@ export function deleteCharacterCard(id: string): boolean {
   return result.changes > 0;
 }
 
+/**
+ * Count sessions referencing a character card.
+ */
+export function countSessionsForCard(cardId: string): number {
+  const row = getDb()
+    .prepare('SELECT COUNT(*) AS cnt FROM session WHERE character_card_id = ?')
+    .get(cardId) as { cnt: number };
+  return row.cnt;
+}
+
 // ── Test fixture (Phase 1, checklist item 3) ───────────────────────────
 
 /**

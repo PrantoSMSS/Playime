@@ -6,11 +6,13 @@
 
 	let {
 		card,
+		source,
 		onclose,
 		onstartplay,
 		onedit,
 	}: {
 		card: ApiCharacterCard;
+		source?: 'card-browser' | 'conversation';
 		onclose: () => void;
 		onstartplay: ( selections: {
 			personaId?: string;
@@ -175,11 +177,16 @@
 
 	async function handleDelete(): Promise<void> {
 		isDeleting = true;
+		localError = null;
 		try {
 			const success = await removeCard(card.id);
 			if (success) {
 				closeCardInfoModal();
+			} else {
+				localError = chat.error ?? 'Failed to delete character.';
 			}
+		} catch (err) {
+			localError = err instanceof Error ? err.message : 'Failed to delete character.';
 		} finally {
 			isDeleting = false;
 			showDeleteConfirm = false;
@@ -411,68 +418,72 @@
 				</div>
 			{/if}
 			<div class="modal__footer-buttons">
-				<!-- Delete button (leftmost, separated) -->
-				{#if !showDeleteConfirm}
-					<button
-						class="modal__delete-btn"
-						onclick={() => (showDeleteConfirm = true)}
-						aria-label="Delete character"
-					>
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-						</svg>
-						Delete
-					</button>
-				{:else}
-					<div class="modal__delete-confirm">
-						<span>Delete this character?</span>
-						<button class="modal__confirm-yes" onclick={handleDelete} disabled={isDeleting}>
-							{isDeleting ? '...' : 'Yes'}
+				{#if source !== 'conversation'}
+					<!-- Delete button (leftmost, separated) -->
+					{#if !showDeleteConfirm}
+						<button
+							class="modal__delete-btn"
+							onclick={() => (showDeleteConfirm = true)}
+							aria-label="Delete character"
+						>
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+							</svg>
+							Delete
 						</button>
-						<button class="modal__confirm-no" onclick={() => (showDeleteConfirm = false)}>
-							No
-						</button>
-					</div>
+					{:else}
+						<div class="modal__delete-confirm">
+							<span>Delete this character?</span>
+							<button class="modal__confirm-yes" onclick={handleDelete} disabled={isDeleting}>
+								{isDeleting ? '...' : 'Yes'}
+							</button>
+							<button class="modal__confirm-no" onclick={() => (showDeleteConfirm = false)}>
+								No
+							</button>
+						</div>
+					{/if}
 				{/if}
 
 				<div class="modal__footer-right">
-					<!-- Edit button -->
-					<button
-						class="modal__edit-btn"
-						onclick={() => onedit(card)}
-						aria-label="Edit character"
-					>
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-							<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-						</svg>
-						Edit
-					</button>
-
-					<!-- Export dropdown -->
-					<div class="modal__export-wrapper">
+					{#if source !== 'conversation'}
+						<!-- Edit button -->
 						<button
-							class="modal__export-btn"
-							onclick={() => (showExportDropdown = !showExportDropdown)}
-							disabled={isExporting}
-							aria-label="Export character"
+							class="modal__edit-btn"
+							onclick={() => onedit(card)}
+							aria-label="Edit character"
 						>
 							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+								<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+								<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
 							</svg>
-							Export
+							Edit
 						</button>
-						{#if showExportDropdown}
-							<div class="modal__export-dropdown">
-								<button class="modal__export-option" onclick={() => handleExport('json')}>
-									.json (without avatar)
-								</button>
-								<button class="modal__export-option" onclick={() => handleExport('png')}>
-									.png (with avatar)
-								</button>
-							</div>
-						{/if}
-					</div>
+
+						<!-- Export dropdown -->
+						<div class="modal__export-wrapper">
+							<button
+								class="modal__export-btn"
+								onclick={() => (showExportDropdown = !showExportDropdown)}
+								disabled={isExporting}
+								aria-label="Export character"
+							>
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+								</svg>
+								Export
+							</button>
+							{#if showExportDropdown}
+								<div class="modal__export-dropdown">
+									<button class="modal__export-option" onclick={() => handleExport('json')}>
+										.json (without avatar)
+									</button>
+									<button class="modal__export-option" onclick={() => handleExport('png')}>
+										.png (with avatar)
+									</button>
+								</div>
+							{/if}
+						</div>
+					{/if}
 
 					<!-- New Play button -->
 					<button
