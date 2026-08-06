@@ -11,7 +11,12 @@ import filesRoutes from './routes/files.js';
 import { getDb, reserveExistingIdSequences } from './db.js';
 import { initializeStorage } from './storage.js';
 
-const app = Fastify({ logger: true });
+const app = Fastify({
+  logger: true,
+  // Allow up to 20 MB JSON bodies — the card import endpoint receives
+  // base64-encoded PNGs that can exceed the default 1 MiB limit.
+  bodyLimit: 20 * 1024 * 1024,
+});
 
 app.get('/health', async () => ({ status: 'ok' }));
 

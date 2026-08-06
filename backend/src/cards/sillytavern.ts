@@ -260,12 +260,14 @@ function parseV2OrV3(
     avatar: avatar,
     tagline: data.description ?? '',
     personality: data.personality ?? '',
-    speech_style: '',
-    likes_and_dislikes: '',
+    // Playime-specific fields: restore from extensions if present (round-trip
+    // preservation from cardToV2Json), fall back to empty string.
+    speech_style: (typeof extensions['speech_style'] === 'string' ? extensions['speech_style'] : '') ?? '',
+    likes_and_dislikes: (typeof extensions['likes_and_dislikes'] === 'string' ? extensions['likes_and_dislikes'] : '') ?? '',
     scenario: data.scenario ?? '',
     first_message: data.first_mes ?? null,
     relationship_state: { affection: 0, trust: 0, flags: [] },
-    length_guidance: null,
+    length_guidance: (typeof extensions['length_guidance'] === 'string' ? extensions['length_guidance'] : null) ?? null,
 
     avatars: avatars,
     starting_scenarios: startingScenarios,
@@ -280,6 +282,9 @@ function parseV2OrV3(
     extensions: Object.keys(extensions).length > 0 || Object.keys(v3Extras).length > 0
       ? { ...extensions, ...(Object.keys(v3Extras).length > 0 ? { _v3: v3Extras } : {}) }
       : {},
+
+    // Restore Playime-specific fields from extensions if present
+    default_persona: (extensions['default_persona'] as CharacterCard['default_persona']) ?? null,
 
     cover_image: coverImage,
     creator_name: data.creator ?? null,

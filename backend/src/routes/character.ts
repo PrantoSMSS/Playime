@@ -532,6 +532,17 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
       })),
     } : undefined;
 
+    // Playime-specific fields stored in extensions for round-trip preservation.
+    // These are not part of the SillyTavern V2 spec, so they live in extensions
+    // and are restored during import by parseSillyTavernCard().
+    const extensions: Record<string, unknown> = {
+      ...(card.extensions ?? {}),
+    };
+    if (card.speech_style) extensions['speech_style'] = card.speech_style;
+    if (card.likes_and_dislikes) extensions['likes_and_dislikes'] = card.likes_and_dislikes;
+    if (card.default_persona) extensions['default_persona'] = card.default_persona;
+    if (card.length_guidance) extensions['length_guidance'] = card.length_guidance;
+
     return {
       spec: 'chara_card_v2',
       spec_version: '2.0',
@@ -550,7 +561,7 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
         tags: card.tags,
         creator: card.creator ?? card.creator_name ?? '',
         character_version: card.character_version ?? '',
-        extensions: card.extensions,
+        extensions: Object.keys(extensions).length > 0 ? extensions : undefined,
       },
     };
   }
@@ -608,8 +619,13 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
       // Get the avatar image — prefer local file, fall back to legacy URL
       let imageBuffer: Buffer;
       if (card.avatar_file) {
-        // Local file — read from disk
-        const filePath = getEntityPath('characters', card.id, card.avatar_file);
+        // avatar_file may be a bare filename ("avatar.png") or a full relative
+        // path from the upload endpoint ("characters/<id>/avatar.png"). Extract
+        // the filename so getEntityPath doesn't double-nest the entity dir.
+        const avatarFilename = card.avatar_file.includes('/')
+          ? card.avatar_file.split('/').pop()!
+          : card.avatar_file;
+        const filePath = getEntityPath('characters', card.id, avatarFilename);
         if (!filePath) {
           return reply.code(400).send({
             error: { code: 'no_avatar', message: 'Card has no avatar image to embed' },
