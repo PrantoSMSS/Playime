@@ -38,6 +38,9 @@
 	let fileInput = $state<HTMLInputElement>();
 	let avatarFile = $state<File | null>(null);
 	let uploading = $state(false);
+	// Track whether the user explicitly removed the avatar (so we can send
+	// avatar: null in the PATCH to clear avatar_file in the DB).
+	let avatarRemoved = $state(false);
 
 	// Avatar management (edit mode)
 	let avatars = $state<Array<{ id: string; name?: string; image: string }>>(
@@ -75,6 +78,7 @@
 		}
 		avatarPreview = null;
 		avatarFile = null;
+		avatarRemoved = true;
 		if (fileInput) fileInput.value = '';
 	}
 
@@ -200,6 +204,9 @@
 					} finally {
 						uploading = false;
 					}
+				} else if (result && avatarRemoved) {
+					// Avatar was explicitly removed — clear it in the DB
+					result = await saveCard('edit', { avatar: null }, result.id);
 				}
 			}
 
