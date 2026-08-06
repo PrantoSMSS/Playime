@@ -11,6 +11,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   createCharacterCard,
   deleteCharacterCard,
@@ -133,8 +134,22 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
       }
       let card = createCharacterCard(body);
 
-      // Save avatar to disk if it's a data URL or HTTP URL
-      const avatarFile = await saveAvatarLocally(card.id, body.avatar ?? null);
+      // Save avatar to disk if it's a data URL or HTTP URL.
+      // For PNG data URIs (from import), strip tEXt chunks before saving
+      // so the stored image is clean.
+      let avatarFile: string | null = null;
+      const avatarValue = body.avatar ?? null;
+      if (avatarValue?.startsWith('data:image/png')) {
+        const base64 = avatarValue.split(',')[1] ?? '';
+        const pngBuf = Buffer.from(base64, 'base64');
+        const cleanPng = stripTextChunks(pngBuf);
+        const entityDir = ensureEntityDir('characters', card.id);
+        const avatarPath = join(entityDir, 'avatar.png');
+        writeFileSync(avatarPath, cleanPng);
+        avatarFile = 'avatar.png';
+      } else {
+        avatarFile = await saveAvatarLocally(card.id, avatarValue);
+      }
       if (avatarFile) {
         let avatars = body.avatars ?? [];
         if (avatars.length === 0) {

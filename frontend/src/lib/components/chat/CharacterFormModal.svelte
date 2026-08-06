@@ -153,6 +153,7 @@
 				const input: CreateCardInput = {
 					...baseInput,
 					// Pass through all imported fields that aren't form-editable
+					...(importedData?.avatar ? { avatar: importedData.avatar } : {}),
 					...(importedData?.alternate_greetings ? { alternate_greetings: importedData.alternate_greetings } : {}),
 					...(importedData?.world_info ? { world_info: importedData.world_info } : {}),
 					...(importedData?.extensions ? { extensions: importedData.extensions } : {}),
