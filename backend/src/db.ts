@@ -42,18 +42,20 @@ export function openDb(dbPath: string = defaultDbPath()): DatabaseSync {
 }
 
 /**
- * Run schema migrations for columns added after the initial schema.
- * Each ALTER TABLE is wrapped in a try/catch — if the column already exists,
- * the error is silently ignored (SQLite doesn't support IF NOT EXISTS on
- * ALTER TABLE).
+ * Run schema migrations for columns/tables added after the initial schema.
+ *
+ * Each ALTER TABLE is wrapped in a try/catch that only swallows the specific
+ * "duplicate column name" error (column already exists). Other errors propagate.
+ * CREATE TABLE IF NOT EXISTS is used where applicable.
+ *
+ * NOTE: When adding new columns, prefer adding them to schema.sql directly
+ * (for fresh databases) AND adding a migration here (for existing databases).
+ * Once all production databases have the column, the migration can be removed.
  */
 function runMigrations(db: DatabaseSync): void {
+  // ── Session table: persona snapshot fields ────────────────────────────
+  // Added post-initial-schema; required for persona/starting-scenario support.
   const sessionColumns: [string, string][] = [
-    ['character_card_id', 'TEXT REFERENCES character_card(id)'],
-    ['avatar_selection', 'TEXT'],
-    ['starting_scenario_id', 'TEXT'],
-    ['avatar_snapshot', 'TEXT'],
-    ['starting_scenario_snapshot', 'TEXT'],
     ['persona_id', 'TEXT'],
     ['persona_snapshot', 'TEXT'],
     ['persona_source', 'TEXT'],
@@ -61,75 +63,45 @@ function runMigrations(db: DatabaseSync): void {
   for (const [col, typedef] of sessionColumns) {
     try {
       db.exec(`ALTER TABLE session ADD COLUMN ${col} ${typedef}`);
-    } catch {
-      // Column already exists — ignore.
+    } catch (err: unknown) {
+      if (!isDuplicateColumnErr(err)) throw err;
     }
   }
 
+  // ── Character card: modular card fields ───────────────────────────────
+  // Added post-initial-schema; required for multi-avatar/scenario/cover support.
   const cardColumns: [string, string][] = [
     ['avatars', "TEXT NOT NULL DEFAULT '[]'"],
     ['starting_scenarios', "TEXT NOT NULL DEFAULT '[]'"],
     ['default_persona', 'TEXT'],
     ['avatar_file', 'TEXT'],
     ['cover_file', 'TEXT'],
+    ['source', "TEXT NOT NULL DEFAULT 'playime'"],
+    ['source_id', 'TEXT'],
   ];
   for (const [col, typedef] of cardColumns) {
     try {
       db.exec(`ALTER TABLE character_card ADD COLUMN ${col} ${typedef}`);
-    } catch {
-      // Column already exists — ignore.
+    } catch (err: unknown) {
+      if (!isDuplicateColumnErr(err)) throw err;
     }
   }
 
-  // Persona table — created via schema.sql, but ensure it exists for older DBs
-  try {
-    db.exec(`CREATE TABLE IF NOT EXISTS persona (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      avatar TEXT,
-      description TEXT NOT NULL DEFAULT '',
-      appearance TEXT NOT NULL DEFAULT '',
-      personality TEXT NOT NULL DEFAULT '',
-      pronouns TEXT NOT NULL DEFAULT '',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`);
-  } catch {
-    // Table already exists — ignore.
-  }
-
-  // Add avatar_file to persona for existing DBs
+  // ── Persona: avatar_file ──────────────────────────────────────────────
+  // Added for local-file avatar support on personas.
   try {
     db.exec(`ALTER TABLE persona ADD COLUMN avatar_file TEXT`);
-  } catch {
-    // Column already exists — ignore.
+  } catch (err: unknown) {
+    if (!isDuplicateColumnErr(err)) throw err;
   }
 
-  // id_sequences table — ensure it exists for older DBs
-  try {
-    db.exec(`CREATE TABLE IF NOT EXISTS id_sequences (
-      type      TEXT NOT NULL,
-      slug      TEXT NOT NULL,
-      next_seq  INTEGER NOT NULL DEFAULT 1,
-      PRIMARY KEY (type, slug)
-    )`);
-  } catch {
-    // Table already exists — ignore.
-  }
-
-  // source / source_id columns on character_card
-  try {
-    db.exec(`ALTER TABLE character_card ADD COLUMN source TEXT NOT NULL DEFAULT 'playime'`);
-  } catch {
-    // Column already exists — ignore.
-  }
-  try {
-    db.exec(`ALTER TABLE character_card ADD COLUMN source_id TEXT`);
-  } catch {
-    // Column already exists — ignore.
-  }
   // NOTE: reserveExistingIdSequences() is NOT called here.
   // It must run AFTER seed data is inserted (see index.ts main()).
+}
+
+/** Check if an error is SQLite's "duplicate column name" (column already exists). */
+function isDuplicateColumnErr(err: unknown): boolean {
+  return err instanceof Error && /duplicate column name/i.test(err.message);
 }
 
 /**
