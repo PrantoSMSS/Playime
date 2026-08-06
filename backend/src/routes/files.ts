@@ -1,8 +1,9 @@
 // backend/src/routes/files.ts
 import type { FastifyInstance } from 'fastify';
 import { join } from 'node:path';
-import { accessSync, createReadStream, createWriteStream, statSync } from 'node:fs';
+import { accessSync, createReadStream, statSync, writeFileSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
+import sharp from 'sharp';
 import { ENTITY_TYPES, type EntityType, ensureEntityDir, getEntityPath } from '../storage.js';
 
 const ENTITIES_DIR = join(import.meta.dirname, '../../data/entities');
@@ -17,6 +18,10 @@ const MIME_TYPES: Record<string, string> = {
   svg: 'image/svg+xml',
   json: 'application/json',
 };
+
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_DIMENSION = 2048;
+const ALLOWED_MIME_PREFIXES = ['image/png', 'image/jpeg', 'image/webp', 'image/avif', 'image/gif'];
 
 export default async function filesRoutes(app: FastifyInstance): Promise<void> {
   /**
@@ -66,11 +71,10 @@ export default async function filesRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * POST /api/upload/:type/:id
-   * Upload file to entity folder
+   * Upload file to entity folder — validates MIME, checks size, converts to PNG via sharp.
    */
   app.post<{
     Params: { type: string; id: string };
-    Body: { file: any };
   }>('/api/upload/:type/:id', async (request, reply) => {
     const { type, id } = request.params;
 
@@ -87,16 +91,60 @@ export default async function filesRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
+    // Validate MIME type
+    const mimetype = data.mimetype;
+    if (!ALLOWED_MIME_PREFIXES.some((prefix) => mimetype.startsWith(prefix))) {
+      return reply.code(400).send({
+        error: { code: 'invalid_mime', message: 'Only image files are accepted' },
+      });
+    }
+
+    // Collect file buffer and check size
+    const chunks: Buffer[] = [];
+    let totalSize = 0;
+    for await (const chunk of data.file) {
+      totalSize += chunk.length;
+      if (totalSize > MAX_UPLOAD_SIZE) {
+        return reply.code(400).send({
+          error: { code: 'file_too_large', message: 'Image must be under 10MB' },
+        });
+      }
+      chunks.push(chunk);
+    }
+    const inputBuffer = Buffer.concat(chunks);
+
+    // Decode with sharp (validates not corrupted), resize if needed, convert to PNG
+    let outputBuffer: Buffer;
+    try {
+      const image = sharp(inputBuffer);
+      const metadata = await image.metadata();
+
+      // Resize if either dimension exceeds max (preserve aspect ratio)
+      if (
+        metadata.width && metadata.width > MAX_DIMENSION ||
+        metadata.height && metadata.height > MAX_DIMENSION
+      ) {
+        image.resize({
+          width: metadata.width && metadata.width > MAX_DIMENSION ? MAX_DIMENSION : undefined,
+          height: metadata.height && metadata.height > MAX_DIMENSION ? MAX_DIMENSION : undefined,
+          fit: 'inside',
+          withoutEnlargement: true,
+        });
+      }
+
+      outputBuffer = await image.png().toBuffer();
+    } catch {
+      return reply.code(400).send({
+        error: { code: 'corrupt_image', message: 'File is not a valid image' },
+      });
+    }
+
+    // Save to entity directory
     const entityDir = ensureEntityDir(type as EntityType, id);
-    const ext = data.filename.split('.').pop() || 'png';
-    const filename = `avatar.${ext}`;
-    const filePath = join(entityDir, filename);
+    const filePath = join(entityDir, 'avatar.png');
+    writeFileSync(filePath, outputBuffer);
 
-    const writeStream = createWriteStream(filePath);
-    await pipeline(data.file, writeStream);
-
-    const relativePath = `${type}/${id}/${filename}`;
-
-    return { filename, path: relativePath };
+    const relativePath = `${type}/${id}/avatar.png`;
+    return { filename: 'avatar.png', path: relativePath };
   });
 }

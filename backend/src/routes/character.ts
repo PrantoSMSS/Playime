@@ -145,7 +145,7 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
             i === 0 ? { ...a, image: avatarFile } : a
           );
         }
-        updateCharacterCard(card.id, { avatar_file: avatarFile, avatars });
+        updateCharacterCard(card.id, { avatar_file: avatarFile, avatars, avatar: null });
         card = getCharacterCard(card.id)!;
       }
 
@@ -274,7 +274,7 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
             i === 0 ? { ...a, image: avatarFile } : a
           );
         }
-        updateCharacterCard(created.id, { avatar_file: avatarFile, avatars });
+        updateCharacterCard(created.id, { avatar_file: avatarFile, avatars, avatar: null });
         created = getCharacterCard(created.id)!;
       }
       return reply.code(201).send(created);
@@ -479,7 +479,7 @@ export async function characterRoutes(app: FastifyInstance): Promise<void> {
           const avatars = (body.avatars ?? card.avatars).map((a, i) =>
             i === 0 ? { ...a, image: avatarFile } : a
           );
-          updateCharacterCard(id, { avatar_file: avatarFile, avatars });
+          updateCharacterCard(id, { avatar_file: avatarFile, avatars, avatar: null });
           card = getCharacterCard(id)!;
         }
       }

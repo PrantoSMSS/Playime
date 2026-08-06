@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ApiCharacterCard, CreateCardInput, UpdateCardInput } from '$lib/api/chat';
-	import { resolveFileUrl } from '$lib/api/chat';
+	import { resolveFileUrl, uploadAvatar } from '$lib/api/chat';
 	import { saveCard } from '$lib/state/chat.svelte';
 
 	let {
@@ -36,6 +36,13 @@
 	// ── Avatar ────────────────────────────────────────────────────────────
 	let avatarPreview = $state<string | null>(resolveFileUrl(importedData?.avatar ?? card?.avatar ?? card?.avatar_file ?? null));
 	let fileInput = $state<HTMLInputElement>();
+	let avatarFile = $state<File | null>(null);
+	let uploading = $state(false);
+
+	// Avatar management (edit mode)
+	let avatars = $state<Array<{ id: string; name?: string; image: string }>>(
+		card?.avatars ?? []
+	);
 
 	// ── Submission state ───────────────────────────────────────────────────
 	let saving = $state(false);
@@ -53,18 +60,63 @@
 		const file = input.files?.[0];
 		if (!file) return;
 
-		const reader = new FileReader();
-		reader.onload = () => {
-			avatarPreview = reader.result as string;
-		};
-		reader.readAsDataURL(file);
+		// Store the File object for upload
+		avatarFile = file;
+
+		// Show preview via object URL (not data URL)
+		avatarPreview = URL.createObjectURL(file);
 		// Reset so the same file can be re-selected
 		input.value = '';
 	}
 
 	function handleRemoveAvatar(): void {
+		if (avatarPreview && avatarPreview.startsWith('blob:')) {
+			URL.revokeObjectURL(avatarPreview);
+		}
 		avatarPreview = null;
+		avatarFile = null;
 		if (fileInput) fileInput.value = '';
+	}
+
+	async function handleReplaceAvatar(index: number, e: Event): Promise<void> {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file || !card) return;
+
+		uploading = true;
+		try {
+			const { path } = await uploadAvatar('characters', card.id, file);
+			const updated = avatars.map((a, i) => i === index ? { ...a, image: path } : a);
+			avatars = updated;
+			await saveCard('edit', { avatars }, card.id);
+		} finally {
+			uploading = false;
+			input.value = '';
+		}
+	}
+
+	function handleRemoveAvatarOption(index: number): void {
+		if (!card) return;
+		avatars = avatars.filter((_, i) => i !== index);
+		// Update DB (file stays on disk for backward compat)
+		saveCard('edit', { avatars }, card.id);
+	}
+
+	async function handleAddAvatar(e: Event): Promise<void> {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file || !card) return;
+
+		uploading = true;
+		try {
+			const { path } = await uploadAvatar('characters', card.id, file);
+			const newAvatar = { id: `avatar_${Date.now()}`, name: file.name, image: path };
+			avatars = [...avatars, newAvatar];
+			await saveCard('edit', { avatars }, card.id);
+		} finally {
+			uploading = false;
+			input.value = '';
+		}
 	}
 
 	function handleKeydown(e: KeyboardEvent): void {
@@ -81,10 +133,9 @@
 			let result: ApiCharacterCard | null;
 
 			if (mode === 'create') {
-				// Build base input from form fields
+				// Build base input from form fields (without avatar — uploaded separately)
 				const baseInput: CreateCardInput = {
 					name: name.trim(),
-					...(avatarPreview ? { avatar: avatarPreview } : {}),
 					tagline: tagline.trim(),
 					personality: personality.trim(),
 					speech_style: speechStyle.trim(),
@@ -114,10 +165,21 @@
 				};
 
 				result = await saveCard('create', input);
+
+				// Upload avatar via FormData if one was selected
+				if (result && avatarFile) {
+					uploading = true;
+					try {
+						const { path } = await uploadAvatar('characters', result.id, avatarFile);
+						result = await saveCard('edit', { avatar: path }, result.id);
+					} finally {
+						uploading = false;
+					}
+				}
 			} else {
+				// Edit mode: only send fields the form controls
 				const input: UpdateCardInput = {
 					name: name.trim(),
-					...(avatarPreview ? { avatar: avatarPreview } : {}),
 					tagline: tagline.trim(),
 					personality: personality.trim(),
 					speech_style: speechStyle.trim(),
@@ -126,7 +188,19 @@
 					...(firstMessage.trim() ? { first_message: firstMessage.trim() } : {}),
 					...(description.trim() ? { description: description.trim() } : {}),
 				};
+
 				result = await saveCard('edit', input, card?.id);
+
+				// Upload avatar via FormData if one was selected
+				if (result && avatarFile) {
+					uploading = true;
+					try {
+						const { path } = await uploadAvatar('characters', result.id, avatarFile);
+						result = await saveCard('edit', { avatar: path }, result.id);
+					} finally {
+						uploading = false;
+					}
+				}
 			}
 
 			if (result) {
@@ -209,12 +283,18 @@
 						>
 							{#if avatarPreview}
 								<img src={avatarPreview} alt="Avatar preview" class="modal__avatar-img" />
-								<div class="modal__avatar-overlay">
-									<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-										<circle cx="12" cy="13" r="4"/>
-									</svg>
-								</div>
+								{#if uploading}
+									<div class="modal__avatar-uploading">
+										<span>Uploading...</span>
+									</div>
+								{:else}
+									<div class="modal__avatar-overlay">
+										<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+											<circle cx="12" cy="13" r="4"/>
+										</svg>
+									</div>
+								{/if}
 							{:else}
 								<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 									<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
@@ -235,11 +315,50 @@
 						id="char-avatar-upload"
 						bind:this={fileInput}
 						type="file"
-						accept="image/*"
+						accept="image/png,image/jpeg,image/webp,image/avif"
 						class="modal__file-input"
 						onchange={handleAvatarChange}
 					/>
 				</div>
+
+				<!-- Avatar options (edit mode only) -->
+				{#if mode === 'edit' && avatars.length > 0}
+					<div class="modal__field">
+						<label class="modal__label">Avatar Options</label>
+						<div class="modal__avatar-options">
+							{#each avatars as avatar, i (avatar.id)}
+								<div class="modal__avatar-option">
+									<img src={resolveFileUrl(avatar.image)} alt={avatar.name ?? `Option ${i + 1}`} class="modal__avatar-option-img" />
+									<div class="modal__avatar-option-actions">
+										<label class="modal__avatar-option-btn" title="Replace">
+											<input type="file" accept="image/*" class="modal__file-input-hidden" onchange={(e) => handleReplaceAvatar(i, e)} />
+											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+												<circle cx="12" cy="13" r="4"/>
+											</svg>
+										</label>
+										<button class="modal__avatar-option-btn" onclick={() => handleRemoveAvatarOption(i)} title="Remove">
+											<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<path d="M18 6L6 18M6 6l12 12"/>
+											</svg>
+										</button>
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				{#if mode === 'edit'}
+					<div class="modal__field">
+						<label class="modal__label">
+							<span class="modal__avatar-add-btn">
+								<input type="file" accept="image/*" class="modal__file-input-hidden" onchange={handleAddAvatar} />
+								+ Add Avatar
+							</span>
+						</label>
+					</div>
+				{/if}
 
 				<!-- Name -->
 				<div class="modal__field">
@@ -602,6 +721,87 @@
 
 	.modal__file-input {
 		display: none;
+	}
+
+	.modal__avatar-uploading {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(0, 0, 0, 0.6);
+		color: white;
+		font-size: var(--font-size-xs);
+		border-radius: var(--radius-md);
+	}
+
+	/* ── Avatar options ─────────────────────────────────────────────── */
+	.modal__avatar-options {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+		gap: var(--space-2);
+	}
+	.modal__avatar-option {
+		position: relative;
+		aspect-ratio: 1;
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		border: 1px solid var(--border);
+	}
+	.modal__avatar-option-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.modal__avatar-option-actions {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		display: flex;
+		gap: 2px;
+		padding: 2px;
+		background: rgba(0, 0, 0, 0.6);
+		justify-content: center;
+	}
+	.modal__avatar-option-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 24px;
+		height: 24px;
+		border-radius: 4px;
+		background: transparent;
+		color: white;
+		border: none;
+		cursor: pointer;
+		transition: background var(--transition-fast);
+	}
+	.modal__avatar-option-btn:hover {
+		background: rgba(255, 255, 255, 0.2);
+	}
+	.modal__avatar-add-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
+		padding: var(--space-2) var(--space-3);
+		background: transparent;
+		color: var(--accent);
+		border: 1px dashed var(--accent);
+		border-radius: var(--radius-md);
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+		transition: background var(--transition-fast);
+	}
+	.modal__avatar-add-btn:hover {
+		background: var(--accent-soft);
+	}
+	.modal__file-input-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+		overflow: hidden;
 	}
 
 	/* ── Footer ───────────────────────────────────────────────────────── */

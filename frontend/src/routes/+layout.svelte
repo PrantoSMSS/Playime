@@ -6,7 +6,7 @@
 	import ImportCardModal from '$lib/components/chat/ImportCardModal.svelte';
 	import NavRail from '$lib/components/chat/NavRail.svelte';
 	import {
-		chat, closeCardInfoModal, startNewPlay,
+		chat, closeCardInfoModal, startNewPlay, openEditCardModal,
 		closeCharacterFormModal, closeImportCardModal, loadCards, loadSessions,
 	} from '$lib/state/chat.svelte';
 	import type { ApiCharacterCard } from '$lib/api/chat';
@@ -40,6 +40,7 @@
 		card={chat.cardInfoModal.card}
 		onclose={closeCardInfoModal}
 		onstartplay={startNewPlay}
+		onedit={(card) => openEditCardModal(card)}
 	/>
 {/if}
 

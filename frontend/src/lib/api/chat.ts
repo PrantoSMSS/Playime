@@ -370,6 +370,23 @@ export async function deleteCard(id: string): Promise<void> {
 	await request<void>(`/api/cards/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
+/** Upload an image file to the entity storage. Returns the saved filename and relative path. */
+export async function uploadAvatar(
+	entityType: string,
+	entityId: string,
+	file: File,
+): Promise<{ filename: string; path: string }> {
+	const formData = new FormData();
+	formData.append('file', file);
+
+	const res = await fetch(`${BASE}/api/upload/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`, {
+		method: 'POST',
+		body: formData,
+	});
+	if (!res.ok) throw await errorFrom(res);
+	return (await res.json()) as { filename: string; path: string };
+}
+
 /** Export a character card as SillyTavern V2 JSON and trigger download. */
 export async function exportCardAsJson(card: ApiCharacterCard): Promise<void> {
 	const res = await fetch(`${BASE}/api/cards/${encodeURIComponent(card.id)}/export.json`);

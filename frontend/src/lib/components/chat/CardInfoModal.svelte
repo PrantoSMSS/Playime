@@ -1,13 +1,14 @@
 <script lang="ts">
 	import type { ApiCharacterCard, ApiStartingScenario, ApiPersona, ApiDefaultPersona } from '$lib/api/chat';
 	import { parseMessage } from '$lib/messageParse';
-	import { chat, removeCard, closeCardInfoModal } from '$lib/state/chat.svelte';
+	import { chat, removeCard, closeCardInfoModal, openEditCardModal } from '$lib/state/chat.svelte';
 	import { exportCardAsJson, exportCardAsPng, resolveFileUrl } from '$lib/api/chat';
 
 	let {
 		card,
 		onclose,
 		onstartplay,
+		onedit,
 	}: {
 		card: ApiCharacterCard;
 		onclose: () => void;
@@ -17,6 +18,7 @@
 			playerName?: string;
 			startingScenarioId?: string;
 		}) => void;
+		onedit: (card: ApiCharacterCard) => void;
 	} = $props();
 
 	// ── Normalized scenarios ──────────────────────────────────────────────
@@ -434,6 +436,19 @@
 				{/if}
 
 				<div class="modal__footer-right">
+					<!-- Edit button -->
+					<button
+						class="modal__edit-btn"
+						onclick={() => onedit(card)}
+						aria-label="Edit character"
+					>
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+							<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+						</svg>
+						Edit
+					</button>
+
 					<!-- Export dropdown -->
 					<div class="modal__export-wrapper">
 						<button
@@ -888,6 +903,26 @@
 		color: #ef4444;
 		border-color: #ef4444;
 		background: rgba(239, 68, 68, 0.1);
+	}
+
+	/* Edit button */
+	.modal__edit-btn {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		padding: var(--space-2) var(--space-3);
+		background: transparent;
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+		transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+	}
+	.modal__edit-btn:hover {
+		color: var(--text);
+		border-color: var(--text-muted);
+		background: var(--bg-raised);
 	}
 
 	/* Delete confirmation */
