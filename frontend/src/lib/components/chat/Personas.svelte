@@ -16,12 +16,20 @@
 	let loading = $state(false);
 
 	const selectedCount = $derived.by(() => Object.keys(chat.selectedPersonaIds).length);
-	const allVisibleSelected = $derived.by(() =>
-		chat.personas.length > 0 && chat.personas.every((p) => chat.selectedPersonaIds[p.id]),
-	);
+	const allVisibleSelected = $derived.by(() => {
+		const selectable = chat.personas.filter((p) => !isDefaultPersona(p));
+		return selectable.length > 0 && selectable.every((p) => chat.selectedPersonaIds[p.id]);
+	});
+
+	const DEFAULT_PERSONA_ID = 'myself';
+
+	function isDefaultPersona(persona: ApiPersona): boolean {
+		return persona.id === DEFAULT_PERSONA_ID;
+	}
 
 	function handleCardClick(persona: ApiPersona): void {
 		if (chat.selectionMode) {
+			if (isDefaultPersona(persona)) return; // default persona is non-selectable
 			togglePersonaSelection(persona.id);
 			return;
 		}
@@ -61,7 +69,7 @@
 		</h1>
 		<div class="personas-header__actions">
 			{#if chat.selectionMode}
-				<button class="select-all-btn" onclick={() => selectAllPersonas(chat.personas.map((p) => p.id))}>
+				<button class="select-all-btn" onclick={() => selectAllPersonas(chat.personas.filter((p) => !isDefaultPersona(p)).map((p) => p.id))}>
 					{allVisibleSelected ? 'Deselect All' : 'Select All'}
 				</button>
 				{#if selectedCount > 0}
@@ -114,9 +122,10 @@
 				<div
 					class="card"
 					class:card--selected={chat.selectedPersonaIds[persona.id]}
+					class:card--default={isDefaultPersona(persona)}
 					onclick={() => handleCardClick(persona)}
 				>
-					{#if chat.selectionMode}
+					{#if chat.selectionMode && !isDefaultPersona(persona)}
 						<div class="card__checkbox">
 							<input
 								type="checkbox"
@@ -125,6 +134,9 @@
 								tabindex="-1"
 							/>
 						</div>
+					{/if}
+					{#if isDefaultPersona(persona)}
+						<span class="card__badge">Default</span>
 					{/if}
 					<div class="card__image">
 						{#if getAvatarUrl(persona)}
@@ -314,6 +326,13 @@
 		background: var(--accent-soft);
 		border-color: var(--accent);
 	}
+	.card--default {
+		border-color: var(--accent-muted);
+		background: var(--accent-soft);
+	}
+	.card--default:hover {
+		border-color: var(--accent);
+	}
 
 	.card__checkbox {
 		position: absolute;
@@ -328,6 +347,20 @@
 		height: 18px;
 		accent-color: var(--accent);
 		cursor: pointer;
+	}
+
+	.card__badge {
+		position: absolute;
+		top: var(--space-2);
+		right: var(--space-2);
+		z-index: 1;
+		padding: 2px var(--space-2);
+		background: var(--accent);
+		color: var(--on-accent);
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-semibold);
+		line-height: 1.4;
 	}
 
 	.card__image {

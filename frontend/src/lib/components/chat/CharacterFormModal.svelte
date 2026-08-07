@@ -20,7 +20,7 @@
 	} = $props();
 
 	// ── Tab state ─────────────────────────────────────────────────────────
-	type Tab = 'identity' | 'personality' | 'scenario';
+	type Tab = 'identity' | 'personality' | 'scenario' | 'player-persona';
 	let activeTab = $state<Tab>('identity');
 
 	type ScenarioEntry = {
@@ -40,6 +40,21 @@
 	let personality = $state(importedData?.personality ?? card?.personality ?? '');
 	let speechStyle = $state(importedData?.speech_style ?? card?.speech_style ?? '');
 	let likesAndDislikes = $state(importedData?.likes_and_dislikes ?? card?.likes_and_dislikes ?? '');
+
+	// ── Default Persona fields ──────────────────────────────────────────────
+	const dp = importedData?.default_persona ?? card?.default_persona ?? null;
+	let dpLabel = $state(dp?.label ?? '');
+	let dpName = $state(dp?.name ?? '{{player_name}}');
+	let dpRole = $state(dp?.role ?? '');
+	let dpBackground = $state(dp?.background ?? '');
+	let dpPersonality = $state(dp?.personality ?? '');
+	let dpAppearance = $state(dp?.appearance ?? '');
+	let dpPronouns = $state(dp?.pronouns ?? '');
+	let dpDetails = $state(dp?.details ?? '');
+
+	const dpIsEmpty = $derived(
+		!dpLabel.trim() && !dpRole.trim() && !dpBackground.trim() && !dpPersonality.trim() && !dpAppearance.trim()
+	);
 	/** Initialize scenario list from card data, imported data, or a single blank entry. */
 	function initScenarios(): ScenarioEntry[] {
 		// Edit mode: use card's starting_scenarios, or wrap legacy fields
@@ -277,6 +292,19 @@
 		try {
 			let result: ApiCharacterCard | null;
 
+			// Build default_persona from form fields (only if at least one field has content)
+			const hasDp = dpLabel.trim() || dpRole.trim() || dpBackground.trim() || dpPersonality.trim() || dpAppearance.trim() || dpPronouns.trim() || dpDetails.trim();
+			const defaultPersona = hasDp ? {
+				label: dpLabel.trim(),
+				name: dpName.trim() || '{{player_name}}',
+				role: dpRole.trim(),
+				background: dpBackground.trim(),
+				personality: dpPersonality.trim(),
+				appearance: dpAppearance.trim(),
+				pronouns: dpPronouns.trim(),
+				details: dpDetails.trim(),
+			} : null;
+
 			if (mode === 'create') {
 				// Build base input from form fields (without avatar — uploaded separately)
 				const baseInput: CreateCardInput = {
@@ -286,6 +314,7 @@
 					speech_style: speechStyle.trim() || undefined,
 					likes_and_dislikes: likesAndDislikes.trim() || undefined,
 					...(description.trim() ? { description: description.trim() } : {}),
+					...(defaultPersona ? { default_persona: defaultPersona } : {}),
 				};
 
 				// Merge with imported fields that aren't in the form
@@ -304,7 +333,6 @@
 					...(importedData?.system_prompt ? { system_prompt: importedData.system_prompt } : {}),
 					...(importedData?.post_history_instructions ? { post_history_instructions: importedData.post_history_instructions } : {}),
 					...(importedData?.mes_example ? { mes_example: importedData.mes_example } : {}),
-					...(importedData?.default_persona ? { default_persona: importedData.default_persona } : {}),
 					starting_scenarios: scenarios.map((s) => ({
 						id: s.id,
 						name: s.name.trim(),
@@ -335,6 +363,7 @@
 					speech_style: speechStyle.trim() || undefined,
 					likes_and_dislikes: likesAndDislikes.trim() || undefined,
 					...(description.trim() ? { description: description.trim() } : {}),
+					...(defaultPersona ? { default_persona: defaultPersona } : { default_persona: null }),
 					starting_scenarios: scenarios.map((s) => ({
 						id: s.id,
 						name: s.name.trim(),
@@ -385,6 +414,7 @@
 				{ id: 'identity', label: 'Identity' },
 				{ id: 'personality', label: 'Personality' },
 				{ id: 'scenario', label: 'Scenario' },
+				{ id: 'player-persona', label: 'Player Persona' },
 			]}
 			active={activeTab}
 			onchange={(id) => (activeTab = id as Tab)}
@@ -671,6 +701,100 @@
 					+ Add Scenario
 				</button>
 		{/if}
+
+			{#if activeTab === 'player-persona'}
+				<div class="modal__dp-header">
+					<h3 class="modal__dp-title">Default Player Persona</h3>
+					<p class="modal__dp-subtitle">Define who the player is in this story. The player can still rename themselves at New Play time.</p>
+				</div>
+
+				{#if dpIsEmpty}
+					<div class="modal__dp-warning">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+							<line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+						</svg>
+						Recommended: describe who the player is in this story for the best experience.
+					</div>
+				{/if}
+
+				<div class="modal__field">
+					<label class="modal__label" for="dp-label">Label <span class="modal__label-optional">(shown in UI)</span></label>
+					<input
+						id="dp-label"
+						class="modal__input"
+						type="text"
+						placeholder="e.g. Childhood friend, Rival, New student"
+						bind:value={dpLabel}
+					/>
+				</div>
+
+				<div class="modal__field">
+					<label class="modal__label" for="dp-role">Role</label>
+					<input
+						id="dp-role"
+						class="modal__input"
+						type="text"
+						placeholder="e.g. Classmate, Informant, Love Interest"
+						bind:value={dpRole}
+					/>
+				</div>
+
+				<div class="modal__field">
+					<label class="modal__label" for="dp-background">Background</label>
+					<textarea
+						id="dp-background"
+						class="modal__textarea"
+						rows="3"
+						placeholder="Who is the player in this world? History, context, social standing..."
+						bind:value={dpBackground}
+					></textarea>
+				</div>
+
+				<div class="modal__field">
+					<label class="modal__label" for="dp-personality">Personality</label>
+					<textarea
+						id="dp-personality"
+						class="modal__textarea"
+						rows="3"
+						placeholder="Personality traits the AI should use for the player character"
+						bind:value={dpPersonality}
+					></textarea>
+				</div>
+
+				<div class="modal__field">
+					<label class="modal__label" for="dp-appearance">Appearance</label>
+					<textarea
+						id="dp-appearance"
+						class="modal__textarea"
+						rows="3"
+						placeholder="Physical appearance for prompt context"
+						bind:value={dpAppearance}
+					></textarea>
+				</div>
+
+				<div class="modal__field">
+					<label class="modal__label" for="dp-pronouns">Pronouns</label>
+					<input
+						id="dp-pronouns"
+						class="modal__input"
+						type="text"
+						placeholder="e.g. she/her, he/him, they/them"
+						bind:value={dpPronouns}
+					/>
+				</div>
+
+				<div class="modal__field">
+					<label class="modal__label" for="dp-details">Additional Details</label>
+					<textarea
+						id="dp-details"
+						class="modal__textarea"
+						rows="3"
+						placeholder="Anything else the AI should know about the player character"
+						bind:value={dpDetails}
+					></textarea>
+				</div>
+			{/if}
 
 	{#snippet footer()}
 		<div class="modal__footer-buttons">
@@ -1090,5 +1214,36 @@
 		font-weight: var(--font-weight-normal);
 		color: var(--text-muted);
 		font-size: var(--font-size-xs);
+	}
+
+	/* ── Player Persona section ────────────────────────────────────────── */
+	.modal__dp-header {
+		margin-bottom: var(--space-3);
+	}
+
+	.modal__dp-title {
+		margin: 0 0 var(--space-1);
+		font-size: var(--font-size-base);
+		font-weight: var(--font-weight-semibold);
+		color: var(--text);
+	}
+
+	.modal__dp-subtitle {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		color: var(--text-muted);
+	}
+
+	.modal__dp-warning {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		background: rgba(251, 191, 36, 0.08);
+		border: 1px solid rgba(251, 191, 36, 0.3);
+		border-radius: var(--radius-md);
+		color: #f59e0b;
+		font-size: var(--font-size-sm);
+		margin-bottom: var(--space-3);
 	}
 </style>

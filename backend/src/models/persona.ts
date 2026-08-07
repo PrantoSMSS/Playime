@@ -31,6 +31,10 @@ export interface Persona {
   personality: string;
   /** Pronouns, e.g. "she/her". */
   pronouns: string;
+  /** Background/history for prompt context (default persona only). */
+  background: string;
+  /** Additional details for prompt context (default persona only). */
+  details: string;
   created_at: number;
   updated_at: number;
 }
@@ -71,6 +75,8 @@ function rowToPersona(row: PersonaRow): Persona {
     appearance: row.appearance,
     personality: row.personality,
     pronouns: row.pronouns,
+    background: '',
+    details: '',
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -203,19 +209,28 @@ export function countSessionsForPersona(personaId: string): number {
 
 // ── Default persona ────────────────────────────────────────────────────
 
+/** The built-in default persona's id. Kept as 'myself' for backward compatibility. */
+export const DEFAULT_PERSONA_ID = 'myself';
+
 /**
- * The built-in "Myself" persona — always available as the default option
- * when no other personas exist. Not stored in the DB; created on the fly.
+ * The built-in "John Doe" persona — always available as the default option.
+ * Its real personality/appearance/background is supplied per-character/story
+ * via `CharacterCard.default_persona`. The name "John Doe" is the placeholder
+ * the player can rename at New Play time.
+ *
+ * Not stored in the DB; created on the fly.
  */
 export const DEFAULT_PERSONA: Persona = {
-  id: 'myself',
-  name: 'Myself',
+  id: DEFAULT_PERSONA_ID,
+  name: 'John Doe',
   avatar: null,
   avatar_file: null,
-  description: 'Default persona — just me',
+  description: 'Default persona — the character calls you by this name unless you pick a different one. Personality and appearance come from the character or story you are playing.',
   appearance: '',
   personality: '',
   pronouns: '',
+  background: '',
+  details: '',
   created_at: 0,
   updated_at: 0,
 };

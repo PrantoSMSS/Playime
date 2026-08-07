@@ -68,8 +68,14 @@ export function renderCharacterSystemPrompt(
     scenarioText,
   ];
 
-  // Player Persona section — who the user is roleplaying as
-  if (persona && persona.name !== 'Myself') {
+  // Player Persona section — who the user is roleplaying as.
+  // The built-in default persona (id 'myself') is excluded: its real content
+  // comes from the card's default_persona, which is already in the prompt.
+  // For custom personas, fields come from the persona snapshot.
+  // For the default persona, the card's default_persona provides the identity.
+  const dp = card.default_persona;
+  if (persona && persona.id !== 'myself') {
+    // Custom persona selected — use persona snapshot fields
     lines.push('');
     lines.push('## Player Persona');
     lines.push('This describes the identity of the player character the AI Character is');
@@ -83,10 +89,31 @@ export function renderCharacterSystemPrompt(
     lines.push('');
     lines.push(`Name: ${persona.name}`);
     if (persona.pronouns) lines.push(`Pronouns: ${persona.pronouns}`);
-    // description doubles as role for resolved default personas
     if (persona.description) lines.push(`Role: ${persona.description}`);
     if (persona.appearance) lines.push(`Appearance: ${persona.appearance}`);
     if (persona.personality) lines.push(`Personality: ${persona.personality}`);
+    // Card-author context (background, details) still surfaces even with a custom persona
+    if (dp?.background) lines.push(`Background: ${dp.background}`);
+    if (dp?.details) lines.push(`Details: ${dp.details}`);
+  } else if (dp) {
+    // Default persona or no persona — use card's default_persona
+    const playerName = persona?.name ?? 'the player';
+    lines.push('');
+    lines.push('## Player Persona');
+    lines.push('This describes the identity of the player character the AI Character is');
+    lines.push('currently interacting with.');
+    lines.push('');
+    lines.push("Use this identity to shape the Character's behavior, attitude, trust,");
+    lines.push('fear, respect, familiarity, and dialogue when appropriate.');
+    lines.push('Use this information naturally — do not repeatedly recite facts.');
+    lines.push('');
+    lines.push(`Name: ${playerName}`);
+    if (dp.role) lines.push(`Role: ${dp.role}`);
+    if (dp.background) lines.push(`Background: ${dp.background}`);
+    if (dp.personality) lines.push(`Personality: ${dp.personality}`);
+    if (dp.appearance) lines.push(`Appearance: ${dp.appearance}`);
+    if (dp.pronouns) lines.push(`Pronouns: ${dp.pronouns}`);
+    if (dp.details) lines.push(`Details: ${dp.details}`);
   }
 
   lines.push(
@@ -106,7 +133,8 @@ export function renderCharacterSystemPrompt(
     '',
     '## Behavior rules',
     `- Stay fully in character as ${card.name}. Never mention being an AI, a model, a system, or "the user".`,
-    '- Address the user directly, in character.',
+    '- NEVER write dialogue, actions, or thoughts for the user. Only write what YOU (the character) say and do.',
+    '- Address the user by their name from the Player Persona section when speaking to them.',
     '- Produce ONLY the final in-character response text. No reasoning, no planning, no narration of your thought process, no meta-commentary.',
     '- Wrap narration and actions in asterisks: *She smiles warmly.* Dialogue is plain text with no markers. Example: *She smiles.* Hey, you made it!',
     '- Let the relationship state and memories shape your tone and attitude. Refer to shared past naturally — never by listing it.',

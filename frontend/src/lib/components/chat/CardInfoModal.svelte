@@ -41,8 +41,8 @@
 
 	// ── Modal-local state ─────────────────────────────────────────────────
 	let selectedScenarioId = $state<string | null>(null);
-	let personaSelectValue = $state('myself');
-	let playerName = $state('');
+	let personaSelectValue = $state('default');
+	let playerName = $state('John Doe');
 	let showPersonaInfo = $state(false);
 	let showExportDropdown = $state(false);
 	let isDeleting = $state(false);
@@ -55,34 +55,32 @@
 	);
 
 	// Derived persona state from select value
-	const selectedPersonaType = $derived<'default' | 'custom' | 'myself'>(
-		personaSelectValue === 'default' ? 'default'
-		: personaSelectValue.startsWith('custom:') ? 'custom'
-		: 'myself'
+	const selectedPersonaType = $derived<'default' | 'custom'>(
+		personaSelectValue === 'default' ? 'default' : 'custom'
 	);
 	const selectedCustomPersonaId = $derived<string | null>(
 		personaSelectValue.startsWith('custom:') ? personaSelectValue.slice(7) : null
 	);
 
-	// Default persona belongs to the Character/Story, not the Scenario
-	const hasDefaultPersona = $derived(
-		!!card.default_persona
-	);
-
 	// The persona label shown in the dropdown for the card's default persona
 	const defaultPersonaLabel = $derived(() => {
 		const dp = card.default_persona;
-		if (!dp) return 'Default Persona';
-		const base = dp.label || 'Default Persona';
+		if (!dp) return 'John Doe';
+		const base = dp.label || dp.name || 'John Doe';
 		return `${base} (Default)`;
 	});
 
+	// Filter out the built-in default persona (id 'myself') from the DB list
+	// since it's already represented by the 'default' option.
+	const customPersonas = $derived(
+		chat.personas.filter((p) => p.id !== 'myself')
+	);
+
 	// Description shown below the dropdown for the current selection
 	const personaDescription = $derived(() => {
-		if (personaSelectValue === 'myself') return 'Just be yourself';
 		if (personaSelectValue === 'default') {
 			const dp = card.default_persona;
-			if (!dp) return '';
+			if (!dp) return 'The character calls you by this name unless you pick a different one.';
 			return [dp.role, dp.background].filter(Boolean).join(' — ') || '';
 		}
 		if (personaSelectValue.startsWith('custom:')) {
@@ -97,15 +95,8 @@
 		personaSelectValue = (e.target as HTMLSelectElement).value;
 	}
 
-	// Play button enabled state
-	const canPlay = $derived(() => {
-		if (!selectedScenarioId) return false;
-		if (selectedPersonaType === 'default') {
-			return playerName.trim().length > 0;
-		}
-		// custom or myself
-		return true;
-	});
+	// Play button enabled state — only needs a scenario selection
+	const canPlay = $derived(() => !!selectedScenarioId);
 
 	// First message preview segments
 	const introSegments = $derived(() => {
@@ -122,10 +113,15 @@
 
 	// ── Effects ───────────────────────────────────────────────────────────
 
-	// Auto-select default persona when card has one
+	// Always default to 'default' persona on mount
 	$effect(() => {
-		if (card.default_persona) {
-			personaSelectValue = 'default';
+		personaSelectValue = 'default';
+	});
+
+	// Pre-fill name with "John Doe" when switching to default persona
+	$effect(() => {
+		if (personaSelectValue === 'default' && playerName.trim().length === 0) {
+			playerName = 'John Doe';
 		}
 	});
 
@@ -144,18 +140,13 @@
 		if (selectedPersonaType === 'default') {
 			onstartplay({
 				personaSource: 'default',
-				playerName: playerName.trim(),
+				playerName: playerName.trim() || 'John Doe',
 				startingScenarioId: selectedScenarioId ?? undefined,
 			});
 		} else if (selectedPersonaType === 'custom' && selectedCustomPersonaId) {
 			onstartplay({
 				personaId: selectedCustomPersonaId,
 				personaSource: 'custom',
-				startingScenarioId: selectedScenarioId ?? undefined,
-			});
-		} else {
-			// "Myself" — no persona, no player name
-			onstartplay({
 				startingScenarioId: selectedScenarioId ?? undefined,
 			});
 		}
@@ -205,7 +196,7 @@
 
 <svelte:window onpointerdown={handleClickOutside} />
 
-<Modal title="Character Information" {onclose} aria-labelledby="card-info-title">
+<Modal title="Character Information" {onclose} aria-labelledby="card-info-title" backdropclose={false}>
 	<!-- Top section: image left, info right -->
 	<div class="modal__top">
 		{#if displayImage()}
@@ -302,11 +293,8 @@
 				value={personaSelectValue}
 				onchange={handlePersonaSelect}
 			>
-				<option value="myself">Myself</option>
-				{#if hasDefaultPersona}
-					<option value="default">{defaultPersonaLabel()}</option>
-				{/if}
-				{#each chat.personas as persona (persona.id)}
+				<option value="default">{defaultPersonaLabel()}</option>
+				{#each customPersonas as persona (persona.id)}
 					<option value="custom:{persona.id}">
 						{persona.name}{persona.description ? ` — ${persona.description}` : ''}
 					</option>
@@ -317,20 +305,21 @@
 				<p class="modal__persona-selected-desc">{personaDescription()}</p>
 			{/if}
 
-			{#if selectedPersonaType === 'default' && hasDefaultPersona}
+			{#if selectedPersonaType === 'default'}
 				<p class="modal__persona-recommend">✦ Recommended for the best roleplay experience</p>
 			{/if}
 		</div>
 	</div>
 
-	<!-- ═══ NAME FIELD (only when Default persona selected) ═══ -->
-	{#if selectedPersonaType === 'default' && hasDefaultPersona}
+	<!-- ═══ NAME FIELD (shown when Default persona selected) ═══ -->
+	{#if selectedPersonaType === 'default'}
 		<div class="modal__section">
-			<h3 class="modal__section-title">What will be your name?</h3>
+			<h3 class="modal__section-title">What will {card.name} call you?</h3>
+			<p class="modal__section-subtitle">Leave it as John Doe if you don't want to pick a name.</p>
 			<input
 				class="modal__name-input"
 				type="text"
-				placeholder="Enter your name..."
+				placeholder="John Doe"
 				bind:value={playerName}
 			/>
 		</div>

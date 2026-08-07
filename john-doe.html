@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playime — Persona Info</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --bg-raised: #141414;
+      --surface: #1a1a1a;
+      --surface-elevated: #242424;
+      --border: #2e2e2e;
+      --text: #f0f0f0;
+      --text-secondary: #a0a0a0;
+      --text-muted: #666666;
+      --accent: #3b82f6;
+      --accent-soft: #1a2744;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 20px; --space-6: 24px;
+      --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
+      --transition-fast: 120ms ease;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+      display: flex; align-items: center; justify-content: center;
+    }
+    *::-webkit-scrollbar { width: 10px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+    *::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+
+    /* ═══ Modal ═════════════════════════════════════════════════════════ */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: var(--space-4);
+    }
+    .modal {
+      background: var(--surface-elevated); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); box-shadow: 0 24px 48px rgba(0,0,0,.5);
+      max-width: 520px; width: 100%;
+      display: flex; flex-direction: column;
+    }
+    .modal__header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-4) var(--space-5);
+      border-bottom: 1px solid var(--border);
+    }
+    .modal__header-title {
+      margin: 0; font-size: 15px; font-weight: 600; color: var(--text);
+    }
+    .modal__close {
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; background: var(--bg-raised); color: var(--text-muted);
+      border: none; cursor: pointer;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+    .modal__close:hover { background: var(--accent-soft); color: var(--text); }
+    .modal__body {
+      padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4);
+    }
+
+    /* ═══ Top: avatar + info ════════════════════════════════════════════ */
+    .modal__top { display: flex; gap: var(--space-4); align-items: flex-start; }
+    .modal__avatar {
+      flex-shrink: 0; width: 120px; height: 120px;
+      border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border);
+      background: var(--bg-raised); display: flex; align-items: center; justify-content: center;
+    }
+    .modal__avatar-icon { color: var(--text-muted); opacity: .35; }
+    .modal__info {
+      flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-2);
+    }
+    .modal__name {
+      margin: 0; font-size: 20px; font-weight: 600; color: var(--text); line-height: 1.3;
+    }
+    .modal__tagline {
+      margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="modal-backdrop" id="backdrop">
+    <div class="modal" role="dialog" aria-labelledby="persona-info-title">
+
+      <!-- Header -->
+      <div class="modal__header">
+        <h2 class="modal__header-title" id="persona-info-title">Persona Information</h2>
+        <button class="modal__close" aria-label="Close" onclick="closeModal()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="modal__body">
+        <div class="modal__top">
+          <div class="modal__avatar">
+            <svg class="modal__avatar-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
+          <div class="modal__info">
+            <h3 class="modal__name">John Doe</h3>
+            <p class="modal__tagline">The default persona for storytelling. It's appearance, personality, pronoun depends on the story.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function closeModal() {
+      console.log('Close persona info modal');
+    }
+
+    document.getElementById('backdrop').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+  </script>
+
+</body>
+</html>

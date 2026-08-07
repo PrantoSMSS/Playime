@@ -111,7 +111,7 @@
 	}
 </script>
 
-<Modal title={mode === 'create' ? 'Create Persona' : 'Edit Persona'} onclose={closePersonaFormModal}>
+<Modal title={mode === 'create' ? 'Create Persona' : 'Edit Persona'} onclose={closePersonaFormModal} backdropclose={false}>
 	<div class="persona-form">
 		{#if errorMessage}
 			<div class="modal__error">{errorMessage}</div>

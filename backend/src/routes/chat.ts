@@ -20,7 +20,7 @@ import {
 } from '../chat.js';
 import { getCharacterCard, resolveAvatar, resolveStartingScenario } from '../models/character.js';
 import type { AvatarOption, StartingScenario } from '../models/character.js';
-import { getPersona } from '../models/persona.js';
+import { getPersona, DEFAULT_PERSONA } from '../models/persona.js';
 import type { Persona } from '../models/persona.js';
 import { listSessions, listTurns, getSession, insertMessage, nextMessageSeq, deleteSession as deleteSessionModel, deleteMessages as deleteMessagesModel, updateSession } from '../models/session.js';
 import type { SessionClass, UpdateSessionInput } from '../models/session.js';
@@ -217,35 +217,22 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       let personaSource: string | undefined;
 
       if (body?.persona_source === 'default') {
-        // Default persona: resolve from card's default_persona + player_name
+        // Default persona: resolve from card's default_persona + player_name.
+        // Falls back to "John Doe" if player_name is blank or absent.
         personaSource = 'default';
-        if (!body.player_name || body.player_name.trim().length === 0) {
-          return reply.code(400).send({
-            error: {
-              code: 'missing_player_name',
-              message: 'player_name is required when persona_source is "default"',
-            },
-          });
-        }
-        if (!card?.default_persona) {
-          return reply.code(400).send({
-            error: {
-              code: 'no_default_persona',
-              message: 'Character does not define a default persona',
-            },
-          });
-        }
-        // Resolve: merge card default_persona with player-provided name
-        const dp = card!.default_persona!;
+        const resolvedName = body.player_name?.trim() || DEFAULT_PERSONA.name;
+        const dp = card?.default_persona;
         personaSnapshot = {
-          id: `default_${card!.id}`,
-          name: body.player_name.trim(),
+          id: `default_${body.card_id ?? 'unknown'}`,
+          name: resolvedName,
           avatar: null,
           avatar_file: null,
-          description: dp.role ?? '',
-          appearance: dp.appearance ?? '',
-          personality: dp.personality ?? '',
-          pronouns: dp.pronouns ?? '',
+          description: dp?.role ?? '',
+          appearance: dp?.appearance ?? '',
+          personality: dp?.personality ?? '',
+          pronouns: dp?.pronouns ?? '',
+          background: dp?.background ?? '',
+          details: dp?.details ?? '',
           created_at: 0,
           updated_at: 0,
         };

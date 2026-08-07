@@ -139,6 +139,8 @@ describe('renderCharacterSystemPrompt', () => {
       personality: 'Curious and brave',
       pronouns: 'she/her',
       avatar_file: null,
+      background: '',
+      details: '',
       created_at: 0,
       updated_at: 0,
     };
@@ -167,6 +169,8 @@ describe('renderCharacterSystemPrompt', () => {
       personality: 'Disciplined, observant',
       pronouns: 'they/them',
       avatar_file: null,
+      background: '',
+      details: '',
       created_at: 0,
       updated_at: 0,
     };
@@ -176,17 +180,19 @@ describe('renderCharacterSystemPrompt', () => {
     assert.ok(prompt.includes('Pronouns: they/them'));
   });
 
-  it('excludes player persona section when persona is "Myself"', () => {
+  it('excludes player persona section for built-in default persona (id "myself")', () => {
     const card = makeCard();
     const persona = {
-      id: 'default',
-      name: 'Myself',
+      id: 'myself',
+      name: 'John Doe',
       avatar: null,
       description: 'Default persona',
       appearance: '',
       personality: '',
       pronouns: '',
       avatar_file: null,
+      background: '',
+      details: '',
       created_at: 0,
       updated_at: 0,
     };
@@ -198,5 +204,70 @@ describe('renderCharacterSystemPrompt', () => {
     const card = makeCard();
     const prompt = renderCharacterSystemPrompt(card);
     assert.ok(!prompt.includes('## Player Persona'));
+  });
+
+  it('renders default persona from card.default_persona when no custom persona', () => {
+    const card = makeCard({
+      default_persona: {
+        label: 'Childhood friend',
+        name: '{{player_name}}',
+        role: 'Classmate',
+        background: 'Grew up together in the same neighborhood',
+        personality: 'Cheerful and loyal',
+        appearance: 'Short brown hair, bright eyes',
+        pronouns: 'she/her',
+        details: 'Loves stargazing',
+      },
+    });
+    const prompt = renderCharacterSystemPrompt(card);
+    assert.ok(prompt.includes('## Player Persona'));
+    assert.ok(prompt.includes('Name: the player'));  // no persona → fallback
+    assert.ok(prompt.includes('Role: Classmate'));
+    assert.ok(prompt.includes('Background: Grew up together'));
+    assert.ok(prompt.includes('Personality: Cheerful and loyal'));
+    assert.ok(prompt.includes('Appearance: Short brown hair'));
+    assert.ok(prompt.includes('Pronouns: she/her'));
+    assert.ok(prompt.includes('Details: Loves stargazing'));
+  });
+
+  it('uses persona snapshot name with card.default_persona fields for default source', () => {
+    const card = makeCard({
+      default_persona: {
+        label: 'Rival',
+        name: '{{player_name}}',
+        role: 'Competitor',
+        background: 'Known rival from school',
+        personality: 'Fierce and determined',
+        appearance: 'Tall, athletic build',
+        pronouns: 'he/him',
+        details: '',
+      },
+    });
+    // Simulates persona_source: 'default' with player_name: 'Jamal'
+    const persona = {
+      id: 'default_test-card',
+      name: 'Jamal',
+      avatar: null,
+      description: 'Competitor',  // from dp.role
+      appearance: 'Tall, athletic build',
+      personality: 'Fierce and determined',
+      pronouns: 'he/him',
+      avatar_file: null,
+      background: '',
+      details: '',
+      created_at: 0,
+      updated_at: 0,
+    };
+    const prompt = renderCharacterSystemPrompt(card, card.relationship_state, undefined, persona);
+    assert.ok(prompt.includes('Name: Jamal'));
+    assert.ok(prompt.includes('Role: Competitor'));
+    assert.ok(prompt.includes('Background: Known rival'));
+  });
+
+  it('never writes dialogue for the user in behavior rules', () => {
+    const card = makeCard();
+    const prompt = renderCharacterSystemPrompt(card);
+    assert.ok(prompt.includes('NEVER write dialogue, actions, or thoughts for the user'));
+    assert.ok(prompt.includes('Address the user by their name'));
   });
 });

@@ -15,6 +15,8 @@ import {
   getPersona,
   listPersonas,
   updatePersona,
+  DEFAULT_PERSONA,
+  DEFAULT_PERSONA_ID,
 } from '../models/persona.js';
 import type { CreatePersonaInput, UpdatePersonaInput } from '../models/persona.js';
 import { deleteEntityDir } from '../storage.js';
@@ -22,7 +24,7 @@ import { deleteEntityDir } from '../storage.js';
 export async function personaRoutes(app: FastifyInstance): Promise<void> {
   // ── GET /api/personas ────────────────────────────────────────────────
   app.get('/api/personas', async (_request, reply) => {
-    return reply.send(listPersonas());
+    return reply.send([DEFAULT_PERSONA, ...listPersonas()]);
   });
 
   // ── GET /api/personas/:id ────────────────────────────────────────────
@@ -39,6 +41,9 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      if (id === DEFAULT_PERSONA_ID) {
+        return reply.send(DEFAULT_PERSONA);
+      }
       const persona = getPersona(id);
       if (!persona) {
         return reply.code(404).send({
@@ -118,6 +123,11 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      if (id === DEFAULT_PERSONA_ID) {
+        return reply.code(403).send({
+          error: { code: 'default_persona_immutable', message: 'The default persona cannot be modified' },
+        });
+      }
       const body = request.body as UpdatePersonaInput | undefined;
       if (!body) {
         return reply.code(400).send({
@@ -157,6 +167,12 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+
+      if (id === DEFAULT_PERSONA_ID) {
+        return reply.code(403).send({
+          error: { code: 'default_persona_immutable', message: 'The default persona cannot be deleted' },
+        });
+      }
 
       // Pre-check: sessions referencing this persona block deletion
       const sessionCount = countSessionsForPersona(id);

@@ -102,11 +102,13 @@ describe('persona CRUD', () => {
 
 describe('default persona', () => {
   it('has expected structure', () => {
-    assert.equal(DEFAULT_PERSONA.name, 'Myself');
-    assert.equal(DEFAULT_PERSONA.description, 'Default persona — just me');
+    assert.equal(DEFAULT_PERSONA.name, 'John Doe');
+    assert.ok(DEFAULT_PERSONA.description.length > 0);
     assert.equal(DEFAULT_PERSONA.appearance, '');
     assert.equal(DEFAULT_PERSONA.personality, '');
     assert.equal(DEFAULT_PERSONA.pronouns, '');
+    assert.equal(DEFAULT_PERSONA.background, '');
+    assert.equal(DEFAULT_PERSONA.details, '');
   });
 });
 
