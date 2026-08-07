@@ -59,6 +59,8 @@ function runMigrations(db: DatabaseSync): void {
     ['persona_id', 'TEXT'],
     ['persona_snapshot', 'TEXT'],
     ['persona_source', 'TEXT'],
+    ['story_card_id', 'TEXT'],
+    ['quest_log_state', 'TEXT'],
     ['favorite', 'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, typedef] of sessionColumns) {
@@ -119,8 +121,7 @@ function isDuplicateColumnErr(err: unknown): boolean {
  * Only matches IDs prefixed with the expected type for that table
  * (e.g. char_... in character_card, not persona_... in character_card).
  *
- * Note: 'story' type is declared in EntityType for future use but has no
- * story_card table yet — it is not migrated here.
+ * Note: 'story' type is declared in EntityType and has a story_card table.
  */
 /**
  * Scan existing entity tables and reserve sequence numbers in id_sequences.
@@ -130,6 +131,7 @@ function isDuplicateColumnErr(err: unknown): boolean {
 export function reserveExistingIdSequences(db: DatabaseSync): void {
   const patterns: Array<{ type: string; table: string; hasSlug: boolean }> = [
     { type: 'char', table: 'character_card', hasSlug: true },
+    { type: 'story', table: 'story_card', hasSlug: true },
     { type: 'persona', table: 'persona', hasSlug: true },
     { type: 'sess', table: 'session', hasSlug: false },
     { type: 'msg', table: 'message', hasSlug: false },

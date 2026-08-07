@@ -7,6 +7,7 @@ import { YEHWA_CARD, MIKO_CARD } from './models/character.js';
 import { characterRoutes } from './routes/character.js';
 import { chatRoutes } from './routes/chat.js';
 import { personaRoutes } from './routes/persona.js';
+import { storyRoutes } from './routes/story.js';
 import filesRoutes from './routes/files.js';
 import { getDb, reserveExistingIdSequences } from './db.js';
 import { initializeStorage } from './storage.js';
@@ -39,6 +40,7 @@ await app.register(multipart, {
 app.register(chatRoutes);
 app.register(characterRoutes);
 app.register(personaRoutes);
+app.register(storyRoutes);
 
 // Entity file serving (avatars, covers, etc.)
 app.register(filesRoutes);

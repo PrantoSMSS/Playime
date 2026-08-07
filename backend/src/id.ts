@@ -82,7 +82,7 @@ export function allocateId(
   // that wasn't parsed by reserveExistingIdSequences), keep incrementing until
   // we find an unused one. This is rare — only happens during migration of
   // databases with non-structured IDs.
-  const checkExists = db.prepare(`SELECT 1 FROM ${type === 'char' ? 'character_card' : type === 'persona' ? 'persona' : type === 'sess' ? 'session' : 'message'} WHERE id = ?`);
+  const checkExists = db.prepare(`SELECT 1 FROM ${type === 'char' ? 'character_card' : type === 'story' ? 'story_card' : type === 'persona' ? 'persona' : type === 'sess' ? 'session' : 'message'} WHERE id = ?`);
   while (checkExists.get(candidate)) {
     db.prepare(
       `INSERT INTO id_sequences (type, slug, next_seq) VALUES (?, ?, ?)

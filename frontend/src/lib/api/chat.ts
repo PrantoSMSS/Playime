@@ -383,6 +383,121 @@ export async function deleteCard(id: string): Promise<void> {
 	await request<void>(`/api/cards/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
+// ── Story Card CRUD ─────────────────────────────────────────────────────
+
+/** Quest entry from the backend. */
+export interface ApiQuestEntry {
+	id: string;
+	title: string;
+	objective: string;
+	order: number;
+	status: 'pending' | 'active' | 'completed' | 'failed';
+	origin: 'source' | 'projected';
+	is_ending?: boolean;
+	triggers_on?: { flag: string; op: 'eq' | 'gte' | 'lte'; value: unknown }[];
+}
+
+/** NPC within a story. */
+export interface ApiStoryNpc {
+	id: string;
+	name: string;
+	description: string;
+	relationship_state: { affection: number; trust: number; flags: string[] };
+}
+
+/** A reference to a Character Card from the Character Pool. */
+export interface ApiCharacterReference {
+	character_id: string;
+	role?: string;
+	introduction?: string;
+	relationship_to_user?: string;
+	story_notes?: string;
+}
+
+/** A story card from the backend. */
+export interface ApiStoryCard {
+	id: string;
+	title: string;
+	genre: string;
+	premise: string;
+	tone: string;
+	description: string | null;
+	cover_image: string | null;
+	locations: string[];
+	world_info: unknown[];
+	cast_mode: 'fixed' | 'selectable' | 'open';
+	character_references: ApiCharacterReference[];
+	npcs: ApiStoryNpc[];
+	quest_log: ApiQuestEntry[];
+	starting_scenarios: ApiStartingScenario[];
+	plot_flags: Record<string, unknown>;
+	current_scene: string | null;
+	chapter_log: unknown[];
+	creator_name: string | null;
+	tags: string[];
+	stats: { replay_count: number; like_count: number; comment_count: number };
+	favorite: number;
+	created_at: number;
+	updated_at: number;
+}
+
+/** Input for creating a new story card. Only `title` is required. */
+export interface CreateStoryCardInput {
+	title: string;
+	genre?: string;
+	premise?: string;
+	tone?: string;
+	description?: string | null;
+	cover_image?: string | null;
+	locations?: string[];
+	world_info?: unknown[];
+	cast_mode?: 'fixed' | 'selectable' | 'open';
+	character_references?: ApiCharacterReference[];
+	npcs?: ApiStoryNpc[];
+	quest_log?: ApiQuestEntry[];
+	starting_scenarios?: ApiStartingScenario[];
+	plot_flags?: Record<string, unknown>;
+	current_scene?: string | null;
+	chapter_log?: unknown[];
+	creator_name?: string;
+	tags?: string[];
+	stats?: { replay_count: number; like_count: number; comment_count: number };
+}
+
+/** Partial patch for updating a story card. */
+export interface UpdateStoryCardInput extends Partial<CreateStoryCardInput> {}
+
+/** List all story cards. */
+export function listStories(): Promise<ApiStoryCard[]> {
+	return request<ApiStoryCard[]>('/api/stories', { method: 'GET' });
+}
+
+/** Get a single story card by id. */
+export function getStory(id: string): Promise<ApiStoryCard> {
+	return request<ApiStoryCard>(`/api/stories/${encodeURIComponent(id)}`, { method: 'GET' });
+}
+
+/** Create a new story card. */
+export function createStory(input: CreateStoryCardInput): Promise<ApiStoryCard> {
+	return request<ApiStoryCard>('/api/stories', {
+		method: 'POST',
+		body: JSON.stringify(input),
+	});
+}
+
+/** Update an existing story card. */
+export function updateStory(id: string, patch: UpdateStoryCardInput): Promise<ApiStoryCard> {
+	return request<ApiStoryCard>(`/api/stories/${encodeURIComponent(id)}`, {
+		method: 'PATCH',
+		body: JSON.stringify(patch),
+	});
+}
+
+/** Delete a story card. */
+export async function deleteStory(id: string): Promise<void> {
+	await request<void>(`/api/stories/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
 /** Upload an image file to the entity storage. Returns the saved filename and relative path. */
 export async function uploadAvatar(
 	entityType: string,

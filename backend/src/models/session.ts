@@ -20,6 +20,7 @@ export interface SessionRow {
   model: string | null;
   small_model: string | null;
   character_card_id: string | null;
+  story_card_id: string | null;
   avatar_selection: string | null;
   starting_scenario_id: string | null;
   avatar_snapshot: AvatarOption | null;
@@ -28,6 +29,8 @@ export interface SessionRow {
   persona_snapshot: Persona | null;
   /** "default" = resolved from card's default_persona + player_name; "custom" = from persona library. */
   persona_source: string | null;
+  /** Per-session snapshot of the story's quest_log (QuestEntry[]). */
+  quest_log_state: string | null;
   /** 1 = user has marked this session as favorite. */
   favorite: number;
 }
@@ -48,6 +51,8 @@ export interface CreateSessionInput {
   provider?: string | undefined;
   /** Link this session to a character card (Phase 2 "New Play" flow). */
   character_card_id?: string | undefined;
+  /** Link this session to a story card (Phase 4 "New Play" flow). */
+  story_card_id?: string | undefined;
   /** Which avatar the user picked at New Play time. */
   avatar_selection?: string | undefined;
   /** Which starting scenario the user picked at New Play time. */
@@ -62,6 +67,8 @@ export interface CreateSessionInput {
   persona_snapshot?: Persona | undefined;
   /** "default" = resolved from card's default_persona; "custom" = from persona library. */
   persona_source?: string | undefined;
+  /** Per-session snapshot of the story's quest_log (QuestEntry[]). */
+  quest_log_state?: string | undefined;
 }
 
 /** Create a session row; the id is generated here, not by SQLite. */
@@ -75,14 +82,15 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
   try {
     const id = allocateId(db, 'sess');
     db.prepare(
-      `INSERT INTO session (id, class, created_at, provider, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, favorite)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO session (id, class, created_at, provider, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, favorite)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       sessionClass,
       now,
       provider,
       input.character_card_id ?? null,
+      input.story_card_id ?? null,
       input.avatar_selection ?? null,
       input.starting_scenario_id ?? null,
       input.avatar_snapshot ? JSON.stringify(input.avatar_snapshot) : null,
@@ -90,6 +98,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
       input.persona_id ?? null,
       input.persona_snapshot ? JSON.stringify(input.persona_snapshot) : null,
       input.persona_source ?? null,
+      input.quest_log_state ?? null,
       0,
     );
     db.exec('COMMIT');
@@ -119,7 +128,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
 export function getSession(id: string): SessionRow | undefined {
   const row = getDb()
     .prepare(
-      'SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, favorite FROM session WHERE id = ?',
+      'SELECT id, class, created_at, provider, model, small_model, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, favorite FROM session WHERE id = ?',
     )
     .get(id) as unknown as SessionRowRaw | undefined;
   if (!row) return undefined;
@@ -164,7 +173,7 @@ function parseJson<T>(raw: string | null, fallback: T): T {
 export function listSessions(): SessionRow[] {
   const rows = getDb()
     .prepare(
-      `SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, favorite
+      `SELECT id, class, created_at, provider, model, small_model, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, favorite
        FROM session
        ORDER BY created_at DESC`,
     )

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS session (
   model       TEXT,                                   -- main model id (nullable until resolved)
   small_model TEXT,                                   -- bookkeeping model (summarize / state extraction)
   character_card_id TEXT REFERENCES character_card(id), -- which card this session plays (nullable until linked)
+  story_card_id   TEXT REFERENCES story_card(id),     -- which story this session plays (nullable until linked)
   avatar_selection TEXT,                               -- which avatar the user picked at New Play
   starting_scenario_id TEXT,                           -- which starting scenario the user picked at New Play
   avatar_snapshot TEXT,                                -- JSON snapshot of the selected AvatarOption
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS session (
   persona_id TEXT,                                    -- which persona (user identity) the user picked
   persona_snapshot TEXT,                              -- JSON snapshot of the selected Persona
   persona_source TEXT,                                -- "default" (from scenario) or "custom" (from library)
+  quest_log_state TEXT,                               -- JSON snapshot of QuestEntry[] (per-session copy from story_card.quest_log)
   favorite INTEGER NOT NULL DEFAULT 0                 -- 1 = user has marked this session as favorite
 );
 
@@ -114,6 +116,55 @@ CREATE TABLE IF NOT EXISTS character_card (
 
   -- User preferences
   favorite        INTEGER NOT NULL DEFAULT 0          -- 1 = user has marked this card as favorite
+);
+
+-- ──────────────────────────────────────────────────────────────────────
+-- Story cards (Phase 4 foundation — compositions of Characters + world)
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS story_card (
+  id              TEXT PRIMARY KEY,
+
+  -- Core story
+  title           TEXT NOT NULL,
+  genre           TEXT NOT NULL DEFAULT '',
+  premise         TEXT NOT NULL DEFAULT '',
+  tone            TEXT NOT NULL DEFAULT '',
+  description     TEXT,
+  cover_image     TEXT,
+
+  -- World
+  locations       TEXT NOT NULL DEFAULT '[]',           -- JSON array of strings
+  world_info      TEXT NOT NULL DEFAULT '[]',           -- JSON array of WorldInfoEntry
+
+  -- Cast
+  cast_mode       TEXT NOT NULL DEFAULT 'selectable'    -- 'fixed' | 'selectable' | 'open'
+                  CHECK (cast_mode IN ('fixed', 'selectable', 'open')),
+  character_references TEXT NOT NULL DEFAULT '[]',      -- JSON array of CharacterReference
+  npcs            TEXT NOT NULL DEFAULT '[]',           -- JSON array of StoryNpc
+
+  -- Quest chain
+  quest_log       TEXT NOT NULL DEFAULT '[]',           -- JSON array of QuestEntry
+
+  -- Starting scenarios
+  starting_scenarios TEXT NOT NULL DEFAULT '[]',        -- JSON array of StartingScenario
+
+  -- Stubs for roadmap fields not yet needed
+  plot_flags      TEXT NOT NULL DEFAULT '{}',           -- JSON object
+  current_scene   TEXT,                                 -- free-text current scene description
+  chapter_log     TEXT NOT NULL DEFAULT '[]',           -- JSON array of ChapterEntry
+
+  -- Card-browser metadata
+  creator_name    TEXT,
+  tags            TEXT NOT NULL DEFAULT '[]',           -- JSON array of strings
+  stats           TEXT NOT NULL DEFAULT '{"replay_count":0,"like_count":0,"comment_count":0}',
+
+  -- User preferences
+  favorite        INTEGER NOT NULL DEFAULT 0,
+
+  -- Timestamps
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
 );
 
 -- ──────────────────────────────────────────────────────────────────────
