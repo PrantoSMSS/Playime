@@ -91,17 +91,17 @@ Keyword-triggered, deterministic — distinct from Phase 3's embedding-based RAG
 
 Story Cards are Playime's flagship, most-unique feature — see `PLAYIME_ROADMAP.md` §0.5. `StoryCard` gets the same first-class treatment as `CharacterCard`, not a lesser sibling.
 
-- [ ] `StoryCard` schema + DB table (locations, npcs, protagonist, plot_flags, quest_log, current_scene, chapter_log) — see `PLAYIME_ROADMAP.md` §3 for exact shape
-- [ ] `NpcCard` schema: each NPC in `npcs[]` carries its own `relationship_state` (`{affection, trust, flags}`, same shape as `CharacterCard`'s) — tracked independently per NPC, not shared across the cast
-- [ ] `QuestEntry` schema: structured `quest_log` (id/title/status/objective, optional `triggers_on` condition against `plot_flags`) — distinct from the free-form `plot_flags` bag
-- [ ] Reuse card-browser metadata + `CardInfoModal` from Phase 2 (parameterize by card type, don't rebuild)
-- [ ] Story creation form
-- [ ] DM-style system prompt: multi-NPC narration + choice generation instructions
-- [ ] Reuse Phase 2/3 memory engine, generalized to plot_flags/quest_log + chapter summaries; per-NPC relationship deltas use the same structured-extraction call pattern Phase 2 built for `relationship_state`
+- [x] `StoryCard` schema + DB table (locations, npcs, protagonist, plot_flags, quest_log, current_scene, chapter_log) — see `PLAYIME_ROADMAP.md` §3 for exact shape
+- [x] `NpcCard` schema: each NPC in `npcs[]` carries its own `relationship_state` (`{affection, trust, flags}`, same shape as `CharacterCard`'s) — tracked independently per NPC, not shared across the cast
+- [x] `QuestEntry` schema: structured `quest_log` (id/title/status/objective, optional `triggers_on` condition against `plot_flags`) — distinct from the free-form `plot_flags` bag
+- [x] Reuse card-browser metadata + `CardInfoModal` from Phase 2 (parameterize by card type, don't rebuild) — CardInfoModal accepts `card` or `storyCard` prop, renders character-specific vs story-specific sections (premise, tone, locations, NPCs, genre), shared persona/scenario pickers, story delete support via `removeStory()`, ChatTopBar opens correct modal for story sessions
+- [x] Story creation form (StoryImportModal + StoryDraftReview extraction pipeline)
+- [x] DM-style system prompt: multi-NPC narration + choice generation instructions (`prompts/story.ts`)
+- [x] Reuse Phase 2/3 memory engine, generalized to plot_flags/quest_log + chapter summaries; per-NPC relationship deltas use the same structured-extraction call pattern Phase 2 built for `relationship_state` (`story-state.ts` — extractStoryState, advanceQuest, evaluateTriggersOn)
 - [ ] Chapter summarization job (parallel to rolling summary, chapter-scoped); `chapter_log` entries can be flagged as checkpoints (`checkpoint_id`) for Phase 5's fork/branch feature
 - [ ] Sidebar UI: current scene, protagonist stats, quest log, chapter log
 - [ ] Test: player choices measurably branch later narration (not just cosmetic)
-- [ ] Test: quest status auto-updates correctly when a `triggers_on` condition is met by a `plot_flags` change
+- [x] Test: quest status auto-updates correctly when a `triggers_on` condition is met by a `plot_flags` change (`story-state.test.ts` — 17 tests for advanceQuest + evaluateTriggersOn)
 
 ## Phase 5 — Shared UI polish
 

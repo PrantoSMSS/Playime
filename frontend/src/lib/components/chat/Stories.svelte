@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { listStories, deleteStory, resolveFileUrl } from '$lib/api/chat';
 	import type { ApiStoryCard } from '$lib/api/chat';
-	import { openStoryImportModal, startNewStoryPlay } from '$lib/state/chat.svelte';
+	import { openStoryImportModal, openStoryInfoModal } from '$lib/state/chat.svelte';
 
 	let stories = $state<ApiStoryCard[]>([]);
 	let loading = $state(false);
@@ -37,14 +37,8 @@
 		return title.slice(0, 2).toUpperCase();
 	}
 
-	async function handlePlay(story: ApiStoryCard): Promise<void> {
-		// Use the first starting scenario if any exist
-		const firstScenario = story.starting_scenarios.length > 0
-			? story.starting_scenarios[0]
-			: undefined;
-		await startNewStoryPlay(story, {
-			startingScenarioId: firstScenario?.id,
-		});
+	function handlePlay(story: ApiStoryCard): void {
+		void openStoryInfoModal(story.id);
 	}
 </script>
 

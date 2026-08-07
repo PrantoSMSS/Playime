@@ -18,7 +18,7 @@ import {
 	deleteSessionApi, deleteSessionMessages,
 	patchSession,
 	resolveFileUrl,
-	createStory, getStory, listStories,
+	createStory, deleteStory, getStory, listStories,
 } from '../api/chat';
 import type {
 	ApiCharacterCard, ApiExtractionDraft, ApiMessage, ApiPersona, ApiSession,
@@ -48,8 +48,11 @@ export const chat = $state({
 	messageError: null as string | null,
 	newPlayError: null as string | null,
 	personasError: null as string | null,
-	/** Card info modal state. */
-	cardInfoModal: null as { card: ApiCharacterCard; source?: 'card-browser' | 'conversation' } | null,
+	/** Card info modal state — holds either a character card or a story card. */
+	cardInfoModal: null as (
+		| { card: ApiCharacterCard; storyCard?: undefined; source?: 'card-browser' | 'conversation' }
+		| { storyCard: ApiStoryCard; card?: undefined; source?: 'card-browser' | 'conversation' }
+	) | null,
 	/** When true, CardInfoModal is hidden (CSS) but preserved in DOM. */
 	cardInfoModalHidden: false,
 	/** Available personas for the New Play persona picker. */
@@ -105,6 +108,17 @@ export async function openCardInfoModal(cardId: string, source?: 'card-browser' 
 		chat.personas = personas;
 	} catch (err) {
 		chat.cardsError = err instanceof Error ? err.message : 'Failed to load card';
+	}
+}
+
+/** Open the card info modal for a story card. */
+export async function openStoryInfoModal(storyId: string, source?: 'card-browser' | 'conversation'): Promise<void> {
+	try {
+		const [storyCard, personas] = await Promise.all([getStory(storyId), listPersonas()]);
+		chat.cardInfoModal = { storyCard, source };
+		chat.personas = personas;
+	} catch (err) {
+		chat.cardsError = err instanceof Error ? err.message : 'Failed to load story';
 	}
 }
 
@@ -537,11 +551,12 @@ export async function startNewPlay(selections: {
 	startingScenarioId?: string;
 }): Promise<void> {
 	const modal = chat.cardInfoModal;
-	if (!modal) return;
+	if (!modal?.card) return;
+	const card = modal.card;
 
 	try {
 		const apiSession = await createSession({
-			cardId: modal.card.id,
+			cardId: card.id,
 			personaId: selections.personaId,
 			personaSource: selections.personaSource,
 			playerName: selections.playerName,
@@ -554,17 +569,17 @@ export async function startNewPlay(selections: {
 
 		// The session's avatarUrl is the CHARACTER's image (from CharacterCard.avatar),
 		// not the user's persona avatar.
-		const rawAvatar = modal.card.avatars[0]?.image ?? modal.card.avatar ?? modal.card.avatar_file ?? modal.card.cover_file ?? modal.card.cover_image ?? undefined;
+		const rawAvatar = card.avatars[0]?.image ?? card.avatar ?? card.avatar_file ?? card.cover_file ?? card.cover_image ?? undefined;
 		const avatarUrl = resolveFileUrl(rawAvatar) ?? undefined;
 
 		const newSession: ChatSession = {
 			id: apiSession.id,
-			title: modal.card.name,
+			title: card.name,
 			kind: 'character',
-			preview: modal.card.first_message ?? 'New conversation started',
-			initials: modal.card.name.slice(0, 2).toUpperCase(),
+			preview: card.first_message ?? 'New conversation started',
+			initials: card.name.slice(0, 2).toUpperCase(),
 			hue: 172,
-			cardId: modal.card.id,
+			cardId: card.id,
 			personaId: selections.personaId,
 			personaSource: selections.personaSource,
 			playerName: selections.playerName,
@@ -578,10 +593,10 @@ export async function startNewPlay(selections: {
 		chat.messagesBySession[apiSession.id] = [];
 
 		// If the card has a first message, add it as the opening assistant message
-		const scenario = modal.card.starting_scenarios.find(
+		const scenario = card.starting_scenarios.find(
 			(s) => s.id === selections.startingScenarioId
 		);
-		const firstMessage = scenario?.first_message ?? modal.card.first_message;
+		const firstMessage = scenario?.first_message ?? card.first_message;
 		if (firstMessage) {
 			chat.messagesBySession[apiSession.id].push({
 				id: crypto.randomUUID(),
@@ -597,6 +612,18 @@ export async function startNewPlay(selections: {
 		chat.cardInfoModal = null;
 	} catch (err) {
 		chat.newPlayError = err instanceof Error ? err.message : 'Failed to start new play';
+	}
+}
+
+/** Delete a story card and remove it from the loaded list. */
+export async function removeStory(id: string): Promise<boolean> {
+	try {
+		await deleteStory(id);
+		chat.stories = chat.stories.filter((s) => s.id !== id);
+		return true;
+	} catch (err) {
+		chat.cardsError = err instanceof Error ? err.message : 'Failed to delete story';
+		return false;
 	}
 }
 
@@ -655,6 +682,19 @@ export async function startNewStoryPlay(
 	} catch (err) {
 		chat.newPlayError = err instanceof Error ? err.message : 'Failed to start new play';
 	}
+}
+
+/** Start a new story play session from the card info modal selections. */
+export async function startNewStoryPlayFromModal(selections: {
+	personaId?: string;
+	personaSource?: 'default' | 'custom';
+	playerName?: string;
+	startingScenarioId?: string;
+}): Promise<void> {
+	const modal = chat.cardInfoModal;
+	if (!modal?.storyCard) return;
+	await startNewStoryPlay(modal.storyCard, selections);
+	chat.cardInfoModal = null;
 }
 
 /** Backend message row → chat-shell message. */

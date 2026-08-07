@@ -1,19 +1,21 @@
 <script lang="ts">
-	import type { ApiCharacterCard, ApiStartingScenario, ApiPersona, ApiDefaultPersona } from '$lib/api/chat';
+	import type { ApiCharacterCard, ApiStoryCard, ApiStartingScenario, ApiPersona, ApiDefaultPersona } from '$lib/api/chat';
 	import { parseMessage } from '$lib/messageParse';
-	import { chat, removeCard, closeCardInfoModal, openEditCardModal, openPersonaFormModal } from '$lib/state/chat.svelte';
+	import { chat, removeCard, removeStory, closeCardInfoModal, openEditCardModal, openPersonaFormModal } from '$lib/state/chat.svelte';
 	import { exportCardAsJson, exportCardAsPng, resolveFileUrl } from '$lib/api/chat';
 	import Modal from './Modal.svelte';
 	import DeleteConfirmButton from './DeleteConfirmButton.svelte';
 
 	let {
 		card,
+		storyCard,
 		source,
 		onclose,
 		onstartplay,
 		onedit,
 	}: {
-		card: ApiCharacterCard;
+		card?: ApiCharacterCard;
+		storyCard?: ApiStoryCard;
 		source?: 'card-browser' | 'conversation';
 		onclose: () => void;
 		onstartplay: ( selections: {
@@ -22,22 +24,34 @@
 			playerName?: string;
 			startingScenarioId?: string;
 		}) => void;
-		onedit: (card: ApiCharacterCard) => void;
+		onedit?: (card: ApiCharacterCard) => void;
 	} = $props();
 
+	// Derive which type we're showing
+	const isCharacter = $derived(!!card);
+	const isStory = $derived(!!storyCard);
+
 	// ── Normalized scenarios ──────────────────────────────────────────────
-	const scenarios: ApiStartingScenario[] = $derived(
-		card.starting_scenarios.length > 0
-			? card.starting_scenarios
-			: card.scenario || card.first_message
-				? [{
-						id: 'default',
-						name: 'Default',
-						scenario: card.scenario,
-						first_message: card.first_message ?? '',
-					}]
-				: []
-	);
+	const scenarios: ApiStartingScenario[] = $derived.by(() => {
+		if (storyCard) {
+			return storyCard.starting_scenarios.length > 0
+				? storyCard.starting_scenarios
+				: [];
+		}
+		if (card) {
+			return card.starting_scenarios.length > 0
+				? card.starting_scenarios
+				: card.scenario || card.first_message
+					? [{
+							id: 'default',
+							name: 'Default',
+							scenario: card.scenario,
+							first_message: card.first_message ?? '',
+						}]
+					: [];
+		}
+		return [];
+	});
 
 	// ── Modal-local state ─────────────────────────────────────────────────
 	let selectedScenarioId = $state<string | null>(null);
@@ -87,7 +101,7 @@
 
 	// The persona label shown in the dropdown for the card's default persona
 	const defaultPersonaLabel = $derived(() => {
-		const dp = card.default_persona;
+		const dp = card?.default_persona;
 		if (!dp) return 'John Doe';
 		const base = dp.label || dp.name || 'John Doe';
 		return `${base} (Default)`;
@@ -102,7 +116,7 @@
 	// Description shown below the dropdown for the current selection
 	const personaDescription = $derived(() => {
 		if (personaSelectValue === 'default') {
-			const dp = card.default_persona;
+			const dp = card?.default_persona;
 			if (!dp) return 'The character calls you by this name unless you pick a different one.';
 			return [dp.role, dp.background].filter(Boolean).join(' — ') || '';
 		}
@@ -131,15 +145,21 @@
 
 	// First message preview segments
 	const introSegments = $derived(() => {
-		const msg = selectedScenario?.first_message ?? scenarios[0]?.first_message ?? card.first_message;
+		const msg = selectedScenario?.first_message ?? scenarios[0]?.first_message ?? card?.first_message;
 		if (!msg) return [];
 		return parseMessage(msg);
 	});
 
-	// The avatar image to show — first from the avatars array, or card default
+	// The avatar image to show — first from the avatars array, or card default, or story cover
 	const displayImage = $derived(() => {
-		const raw = card.avatars.length > 0 ? card.avatars[0]!.image : (card.avatar ?? card.avatar_file ?? card.cover_file ?? card.cover_image ?? null);
-		return resolveFileUrl(raw);
+		if (storyCard) {
+			return resolveFileUrl(storyCard.cover_image);
+		}
+		if (card) {
+			const raw = card.avatars.length > 0 ? card.avatars[0]!.image : (card.avatar ?? card.avatar_file ?? card.cover_file ?? card.cover_image ?? null);
+			return resolveFileUrl(raw);
+		}
+		return null;
 	});
 
 	// ── Effects ───────────────────────────────────────────────────────────
@@ -194,14 +214,19 @@
 		isDeleting = true;
 		localError = null;
 		try {
-			const success = await removeCard(card.id);
+			let success = false;
+			if (isStory && storyCard) {
+				success = await removeStory(storyCard.id);
+			} else if (isCharacter && card) {
+				success = await removeCard(card.id);
+			}
 			if (success) {
 				closeCardInfoModal();
 			} else {
-				localError = chat.cardsError ?? 'Failed to delete character.';
+				localError = chat.cardsError ?? `Failed to delete ${isStory ? 'story' : 'character'}.`;
 			}
 		} catch (err) {
-			localError = err instanceof Error ? err.message : 'Failed to delete character.';
+			localError = err instanceof Error ? err.message : `Failed to delete ${isStory ? 'story' : 'character'}.`;
 		} finally {
 			isDeleting = false;
 		}
@@ -212,6 +237,7 @@
 		showExportDropdown = false;
 		localError = null;
 		try {
+			if (!card) return; // Story export not yet implemented
 			if (format === 'json') {
 				await exportCardAsJson(card);
 			} else {
@@ -227,70 +253,126 @@
 
 <svelte:window onpointerdown={handleClickOutside} />
 
-<Modal title="Character Information" {onclose} aria-labelledby="card-info-title" backdropclose={false} hidden={chat.cardInfoModalHidden}>
+<Modal title={isStory ? 'Story Information' : 'Character Information'} {onclose} aria-labelledby="card-info-title" backdropclose={false} hidden={chat.cardInfoModalHidden}>
 	<!-- Top section: image left, info right -->
 	<div class="modal__top">
 		{#if displayImage()}
 			<div class="modal__image">
-				<img src={displayImage()!} alt={card.name} />
+				<img src={displayImage()!} alt={isStory ? storyCard!.title : card!.name} />
 			</div>
 		{/if}
 
 		<div class="modal__info">
 			<div class="modal__name-row">
-				<h3 class="modal__name">{card.name}</h3>
+				<h3 class="modal__name">{isStory ? storyCard!.title : card!.name}</h3>
 			</div>
 
-			{#if card.creator_name}
+			{#if (isStory ? storyCard!.creator_name : card!.creator_name)}
 				<p class="modal__creator">
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>
-					{card.creator_name}
+					{isStory ? storyCard!.creator_name : card!.creator_name}
 				</p>
 			{/if}
 
-			{#if card.tags.length > 0}
+			{#if (isStory ? storyCard!.tags : card!.tags).length > 0}
 				<div class="modal__tags">
-					{#each card.tags as tag}
+					{#each (isStory ? storyCard!.tags : card!.tags) as tag}
 						<span class="modal__tag">{tag}</span>
 					{/each}
 				</div>
 			{/if}
 
-			{#if card.tagline}
-				<p class="modal__tagline">{card.tagline}</p>
+			{#if isCharacter && card!.tagline}
+				<p class="modal__tagline">{card!.tagline}</p>
+			{/if}
+
+			{#if isStory && storyCard!.genre}
+				<p class="modal__tagline">{storyCard!.genre}</p>
 			{/if}
 
 			<!-- Hashtag-style tags -->
-			{#if card.tags.length > 0}
+			{#if (isStory ? storyCard!.tags : card!.tags).length > 0}
 				<p class="modal__hashtags">
-					{#each card.tags as tag, i (tag)}{i > 0 ? ' ' : ''}#{tag}{/each}
+					{#each (isStory ? storyCard!.tags : card!.tags) as tag, i (tag)}{i > 0 ? ' ' : ''}#{tag}{/each}
 				</p>
 			{/if}
 
 			<!-- Stats -->
-			<div class="modal__stats">
-				<span class="modal__stat">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-					{card.stats.replay_count.toLocaleString()}
-				</span>
-				<span class="modal__stat">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-6 0v1H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-5z"/></svg>
-					{card.stats.like_count.toLocaleString()}
-				</span>
-				<span class="modal__stat">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-					{card.stats.comment_count.toLocaleString()}
-				</span>
-			</div>
+			{#if isCharacter}
+				<div class="modal__stats">
+					<span class="modal__stat">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+						{card!.stats.replay_count.toLocaleString()}
+					</span>
+					<span class="modal__stat">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-6 0v1H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-5z"/></svg>
+						{card!.stats.like_count.toLocaleString()}
+					</span>
+					<span class="modal__stat">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+						{card!.stats.comment_count.toLocaleString()}
+					</span>
+				</div>
+			{:else if isStory}
+				<div class="modal__stats">
+					<span class="modal__stat">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+						{storyCard!.npcs.length} NPC{storyCard!.npcs.length !== 1 ? 's' : ''}
+					</span>
+					<span class="modal__stat">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+						{storyCard!.quest_log.length} quest{storyCard!.quest_log.length !== 1 ? 's' : ''}
+					</span>
+				</div>
+			{/if}
 		</div>
 	</div>
 
 	<!-- Detailed Description -->
-	{#if card.description}
+	{#if isCharacter && card!.description}
 		<div class="modal__section">
 			<h3 class="modal__section-title">Detailed Description</h3>
-			<p class="modal__section-text">{card.description}</p>
+			<p class="modal__section-text">{card!.description}</p>
 		</div>
+	{/if}
+
+	<!-- Story Premise & Tone -->
+	{#if isStory}
+		{#if storyCard!.premise}
+			<div class="modal__section">
+				<h3 class="modal__section-title">Premise</h3>
+				<p class="modal__section-text">{storyCard!.premise}</p>
+			</div>
+		{/if}
+		{#if storyCard!.tone}
+			<div class="modal__section">
+				<h3 class="modal__section-title">Tone</h3>
+				<p class="modal__section-text">{storyCard!.tone}</p>
+			</div>
+		{/if}
+		{#if storyCard!.locations.length > 0}
+			<div class="modal__section">
+				<h3 class="modal__section-title">Locations</h3>
+				<div class="modal__tags">
+					{#each storyCard!.locations as loc}
+						<span class="modal__tag">{loc}</span>
+					{/each}
+				</div>
+			</div>
+		{/if}
+		{#if storyCard!.npcs.length > 0}
+			<div class="modal__section">
+				<h3 class="modal__section-title">Characters</h3>
+				<div class="modal__npc-list">
+					{#each storyCard!.npcs as npc}
+						<div class="modal__npc">
+							<span class="modal__npc-name">{npc.name}</span>
+							<span class="modal__npc-desc">{npc.description}</span>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
 	{/if}
 
 	<!-- ═══ PERSONA PICKER (always visible, first) ═══ -->
@@ -381,7 +463,7 @@
 	<!-- ═══ NAME FIELD (shown when Default persona selected) ═══ -->
 	{#if selectedPersonaType === 'default'}
 		<div class="modal__section">
-			<h3 class="modal__section-title">What will {card.name} call you?</h3>
+			<h3 class="modal__section-title">What will {isStory ? 'the characters' : card!.name} call you?</h3>
 			<p class="modal__section-subtitle">Leave it as John Doe if you don't want to pick a name.</p>
 			<input
 				class="modal__name-input"
@@ -427,7 +509,7 @@
 	{#if introSegments().length > 0}
 		<div class="modal__section">
 			<h3 class="modal__section-title">Intro Preview</h3>
-			<p class="modal__section-subtitle">{card.name}</p>
+			<p class="modal__section-subtitle">{isStory ? storyCard!.title : card!.name}</p>
 			<div class="modal__intro">
 				{#each introSegments() as seg, i (i)}
 					<span
@@ -452,15 +534,15 @@
 		{/if}
 		<div class="modal__footer-buttons">
 			{#if source !== 'conversation'}
-				<DeleteConfirmButton label="Delete this character?" onconfirm={handleDelete} disabled={isDeleting} />
+				<DeleteConfirmButton label={isStory ? 'Delete this story?' : 'Delete this character?'} onconfirm={handleDelete} disabled={isDeleting} />
 			{/if}
 
 			<div class="modal__footer-right">
-				{#if source !== 'conversation'}
+				{#if source !== 'conversation' && isCharacter && onedit}
 					<!-- Edit button -->
 					<button
 						class="modal__edit-btn"
-						onclick={() => onedit(card)}
+						onclick={() => onedit(card!)}
 						aria-label="Edit character"
 					>
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -871,6 +953,34 @@
 		border-color: var(--accent);
 	}
 	.modal__name-input::placeholder {
+		color: var(--text-muted);
+	}
+
+	/* NPC list (story cards) */
+	.modal__npc-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	.modal__npc {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: var(--space-2) var(--space-3);
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+	}
+
+	.modal__npc-name {
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
+		color: var(--text);
+	}
+
+	.modal__npc-desc {
+		font-size: var(--font-size-xs);
 		color: var(--text-muted);
 	}
 

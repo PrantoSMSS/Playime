@@ -10,7 +10,7 @@
 	import StoryImportModal from '$lib/components/chat/StoryImportModal.svelte';
 	import StoryDraftReview from '$lib/components/chat/StoryDraftReview.svelte';
 	import {
-		chat, closeCardInfoModal, startNewPlay, openEditCardModal,
+		chat, closeCardInfoModal, startNewPlay, startNewStoryPlayFromModal, openEditCardModal,
 		closeCharacterFormModal, closeImportCardModal, loadCards, loadSessions, loadPersonas,
 		loadStories,
 		closePersonaInfoModal, closePersonaFormModal,
@@ -46,10 +46,11 @@
 {#if chat.cardInfoModal}
 	<CardInfoModal
 		card={chat.cardInfoModal.card}
+		storyCard={chat.cardInfoModal.storyCard}
 		source={chat.cardInfoModal.source}
 		onclose={closeCardInfoModal}
-		onstartplay={startNewPlay}
-		onedit={(card) => openEditCardModal(card)}
+		onstartplay={chat.cardInfoModal.storyCard ? startNewStoryPlayFromModal : startNewPlay}
+		onedit={chat.cardInfoModal.card ? (card) => openEditCardModal(card) : undefined}
 	/>
 {/if}
 

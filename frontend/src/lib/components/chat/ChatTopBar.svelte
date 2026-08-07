@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { activeSession, chat, openCardInfoModal } from '$lib/state/chat.svelte';
+	import { activeSession, chat, openCardInfoModal, openStoryInfoModal } from '$lib/state/chat.svelte';
 	import { nav } from '$lib/state/nav.svelte';
 	import Avatar from './Avatar.svelte';
 	import Icon from './Icon.svelte';
@@ -22,8 +22,12 @@
 	});
 
 	function handleTitleClick(): void {
-		const cardId = session?.cardId ?? 'yehwa';
-		void openCardInfoModal(cardId, 'conversation');
+		if (session?.kind === 'story' && session?.storyCardId) {
+			void openStoryInfoModal(session.storyCardId, 'conversation');
+		} else {
+			const cardId = session?.cardId ?? 'yehwa';
+			void openCardInfoModal(cardId, 'conversation');
+		}
 	}
 </script>
 
