@@ -31,7 +31,7 @@ not just the AI parsing on top of it.
 
 ## Phase 1 — Data model: StoryCard + QuestEntry actually exist in code
 
-- [ ] `backend/src/models/story.ts` (new, parallel to `models/character.ts`):
+- [x] `backend/src/models/story.ts` (new, parallel to `models/character.ts`):
       `StoryCard` interface per the roadmap's §3 shape (`title, genre,
       premise, tone, locations, cast_mode, npcs, protagonist, plot_flags,
       quest_log, current_scene, chapter_log, world_info,
@@ -40,7 +40,7 @@ not just the AI parsing on top of it.
       world_info`) and stub the rest (`plot_flags: {}`, `chapter_log: []`,
       `current_scene: null`) rather than blocking on the full roadmap
       shape.
-- [ ] Extend `QuestEntry` beyond the roadmap's original sketch with two
+- [x] Extend `QuestEntry` beyond the roadmap's original sketch with two
       fields this feature needs:
       ```ts
       interface QuestEntry {
@@ -54,15 +54,15 @@ not just the AI parsing on top of it.
         triggers_on?: { flag: string; op: 'eq' | 'gte' | 'lte'; value: unknown }[];
       }
       ```
-- [ ] `backend/db/schema.sql`: new `story_card` table, same conventions as
+- [x] `backend/db/schema.sql`: new `story_card` table, same conventions as
       `character_card` (JSON columns as TEXT, `created_at`/`updated_at`).
       Add a migration file.
-- [ ] CRUD in `models/story.ts` mirroring `models/character.ts`
+- [x] CRUD in `models/story.ts` mirroring `models/character.ts`
       (`createStoryCard`, `getStoryCard`, `updateStoryCard`,
       `deleteStoryCard`, `listStoryCards`, `countSessionsForStoryCard`).
-- [ ] `backend/src/routes/story.ts` — `GET/POST /api/stories`,
+- [x] `backend/src/routes/story.ts` — `GET/POST /api/stories`,
       `GET/PATCH/DELETE /api/stories/:id`, following `routes/character.ts`.
-- [ ] **Session-side quest state mirrors the existing `relationship_state`
+- [x] **Session-side quest state mirrors the existing `relationship_state`
       pattern**: `StoryCard.quest_log` is the *template* (starting
       chain — first quest `active`, rest `pending`), and each session gets
       its own evolving copy (`session.quest_log_state`, JSON column,
@@ -70,7 +70,7 @@ not just the AI parsing on top of it.
       value and sessions track their own drift — check whether sessions
       currently snapshot relationship_state anywhere as precedent before
       inventing a new pattern here).
-- [ ] `frontend/src/lib/api/chat.ts` — `ApiStoryCard`, `ApiQuestEntry`
+- [x] `frontend/src/lib/api/chat.ts` — `ApiStoryCard`, `ApiQuestEntry`
       types + `listStories/getStory/createStory/updateStory/deleteStory`
       client functions, mirroring the character equivalents.
 
