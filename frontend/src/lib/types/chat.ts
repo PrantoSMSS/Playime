@@ -19,6 +19,12 @@ export interface QuestEntry {
 	triggers_on?: { flag: string; op: 'eq' | 'gte' | 'lte'; value: unknown }[];
 }
 
+/** A chapter summary entry. */
+export interface ChapterEntry {
+	title: string;
+	summary: string;
+}
+
 /** A past session shown in the nav rail Chats list. */
 export interface ChatSession {
 	id: string;
@@ -52,6 +58,8 @@ export interface ChatSession {
 	questLogState?: QuestEntry[];
 	/** Story-only: current plot flags (parsed from session.plot_flags). */
 	plotFlags?: Record<string, unknown>;
+	/** Story-only: chapter summaries (parsed from session.chapter_log). */
+	chapterLog?: ChapterEntry[];
 }
 
 /** One turn in the message list. `content` is the raw text; the renderer

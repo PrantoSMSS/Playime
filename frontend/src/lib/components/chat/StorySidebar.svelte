@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { activeSession } from '$lib/state/chat.svelte';
-	import type { QuestEntry } from '$lib/types/chat';
+	import type { ChapterEntry, QuestEntry } from '$lib/types/chat';
 
 	const session = $derived(activeSession());
 
 	const quests = $derived(session?.questLogState ?? []);
 	const plotFlags = $derived(session?.plotFlags ?? {});
+	const chapters = $derived(session?.chapterLog ?? []);
 
 	const activeQuest = $derived(quests.find((q) => q.status === 'active'));
 	const pendingQuests = $derived(quests.filter((q) => q.status === 'pending'));
@@ -78,6 +79,22 @@
 			</div>
 		{/if}
 	</section>
+
+	<!-- Chapter Log -->
+	{#if chapters.length > 0}
+		<section class="sidebar__section">
+			<h3 class="sidebar__title">Chapter Log</h3>
+			<div class="sidebar__chapters">
+				{#each chapters as chapter, i}
+					<div class="sidebar__chapter">
+						<span class="sidebar__chapter-num">Ch. {i + 1}</span>
+						<span class="sidebar__chapter-title">{chapter.title}</span>
+						<span class="sidebar__chapter-summary">{chapter.summary}</span>
+					</div>
+				{/each}
+			</div>
+		</section>
+	{/if}
 
 	<!-- Plot Flags -->
 	<section class="sidebar__section">
@@ -191,6 +208,45 @@
 		display: -webkit-box;
 		line-clamp: 2;
 		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	/* Chapter log */
+	.sidebar__chapters {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	.sidebar__chapter {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: var(--space-2);
+		background: var(--bg);
+		border-radius: var(--radius-sm);
+	}
+
+	.sidebar__chapter-num {
+		font-size: 10px;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.sidebar__chapter-title {
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-semibold);
+		color: var(--text);
+	}
+
+	.sidebar__chapter-summary {
+		font-size: 10px;
+		color: var(--text-secondary);
+		display: -webkit-box;
+		line-clamp: 3;
+		-webkit-line-clamp: 3;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}

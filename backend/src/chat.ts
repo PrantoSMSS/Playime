@@ -19,10 +19,10 @@ import {
 import type { CreateSessionInput, MessageRow, SessionRow } from './models/session.js';
 import { getCharacterCard, YEHWA_CARD } from './models/character.js';
 import { getStoryCard } from './models/story.js';
-import type { QuestEntry } from './models/story.js';
+import type { QuestEntry, ChapterEntry } from './models/story.js';
 import { renderCharacterSystemPrompt } from './prompts/character.js';
 import { renderStorySystemPrompt } from './prompts/story.js';
-import { extractStoryState, advanceQuest } from './story-state.js';
+import { extractStoryState, advanceQuest, summarizeChapter } from './story-state.js';
 
 /** Working-context size — the last N turns go in verbatim (§3). */
 const WORKING_CONTEXT_TURNS = 12;
@@ -281,6 +281,35 @@ export async function extractStoryStateAfterTurn(
       plot_flags: JSON.stringify(newFlags),
       quest_log_state: JSON.stringify(newQuestLog),
     });
+
+    // On quest completion/failure, summarize the chapter
+    if (result.quest_status !== 'unchanged' && activeQuest) {
+      try {
+        // Get recent turns for summarization
+        const turns = listTurns(sessionId);
+        const recentTurns = turns
+          .filter((t) => t.visible === 1 && (t.role === 'user' || t.role === 'assistant'))
+          .slice(-20) // last 20 visible turns
+          .map((t) => ({ role: t.role as 'user' | 'assistant', content: t.content }));
+
+        if (recentTurns.length >= 2) {
+          const chapter = await summarizeChapter(adapter, recentTurns, activeQuest.title);
+
+          // Parse existing chapter_log, append new entry, persist
+          let chapterLog: ChapterEntry[] = [];
+          if (session.chapter_log) {
+            try { chapterLog = JSON.parse(session.chapter_log) as ChapterEntry[]; } catch { /* empty */ }
+          }
+          chapterLog.push(chapter);
+          updateSession(sessionId, {
+            chapter_log: JSON.stringify(chapterLog),
+          });
+        }
+      } catch (chapterErr) {
+        // Chapter summarization errors are non-fatal
+        console.error('[story-state] chapter summarization failed:', chapterErr);
+      }
+    }
   } catch (err) {
     // Extraction errors are non-fatal — log and move on
     console.error('[story-state] extraction failed:', err);

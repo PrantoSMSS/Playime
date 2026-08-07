@@ -98,9 +98,9 @@ Story Cards are Playime's flagship, most-unique feature — see `PLAYIME_ROADMAP
 - [x] Story creation form (StoryImportModal + StoryDraftReview extraction pipeline)
 - [x] DM-style system prompt: multi-NPC narration + choice generation instructions (`prompts/story.ts`)
 - [x] Reuse Phase 2/3 memory engine, generalized to plot_flags/quest_log + chapter summaries; per-NPC relationship deltas use the same structured-extraction call pattern Phase 2 built for `relationship_state` (`story-state.ts` — extractStoryState, advanceQuest, evaluateTriggersOn)
-- [ ] Chapter summarization job (parallel to rolling summary, chapter-scoped); `chapter_log` entries can be flagged as checkpoints (`checkpoint_id`) for Phase 5's fork/branch feature
+- [x] Chapter summarization job (parallel to rolling summary, chapter-scoped); `chapter_log` entries can be flagged as checkpoints (`checkpoint_id`) for Phase 5's fork/branch feature
 - [x] Sidebar UI: current scene, protagonist stats, quest log, chapter log — `StorySidebar.svelte` (280px right panel, story sessions only) shows quest log (active/pending/completed/failed with status icons), plot flags (key/value list), empty states; `GET /api/sessions/:id` endpoint; `refreshStoryState()` re-fetches after each turn; sidebar integrated into `+page.svelte` chat-area flex layout
-- [ ] Test: player choices measurably branch later narration (not just cosmetic)
+- [x] Test: player choices measurably branch later narration (not just cosmetic)
 - [x] Test: quest status auto-updates correctly when a `triggers_on` condition is met by a `plot_flags` change (`story-state.test.ts` — 17 tests for advanceQuest + evaluateTriggersOn)
 
 ## Phase 5 — Shared UI polish

@@ -110,6 +110,7 @@ export interface ApiSession {
 	persona_source: string | null;
 	quest_log_state: string | null;
 	plot_flags: string | null;
+	chapter_log: string | null;
 	favorite: number;
 }
 

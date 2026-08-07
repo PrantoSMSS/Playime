@@ -75,6 +75,8 @@ export interface CreateSessionInput {
   quest_log_state?: string | undefined;
   /** Per-session copy of story's plot_flags (JSON string). */
   plot_flags?: string | undefined;
+  /** Per-session chapter summaries (ChapterEntry[] JSON array). */
+  chapter_log?: string | undefined;
 }
 
 /** Create a session row; the id is generated here, not by SQLite. */
@@ -128,6 +130,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
       persona_source: input.persona_source ?? null,
       quest_log_state: input.quest_log_state ?? null,
       plot_flags: input.plot_flags ?? '{}',
+      chapter_log: input.chapter_log ?? '[]',
       favorite: 0,
     };
   } catch (err) {
@@ -170,6 +173,7 @@ interface SessionRowRaw {
   persona_source: string | null;
   quest_log_state: string | null;
   plot_flags: string | null;
+  chapter_log: string | null;
   favorite: number;
 }
 
@@ -274,6 +278,7 @@ export interface UpdateSessionInput {
   favorite?: number | undefined;
   quest_log_state?: string | undefined;
   plot_flags?: string | undefined;
+  chapter_log?: string | undefined;
 }
 
 /**

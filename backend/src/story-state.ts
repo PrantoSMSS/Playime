@@ -10,6 +10,7 @@
  */
 import type { LmAdapter } from './adapters/index.js';
 import type { QuestEntry } from './models/story.js';
+import type { ChapterEntry } from './models/story.js';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -200,4 +201,56 @@ function extractJson(text: string): Record<string, unknown> {
 
   // Fallback: return empty state
   return { plot_flags: {}, quest_status: 'unchanged', next_quest_id: null, memory_note: '' };
+}
+
+// ── Chapter summarization ─────────────────────────────────────────────
+
+const CHAPTER_SUMMARY_SYSTEM = `You summarize a chapter of a story into a brief recap.
+Respond with ONLY a JSON object, no other text:
+{"title": "Chapter Title", "summary": "2-3 sentence summary of what happened."}
+
+Rules:
+- title = a short, evocative chapter title (3-6 words).
+- summary = a concise recap of the key events, decisions, and outcomes in this chapter.
+- Focus on what changed: quests completed, relationships shifted, discoveries made.
+- Write in past tense, third person.
+- Do not repeat the chapter title in the summary.`;
+
+/**
+ * Summarize recent conversation turns into a chapter entry.
+ *
+ * @param adapter - The LM adapter for the summarization call.
+ * @param recentTurns - The recent user/assistant turns to summarize (from oldest to newest).
+ * @param completedQuestTitle - Title of the quest that just completed (used as context).
+ * @returns A ChapterEntry with title and summary.
+ */
+export async function summarizeChapter(
+  adapter: LmAdapter,
+  recentTurns: Array<{ role: 'user' | 'assistant'; content: string }>,
+  completedQuestTitle: string,
+): Promise<ChapterEntry> {
+  // Build a condensed view of the turns (truncate long messages)
+  const condensed = recentTurns
+    .map((t) => `${t.role === 'user' ? 'Player' : 'DM'}: ${t.content.slice(0, 500)}`)
+    .join('\n\n');
+
+  const result = await adapter.generate({
+    system: `${CHAPTER_SUMMARY_SYSTEM}\n\nThe chapter covers the quest: "${completedQuestTitle}"`,
+    messages: [{ role: 'user', content: condensed }],
+  }, {
+    temperature: 0.2,
+    maxTokens: 300,
+  });
+
+  const parsed = extractJson(result.text);
+
+  const title = typeof parsed.title === 'string' && parsed.title.length > 0
+    ? parsed.title
+    : `Chapter: ${completedQuestTitle}`;
+
+  const summary = typeof parsed.summary === 'string' && parsed.summary.length > 0
+    ? parsed.summary
+    : `Events related to "${completedQuestTitle}".`;
+
+  return { title, summary };
 }
