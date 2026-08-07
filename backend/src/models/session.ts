@@ -31,6 +31,8 @@ export interface SessionRow {
   persona_source: string | null;
   /** Per-session snapshot of the story's quest_log (QuestEntry[]). */
   quest_log_state: string | null;
+  /** Per-session copy of story's plot_flags (JSON object). */
+  plot_flags: string | null;
   /** 1 = user has marked this session as favorite. */
   favorite: number;
 }
@@ -69,6 +71,8 @@ export interface CreateSessionInput {
   persona_source?: string | undefined;
   /** Per-session snapshot of the story's quest_log (QuestEntry[]). */
   quest_log_state?: string | undefined;
+  /** Per-session copy of story's plot_flags (JSON string). */
+  plot_flags?: string | undefined;
 }
 
 /** Create a session row; the id is generated here, not by SQLite. */
@@ -82,8 +86,8 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
   try {
     const id = allocateId(db, 'sess');
     db.prepare(
-      `INSERT INTO session (id, class, created_at, provider, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, favorite)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO session (id, class, created_at, provider, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, plot_flags, favorite)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       sessionClass,
@@ -99,6 +103,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
       input.persona_snapshot ? JSON.stringify(input.persona_snapshot) : null,
       input.persona_source ?? null,
       input.quest_log_state ?? null,
+      input.plot_flags ?? '{}',
       0,
     );
     db.exec('COMMIT');
@@ -119,6 +124,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
       persona_snapshot: input.persona_snapshot ?? null,
       persona_source: input.persona_source ?? null,
       quest_log_state: input.quest_log_state ?? null,
+      plot_flags: input.plot_flags ?? '{}',
       favorite: 0,
     };
   } catch (err) {
@@ -130,7 +136,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
 export function getSession(id: string): SessionRow | undefined {
   const row = getDb()
     .prepare(
-      'SELECT id, class, created_at, provider, model, small_model, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, favorite FROM session WHERE id = ?',
+      'SELECT id, class, created_at, provider, model, small_model, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, plot_flags, favorite FROM session WHERE id = ?',
     )
     .get(id) as unknown as SessionRowRaw | undefined;
   if (!row) return undefined;
@@ -160,6 +166,7 @@ interface SessionRowRaw {
   persona_snapshot: string | null;
   persona_source: string | null;
   quest_log_state: string | null;
+  plot_flags: string | null;
   favorite: number;
 }
 
@@ -177,7 +184,7 @@ function parseJson<T>(raw: string | null, fallback: T): T {
 export function listSessions(): SessionRow[] {
   const rows = getDb()
     .prepare(
-      `SELECT id, class, created_at, provider, model, small_model, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, favorite
+      `SELECT id, class, created_at, provider, model, small_model, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, plot_flags, favorite
        FROM session
        ORDER BY created_at DESC`,
     )
@@ -262,6 +269,8 @@ export function deleteSession(id: string): void {
 /** Partial patch for updating a session. */
 export interface UpdateSessionInput {
   favorite?: number | undefined;
+  quest_log_state?: string | undefined;
+  plot_flags?: string | undefined;
 }
 
 /**

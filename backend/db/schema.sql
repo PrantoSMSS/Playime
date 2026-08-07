@@ -1,4 +1,4 @@
--- Playime — SQLite schema (v4, Phase 2.5 — avatars + starting scenarios + default_persona)
+-- Playime — SQLite schema (v5, Phase 4 — quest progression)
 -- Tables: session, message, character_card, persona, id_sequences, session_event
 --
 -- Schema versioning: bump this comment when modifying the schema. The
@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS session (
   persona_snapshot TEXT,                              -- JSON snapshot of the selected Persona
   persona_source TEXT,                                -- "default" (from scenario) or "custom" (from library)
   quest_log_state TEXT,                               -- JSON snapshot of QuestEntry[] (per-session copy from story_card.quest_log)
+  plot_flags   TEXT NOT NULL DEFAULT '{}',            -- JSON object (per-session copy from story_card.plot_flags)
   favorite INTEGER NOT NULL DEFAULT 0                 -- 1 = user has marked this session as favorite
 );
 

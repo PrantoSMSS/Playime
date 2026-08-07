@@ -14,10 +14,15 @@ import {
   insertMessage,
   listTurns,
   nextMessageSeq,
+  updateSession,
 } from './models/session.js';
 import type { CreateSessionInput, MessageRow, SessionRow } from './models/session.js';
 import { getCharacterCard, YEHWA_CARD } from './models/character.js';
+import { getStoryCard } from './models/story.js';
+import type { QuestEntry } from './models/story.js';
 import { renderCharacterSystemPrompt } from './prompts/character.js';
+import { renderStorySystemPrompt } from './prompts/story.js';
+import { extractStoryState, advanceQuest } from './story-state.js';
 
 /** Working-context size — the last N turns go in verbatim (§3). */
 const WORKING_CONTEXT_TURNS = 12;
@@ -99,11 +104,36 @@ export type { CreateSessionInput, SessionRow } from './models/session.js';
  */
 function systemPromptFor(session: SessionRow): string {
   if (session.class === 'story') {
-    throw new ChatError(
-      501,
-      'story_not_implemented',
-      'Story sessions are not supported yet (Phase 4)',
-    );
+    // Load the story card for this session
+    const story = session.story_card_id
+      ? getStoryCard(session.story_card_id)
+      : undefined;
+    if (!story) {
+      throw new ChatError(
+        500,
+        'story_not_found',
+        `Story card ${session.story_card_id ?? '(none)'} not found for session`,
+      );
+    }
+
+    // Parse per-session quest log state (falls back to card template)
+    let questLogState: QuestEntry[] | undefined;
+    if (session.quest_log_state) {
+      try {
+        questLogState = JSON.parse(session.quest_log_state) as QuestEntry[];
+      } catch { /* fall back to card's quest_log */ }
+    }
+
+    // Parse per-session plot flags (falls back to card template)
+    let plotFlags: Record<string, unknown> | undefined;
+    if (session.plot_flags && session.plot_flags !== '{}') {
+      try {
+        plotFlags = JSON.parse(session.plot_flags) as Record<string, unknown>;
+      } catch { /* fall back to card's plot_flags */ }
+    }
+
+    const persona = session.persona_snapshot ?? undefined;
+    return renderStorySystemPrompt(story, questLogState, plotFlags, persona);
   }
 
   // Use the card from the database if linked, otherwise fall back to the test card
@@ -195,10 +225,73 @@ export function persistAssistantReply(sessionId: string, text: string): MessageR
 }
 
 /**
+ * Post-turn story state extraction — fire-and-forget.
+ *
+ * After the assistant's reply is persisted, this runs a small-model call to
+ * extract plot_flags updates and quest status changes. Errors are logged
+ * but never affect the user's response (they already have their reply).
+ *
+ * Only runs for story sessions with an active quest.
+ */
+export async function extractStoryStateAfterTurn(
+  adapter: LmAdapter,
+  sessionId: string,
+  assistantText: string,
+): Promise<void> {
+  try {
+    const session = getSession(sessionId);
+    if (!session || session.class !== 'story') return;
+
+    // Parse current state
+    let questLog: QuestEntry[] = [];
+    let plotFlags: Record<string, unknown> = {};
+
+    if (session.quest_log_state) {
+      try { questLog = JSON.parse(session.quest_log_state) as QuestEntry[]; } catch { /* empty */ }
+    }
+    if (session.plot_flags && session.plot_flags !== '{}') {
+      try { plotFlags = JSON.parse(session.plot_flags) as Record<string, unknown>; } catch { /* empty */ }
+    }
+
+    // Find the active quest
+    const activeQuest = questLog.find((q) => q.status === 'active');
+    if (!activeQuest && Object.keys(plotFlags).length === 0) return; // nothing to extract
+
+    // Find the next quest in chain (for validation)
+    const sortedQuests = [...questLog].sort((a, b) => a.order - b.order);
+    const activeIdx = sortedQuests.findIndex((q) => q.id === activeQuest?.id);
+    const nextQuest = activeIdx >= 0 && activeIdx < sortedQuests.length - 1
+      ? sortedQuests[activeIdx + 1]
+      : undefined;
+
+    const result = await extractStoryState(
+      adapter,
+      assistantText,
+      activeQuest,
+      plotFlags,
+      nextQuest?.id,
+    );
+
+    // Apply results deterministically
+    const newFlags = { ...plotFlags, ...result.plot_flags };
+    const newQuestLog = advanceQuest(questLog, result);
+
+    // Persist — updateSession handles JSON stringification for both fields
+    updateSession(sessionId, {
+      plot_flags: JSON.stringify(newFlags),
+      quest_log_state: JSON.stringify(newQuestLog),
+    });
+  } catch (err) {
+    // Extraction errors are non-fatal — log and move on
+    console.error('[story-state] extraction failed:', err);
+  }
+}
+
+/**
  * Send a user message and produce the assistant reply (non-streaming).
  *
  * Flow: `prepareTurn` (persist user turn → assemble request) →
- * adapter.generate() → persist assistant reply.
+ * adapter.generate() → persist assistant reply → post-turn extraction (story).
  */
 export async function sendMessage(
   adapter: LmAdapter,
@@ -207,6 +300,9 @@ export async function sendMessage(
   const { userMessage, request } = prepareTurn(input);
   const result = await adapter.generate(request);
   const reply = persistAssistantReply(input.sessionId, result.text);
+
+  // Post-turn story state extraction (fire-and-forget, non-blocking)
+  void extractStoryStateAfterTurn(adapter, input.sessionId, result.text);
 
   return {
     user_message: userMessage,

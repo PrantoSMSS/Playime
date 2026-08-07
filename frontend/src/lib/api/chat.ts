@@ -100,6 +100,7 @@ export interface ApiSession {
 	model: string | null;
 	small_model: string | null;
 	character_card_id: string | null;
+	story_card_id: string | null;
 	avatar_selection: string | null;
 	starting_scenario_id: string | null;
 	avatar_snapshot: ApiAvatarOption | null;
@@ -265,19 +266,22 @@ async function errorFrom(res: Response): Promise<ApiError> {
 	return new ApiError(res.status, code, message);
 }
 
-/** Create a Character session on the backend. */
+/** Create a session on the backend (character or story). */
 export function createSession(options?: {
 	cardId?: string;
+	storyCardId?: string;
 	personaId?: string;
 	personaSource?: 'default' | 'custom';
 	playerName?: string;
 	startingScenarioId?: string;
 }): Promise<ApiSession> {
+	const isStory = !!options?.storyCardId;
 	return request<ApiSession>('/api/sessions', {
 		method: 'POST',
 		body: JSON.stringify({
-			class: 'character',
+			class: isStory ? 'story' : 'character',
 			...(options?.cardId ? { card_id: options.cardId } : {}),
+			...(options?.storyCardId ? { story_card_id: options.storyCardId } : {}),
 			...(options?.personaId ? { persona_id: options.personaId } : {}),
 			...(options?.personaSource ? { persona_source: options.personaSource } : {}),
 			...(options?.playerName ? { player_name: options.playerName } : {}),

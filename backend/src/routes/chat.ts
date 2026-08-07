@@ -14,12 +14,15 @@ import type { LmErrorCode } from '../adapters/types.js';
 import {
   ChatError,
   createSession,
+  extractStoryStateAfterTurn,
   persistAssistantReply,
   prepareTurn,
   sendMessage,
 } from '../chat.js';
 import { getCharacterCard, resolveAvatar, resolveStartingScenario } from '../models/character.js';
 import type { AvatarOption, StartingScenario } from '../models/character.js';
+import { getStoryCard } from '../models/story.js';
+import type { QuestEntry } from '../models/story.js';
 import { getPersona, DEFAULT_PERSONA } from '../models/persona.js';
 import type { Persona } from '../models/persona.js';
 import { listSessions, listTurns, getSession, insertMessage, nextMessageSeq, deleteSession as deleteSessionModel, deleteMessages as deleteMessagesModel, updateSession } from '../models/session.js';
@@ -164,6 +167,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
           properties: {
             class: { type: 'string', enum: ['character', 'story'] },
             card_id: { type: 'string' },
+            story_card_id: { type: 'string' },
             avatar_selection: { type: 'string' },
             starting_scenario_id: { type: 'string' },
             persona_id: { type: 'string' },
@@ -178,6 +182,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       const body = request.body as {
         class?: SessionClass;
         card_id?: string;
+        story_card_id?: string;
         avatar_selection?: string;
         starting_scenario_id?: string;
         persona_id?: string;
@@ -210,6 +215,45 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
           }
           scenarioSnapshot = scenario;
         }
+      }
+
+      // If a story_card_id is provided, resolve and validate scenario selection
+      let storyScenarioSnapshot: StartingScenario | undefined;
+      let storyQuestLogState: string | undefined;
+      let storyPlotFlags: string | undefined;
+
+      if (body?.story_card_id) {
+        const story = getStoryCard(body.story_card_id);
+        if (!story) {
+          return reply.code(404).send({
+            error: { code: 'story_not_found', message: `Story ${body.story_card_id} not found` },
+          });
+        }
+
+        // Validate starting_scenario_id against story's scenarios
+        if (body.starting_scenario_id) {
+          const scenario = story.starting_scenarios.find((s) => s.id === body.starting_scenario_id);
+          if (!scenario) {
+            return reply.code(400).send({
+              error: {
+                code: 'invalid_scenario',
+                message: `Starting scenario "${body.starting_scenario_id}" not found on story ${body.story_card_id}`,
+              },
+            });
+          }
+          storyScenarioSnapshot = scenario;
+        }
+
+        // Initialize per-session quest_log_state from the story's quest_log template
+        // First quest starts active, rest pending
+        const questLog: QuestEntry[] = story.quest_log.map((q, i) => ({
+          ...q,
+          status: i === 0 ? ('active' as const) : ('pending' as const),
+        }));
+        storyQuestLogState = JSON.stringify(questLog);
+
+        // Initialize per-session plot_flags from the story's starting flags
+        storyPlotFlags = JSON.stringify(story.plot_flags);
       }
 
       // Resolve persona based on persona_source
@@ -269,14 +313,17 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       const session = createSession({
         class: body?.class,
         character_card_id: body?.card_id,
+        story_card_id: body?.story_card_id,
         starting_scenario_id: body?.starting_scenario_id,
-        starting_scenario_snapshot: scenarioSnapshot,
+        starting_scenario_snapshot: scenarioSnapshot ?? storyScenarioSnapshot,
         persona_id: body?.persona_id,
         persona_snapshot: personaSnapshot,
         persona_source: personaSource,
+        quest_log_state: storyQuestLogState,
+        plot_flags: storyPlotFlags,
       });
 
-      // Persist the character's first message so it survives page reloads.
+      // Persist the card's/story's first message so it survives page reloads.
       if (card) {
         const firstMessage = scenarioSnapshot?.first_message ?? card.first_message;
         if (firstMessage) {
@@ -286,6 +333,21 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
             role: 'assistant',
             content: firstMessage,
           });
+        }
+      } else if (body?.story_card_id) {
+        const story = getStoryCard(body.story_card_id);
+        if (story) {
+          const firstMessage = storyScenarioSnapshot?.first_message
+            ?? story.starting_scenarios[0]?.first_message
+            ?? null;
+          if (firstMessage) {
+            insertMessage({
+              session_id: session.id,
+              seq: nextMessageSeq(session.id),
+              role: 'assistant',
+              content: firstMessage,
+            });
+          }
         }
       }
 
@@ -392,6 +454,9 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
           // the UI can swap its optimistic turns for real ids.
           const replyMsg = persistAssistantReply(id, text);
           yield sseFrame('done', { user_message: handle.userMessage, message: replyMsg });
+
+          // Post-turn story state extraction (fire-and-forget, non-blocking)
+          void extractStoryStateAfterTurn(adapter, id, text);
         } catch (err) {
           app.log.error({ err }, 'chat stream failed mid-response');
           yield sseFrame('error', streamError(err));

@@ -12,6 +12,7 @@
 	import {
 		chat, closeCardInfoModal, startNewPlay, openEditCardModal,
 		closeCharacterFormModal, closeImportCardModal, loadCards, loadSessions, loadPersonas,
+		loadStories,
 		closePersonaInfoModal, closePersonaFormModal,
 		closeStoryImportModal, closeStoryDraftModal,
 	} from '$lib/state/chat.svelte';
@@ -19,9 +20,9 @@
 
 	let { children } = $props();
 
-	// Load cards, sessions, and personas on mount
+	// Load cards, stories, sessions, and personas on mount
 	$effect(() => {
-		void loadCards().then(() => loadSessions());
+		void Promise.all([loadCards(), loadStories()]).then(() => loadSessions());
 		void loadPersonas();
 	});
 

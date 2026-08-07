@@ -18,10 +18,11 @@ import {
 	deleteSessionApi, deleteSessionMessages,
 	patchSession,
 	resolveFileUrl,
-	createStory,
+	createStory, getStory, listStories,
 } from '../api/chat';
 import type {
 	ApiCharacterCard, ApiExtractionDraft, ApiMessage, ApiPersona, ApiSession,
+	ApiStoryCard,
 	CreateCardInput, UpdateCardInput,
 } from '../api/chat';
 import { SAMPLE_SESSIONS } from '../data/sample';
@@ -55,6 +56,8 @@ export const chat = $state({
 	personas: [] as ApiPersona[],
 	/** All loaded character cards. */
 	cards: [] as ApiCharacterCard[],
+	/** All loaded story cards. */
+	stories: [] as ApiStoryCard[],
 	/** Character form modal state (create or edit). */
 	characterFormModal: null as {
 		mode: 'create' | 'edit';
@@ -119,6 +122,15 @@ export async function loadCards(): Promise<void> {
 	}
 }
 
+/** Load all story cards from the backend. */
+export async function loadStories(): Promise<void> {
+	try {
+		chat.stories = await listStories();
+	} catch (err) {
+		chat.cardsError = err instanceof Error ? err.message : 'Failed to load stories';
+	}
+}
+
 /** Load all personas from the backend. */
 export async function loadPersonas(): Promise<void> {
 	try {
@@ -155,7 +167,34 @@ export function closePersonaFormModal(): void {
 }
 
 /** Convert a backend ApiSession to a frontend ChatSession. */
-function sessionFromApi(s: ApiSession, cards: ApiCharacterCard[]): ChatSession {
+function sessionFromApi(
+	s: ApiSession,
+	cards: ApiCharacterCard[],
+	stories: ApiStoryCard[],
+): ChatSession {
+	// Story sessions use the story card for title/avatar
+	if (s.story_card_id) {
+		const story = stories.find((st) => st.id === s.story_card_id);
+		const title = story?.title ?? s.story_card_id ?? 'Untitled Story';
+		const avatarUrl = resolveFileUrl(story?.cover_image) ?? undefined;
+		return {
+			id: s.id,
+			title,
+			kind: 'story',
+			preview: '',
+			initials: title.slice(0, 2).toUpperCase(),
+			hue: 260,
+			storyCardId: s.story_card_id,
+			personaId: s.persona_id ?? undefined,
+			personaSource: (s.persona_source as 'default' | 'custom') ?? undefined,
+			startingScenarioId: s.starting_scenario_id ?? undefined,
+			avatarUrl,
+			favorite: s.favorite,
+			createdAt: s.created_at,
+		};
+	}
+
+	// Character sessions use the character card
 	const card = s.character_card_id ? cards.find((c) => c.id === s.character_card_id) : undefined;
 	const title = card?.name ?? s.character_card_id ?? 'Untitled';
 	const rawAvatar = s.avatar_snapshot?.image ?? card?.avatars[0]?.image ?? card?.avatar ?? card?.avatar_file ?? card?.cover_file ?? card?.cover_image ?? undefined;
@@ -181,9 +220,11 @@ function sessionFromApi(s: ApiSession, cards: ApiCharacterCard[]): ChatSession {
 export async function loadSessions(): Promise<void> {
 	try {
 		const apiSessions = await listSessions();
-		// Filter out cardless sessions (created as side-effects of legacy sends).
-		const validSessions = apiSessions.filter((s) => s.character_card_id != null);
-		chat.sessions = validSessions.map((s) => sessionFromApi(s, chat.cards));
+		// Accept sessions with either a character card or a story card.
+		const validSessions = apiSessions.filter(
+			(s) => s.character_card_id != null || s.story_card_id != null,
+		);
+		chat.sessions = validSessions.map((s) => sessionFromApi(s, chat.cards, chat.stories));
 	} catch (err) {
 		chat.sessionsError = err instanceof Error ? err.message : 'Failed to load sessions';
 	}
@@ -554,6 +595,63 @@ export async function startNewPlay(selections: {
 		chat.activeSessionId = apiSession.id;
 		nav.activeView = 'conversation';
 		chat.cardInfoModal = null;
+	} catch (err) {
+		chat.newPlayError = err instanceof Error ? err.message : 'Failed to start new play';
+	}
+}
+
+/**
+ * Start a new play session from a story card. Accepts a story card and
+ * optional persona/scenario selections (analogous to startNewPlay for
+ * character cards).
+ */
+export async function startNewStoryPlay(
+	storyCard: ApiStoryCard,
+	selections: {
+		personaId?: string;
+		personaSource?: 'default' | 'custom';
+		playerName?: string;
+		startingScenarioId?: string;
+	},
+): Promise<void> {
+	try {
+		const apiSession = await createSession({
+			storyCardId: storyCard.id,
+			personaId: selections.personaId,
+			personaSource: selections.personaSource,
+			playerName: selections.playerName,
+			startingScenarioId: selections.startingScenarioId,
+		});
+
+		backendSessions[apiSession.id] = apiSession.id;
+
+		const avatarUrl = resolveFileUrl(storyCard.cover_image) ?? undefined;
+
+		const newSession: ChatSession = {
+			id: apiSession.id,
+			title: storyCard.title,
+			kind: 'story',
+			preview: '',
+			initials: storyCard.title.slice(0, 2).toUpperCase(),
+			hue: 260,
+			storyCardId: storyCard.id,
+			personaId: selections.personaId,
+			personaSource: selections.personaSource,
+			startingScenarioId: selections.startingScenarioId,
+			avatarUrl,
+			favorite: 0,
+			createdAt: Date.now(),
+		};
+
+		chat.sessions.unshift(newSession);
+		chat.messagesBySession[apiSession.id] = [];
+
+		// The backend persists the first_message from the selected starting
+		// scenario (or the story's first message). Load messages to show it.
+		await loadSessionMessages(apiSession.id);
+
+		chat.activeSessionId = apiSession.id;
+		nav.activeView = 'conversation';
 	} catch (err) {
 		chat.newPlayError = err instanceof Error ? err.message : 'Failed to start new play';
 	}

@@ -20,6 +20,8 @@ export interface ChatSession {
 	hue: number;
 	/** Character card ID this session was created from (set on New Play). */
 	cardId?: string;
+	/** Story card ID this session was created from (set on New Play for story sessions). */
+	storyCardId?: string;
 	/** Persona ID used when creating this session. */
 	personaId?: string;
 	/** Whether the persona was default or custom. */

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { listStories, deleteStory, resolveFileUrl } from '$lib/api/chat';
 	import type { ApiStoryCard } from '$lib/api/chat';
-	import { openStoryImportModal } from '$lib/state/chat.svelte';
+	import { openStoryImportModal, startNewStoryPlay } from '$lib/state/chat.svelte';
 
 	let stories = $state<ApiStoryCard[]>([]);
 	let loading = $state(false);
@@ -35,6 +35,16 @@
 
 	function getInitials(title: string): string {
 		return title.slice(0, 2).toUpperCase();
+	}
+
+	async function handlePlay(story: ApiStoryCard): Promise<void> {
+		// Use the first starting scenario if any exist
+		const firstScenario = story.starting_scenarios.length > 0
+			? story.starting_scenarios[0]
+			: undefined;
+		await startNewStoryPlay(story, {
+			startingScenarioId: firstScenario?.id,
+		});
 	}
 </script>
 
@@ -101,6 +111,11 @@
 						</div>
 					</div>
 					<div class="story-card__actions">
+						<button class="story-card__play" onclick={() => handlePlay(story)} aria-label="Play story">
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+								<polygon points="5 3 19 12 5 21 5 3" />
+							</svg>
+						</button>
 						<button class="story-card__delete" onclick={() => handleDelete(story.id)} aria-label="Delete story">
 							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -307,11 +322,30 @@
 		position: absolute;
 		top: var(--space-2);
 		right: var(--space-2);
+		display: flex;
+		gap: var(--space-1);
 		opacity: 0;
 		transition: opacity var(--transition-fast);
 	}
 	.story-card:hover .story-card__actions {
 		opacity: 1;
+	}
+
+	.story-card__play {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border: none;
+		border-radius: 50%;
+		background: rgba(0, 0, 0, 0.6);
+		color: white;
+		cursor: pointer;
+		transition: background var(--transition-fast);
+	}
+	.story-card__play:hover {
+		background: var(--accent);
 	}
 
 	.story-card__delete {
