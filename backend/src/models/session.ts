@@ -28,6 +28,8 @@ export interface SessionRow {
   persona_snapshot: Persona | null;
   /** "default" = resolved from card's default_persona + player_name; "custom" = from persona library. */
   persona_source: string | null;
+  /** 1 = user has marked this session as favorite. */
+  favorite: number;
 }
 
 export interface MessageRow {
@@ -73,8 +75,8 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
   try {
     const id = allocateId(db, 'sess');
     db.prepare(
-      `INSERT INTO session (id, class, created_at, provider, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO session (id, class, created_at, provider, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, favorite)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       sessionClass,
@@ -88,6 +90,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
       input.persona_id ?? null,
       input.persona_snapshot ? JSON.stringify(input.persona_snapshot) : null,
       input.persona_source ?? null,
+      0,
     );
     db.exec('COMMIT');
     return {
@@ -105,6 +108,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
       persona_id: input.persona_id ?? null,
       persona_snapshot: input.persona_snapshot ?? null,
       persona_source: input.persona_source ?? null,
+      favorite: 0,
     };
   } catch (err) {
     db.exec('ROLLBACK');
@@ -115,7 +119,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
 export function getSession(id: string): SessionRow | undefined {
   const row = getDb()
     .prepare(
-      'SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source FROM session WHERE id = ?',
+      'SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, favorite FROM session WHERE id = ?',
     )
     .get(id) as unknown as SessionRowRaw | undefined;
   if (!row) return undefined;
@@ -143,6 +147,7 @@ interface SessionRowRaw {
   persona_id: string | null;
   persona_snapshot: string | null;
   persona_source: string | null;
+  favorite: number;
 }
 
 /** Parse a JSON column, returning a fallback on null/empty/malformed. */
@@ -159,7 +164,7 @@ function parseJson<T>(raw: string | null, fallback: T): T {
 export function listSessions(): SessionRow[] {
   const rows = getDb()
     .prepare(
-      `SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source
+      `SELECT id, class, created_at, provider, model, small_model, character_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, favorite
        FROM session
        ORDER BY created_at DESC`,
     )
@@ -239,6 +244,40 @@ export function listTurns(sessionId: string): MessageRow[] {
 /** Delete a session and its messages (cascade via FK). */
 export function deleteSession(id: string): void {
   getDb().prepare('DELETE FROM session WHERE id = ?').run(id);
+}
+
+/** Partial patch for updating a session. */
+export interface UpdateSessionInput {
+  favorite?: number | undefined;
+}
+
+/**
+ * Update a session by id. Returns the updated session, or undefined
+ * if the id doesn't exist. Only provided fields are written.
+ */
+export function updateSession(
+  id: string,
+  patch: UpdateSessionInput,
+): SessionRow | undefined {
+  const existing = getSession(id);
+  if (!existing) return undefined;
+
+  const db = getDb();
+  const sets: string[] = [];
+  const values: (string | number)[] = [];
+
+  for (const [key, val] of Object.entries(patch)) {
+    if (val === undefined) continue;
+    sets.push(`${key} = ?`);
+    values.push(val);
+  }
+
+  if (sets.length === 0) return existing;
+
+  values.push(id);
+  db.prepare(`UPDATE session SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+
+  return getSession(id);
 }
 
 /** Delete all messages for a session. */

@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS session (
   starting_scenario_snapshot TEXT,                     -- JSON snapshot of the selected StartingScenario
   persona_id TEXT,                                    -- which persona (user identity) the user picked
   persona_snapshot TEXT,                              -- JSON snapshot of the selected Persona
-  persona_source TEXT                                 -- "default" (from scenario) or "custom" (from library)
+  persona_source TEXT,                                -- "default" (from scenario) or "custom" (from library)
+  favorite INTEGER NOT NULL DEFAULT 0                 -- 1 = user has marked this session as favorite
 );
 
 CREATE TABLE IF NOT EXISTS message (
@@ -109,7 +110,10 @@ CREATE TABLE IF NOT EXISTS character_card (
 
   -- Timestamps
   created_at      INTEGER NOT NULL,
-  updated_at      INTEGER NOT NULL
+  updated_at      INTEGER NOT NULL,
+
+  -- User preferences
+  favorite        INTEGER NOT NULL DEFAULT 0          -- 1 = user has marked this card as favorite
 );
 
 -- ──────────────────────────────────────────────────────────────────────

@@ -154,6 +154,9 @@ export interface CharacterCard {
   source: 'playime' | 'chub' | 'sillytavern' | 'unknown';
   sourceId: string | null;
 
+  // User preferences
+  favorite: number;
+
   created_at: number;
   updated_at: number;
 }
@@ -205,6 +208,7 @@ interface CharacterCardRow {
   stats: string;
   source: string;
   source_id: string | null;
+  favorite: number;
   created_at: number;
   updated_at: number;
 }
@@ -256,6 +260,7 @@ function rowToCard(row: CharacterCardRow): CharacterCard {
     }),
     source: row.source as 'playime' | 'chub' | 'sillytavern' | 'unknown',
     sourceId: row.source_id,
+    favorite: row.favorite,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -321,7 +326,7 @@ const SELECT_COLS = [
   'mes_example', 'system_prompt', 'post_history_instructions', 'creator',
   'creator_notes', 'character_version', 'world_info', 'extensions',
   'avatar_file', 'cover_file', 'cover_image', 'creator_name', 'tags', 'description', 'prologue_preview',
-  'stats', 'source', 'source_id', 'created_at', 'updated_at',
+  'stats', 'source', 'source_id', 'favorite', 'created_at', 'updated_at',
 ].join(', ');
 
 /** List all character cards, newest first. */
@@ -376,6 +381,9 @@ export interface CreateCharacterCardInput {
   // Import provenance
   source?: 'playime' | 'chub' | 'sillytavern' | 'unknown' | undefined;
   sourceId?: string | null | undefined;
+
+  // User preferences
+  favorite?: number | undefined;
 }
 
 /** Create a character card, returning the full row. */
@@ -411,8 +419,8 @@ export function createCharacterCard(input: CreateCharacterCardInput): CharacterC
         system_prompt, post_history_instructions, creator, creator_notes,
         character_version, world_info, extensions, avatar_file, cover_file,
         cover_image, creator_name, tags, description, prologue_preview, stats,
-        source, source_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        source, source_id, favorite, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       input.name,
@@ -447,6 +455,7 @@ export function createCharacterCard(input: CreateCharacterCardInput): CharacterC
       JSON.stringify(stats),
       input.source ?? 'playime',
       input.sourceId ?? null,
+      input.favorite ?? 0,
       now,
       now,
     );
@@ -492,6 +501,9 @@ export interface UpdateCharacterCardInput {
   description?: string | null | undefined;
   prologue_preview?: string | null | undefined;
   stats?: CardStats | undefined;
+
+  // User preferences
+  favorite?: number | undefined;
 }
 
 /** Columns whose JSON values need `JSON.stringify` when patching. */
@@ -639,6 +651,7 @@ export const YEHWA_CARD: CharacterCard = {
   stats: { replay_count: 0, like_count: 0, comment_count: 0 },
   source: 'playime',
   sourceId: null,
+  favorite: 0,
   created_at: 0,
   updated_at: 0,
 };
@@ -713,6 +726,7 @@ export const MIKO_CARD: CharacterCard = {
   stats: { replay_count: 0, like_count: 0, comment_count: 0 },
   source: 'playime',
   sourceId: null,
+  favorite: 0,
   created_at: 0,
   updated_at: 0,
 };

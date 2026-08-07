@@ -15,6 +15,7 @@ import {
 	createCard, updateCard, deleteCard,
 	listSessions, listSessionMessages,
 	deleteSessionApi, deleteSessionMessages,
+	patchSession,
 	resolveFileUrl,
 } from '../api/chat';
 import type {
@@ -119,6 +120,7 @@ function sessionFromApi(s: ApiSession, cards: ApiCharacterCard[]): ChatSession {
 		personaSource: (s.persona_source as 'default' | 'custom') ?? undefined,
 		startingScenarioId: s.starting_scenario_id ?? undefined,
 		avatarUrl,
+		favorite: s.favorite,
 		createdAt: s.created_at,
 	};
 }
@@ -263,6 +265,24 @@ export async function resetSession(sessionId: string): Promise<void> {
 	chat.activeSessionId = sessionId;
 }
 
+/** Toggle the favorite state of a session (backend + frontend). */
+export async function toggleFavorite(sessionId: string): Promise<void> {
+	const session = chat.sessions.find((s) => s.id === sessionId);
+	if (!session) return;
+
+	const newFavorite = session.favorite ? 0 : 1;
+	// Optimistic update
+	session.favorite = newFavorite;
+
+	try {
+		await patchSession(sessionId, { favorite: newFavorite });
+	} catch (err) {
+		// Revert on failure
+		session.favorite = newFavorite ? 0 : 1;
+		chat.sessionsError = err instanceof Error ? err.message : 'Failed to update favorite';
+	}
+}
+
 // ── Bulk selection ──────────────────────────────────────────────────────
 
 /** Toggle a session's selection state. */
@@ -356,6 +376,7 @@ export async function startNewPlay(selections: {
 			playerName: selections.playerName,
 			startingScenarioId: selections.startingScenarioId,
 			avatarUrl,
+			favorite: 0,
 			createdAt: Date.now(),
 		};
 

@@ -22,8 +22,8 @@ import { getCharacterCard, resolveAvatar, resolveStartingScenario } from '../mod
 import type { AvatarOption, StartingScenario } from '../models/character.js';
 import { getPersona } from '../models/persona.js';
 import type { Persona } from '../models/persona.js';
-import { listSessions, listTurns, getSession, insertMessage, nextMessageSeq, deleteSession as deleteSessionModel, deleteMessages as deleteMessagesModel } from '../models/session.js';
-import type { SessionClass } from '../models/session.js';
+import { listSessions, listTurns, getSession, insertMessage, nextMessageSeq, deleteSession as deleteSessionModel, deleteMessages as deleteMessagesModel, updateSession } from '../models/session.js';
+import type { SessionClass, UpdateSessionInput } from '../models/session.js';
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
   // One shared adapter for the server's lifetime; disposed on shutdown.
@@ -88,6 +88,44 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       }
       deleteSessionModel(id);
       return reply.code(204).send();
+    },
+  );
+
+  // ── PATCH /api/sessions/:id ──────────────────────────────────────────
+  // Partial update (currently: favorite toggle).
+  app.patch(
+    '/api/sessions/:id',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+        body: {
+          type: 'object',
+          properties: {
+            favorite: { type: 'number' },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const body = request.body as UpdateSessionInput | undefined;
+      if (!body) {
+        return reply.code(400).send({
+          error: { code: 'invalid_body', message: 'Request body is required' },
+        });
+      }
+      const session = updateSession(id, body);
+      if (!session) {
+        return reply.code(404).send({
+          error: { code: 'session_not_found', message: `Session ${id} not found` },
+        });
+      }
+      return reply.send(session);
     },
   );
 

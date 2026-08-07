@@ -30,6 +30,8 @@ export interface ChatSession {
 	startingScenarioId?: string;
 	/** Avatar image URL from the selected avatar option. */
 	avatarUrl?: string;
+	/** 1 = user has marked this session as favorite. */
+	favorite: number;
 	/** Timestamp when the session was created (ms since epoch). */
 	createdAt: number;
 }

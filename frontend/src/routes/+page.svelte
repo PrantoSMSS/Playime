@@ -3,6 +3,7 @@
 	import ChatInput from '$lib/components/chat/ChatInput.svelte';
 	import ChatTopBar from '$lib/components/chat/ChatTopBar.svelte';
 	import ChatsList from '$lib/components/chat/ChatsList.svelte';
+	import Home from '$lib/components/chat/Home.svelte';
 	import MessageList from '$lib/components/chat/MessageList.svelte';
 	import { chat, sendMessage } from '$lib/state/chat.svelte';
 	import { nav } from '$lib/state/nav.svelte';
@@ -20,6 +21,8 @@
 			<ChatInput onSend={handleSend} disabled={chat.sending} />
 		</div>
 	</div>
+{:else if nav.activeView === 'home'}
+	<Home />
 {:else if nav.activeView === 'character'}
 	<CharacterGrid />
 {:else if nav.activeView === 'chats'}

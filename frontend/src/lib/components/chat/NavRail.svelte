@@ -7,6 +7,7 @@
 	// product (CLAUDE.md: explicitly skip monetization plumbing).
 	type NavItemId = Exclude<NavView, 'conversation'>;
 	const NAV_ITEMS: { id: NavItemId; label: string }[] = [
+		{ id: 'home', label: 'Home' },
 		{ id: 'search', label: 'Search' },
 		{ id: 'story', label: 'Story' },
 		{ id: 'character', label: 'Character' },

@@ -4,42 +4,45 @@
  * Components reference these variables and never hardcode hex values, so the
  * whole palette can be swapped in one file without touching any layout code.
  *
- * Palette: deep teal / emerald dark theme (deliberately NOT OOC's neutral
- * black/gray — only the layout structure is shared, never the colors).
+ * Palette: near-black background with blue accent — dark theme for long
+ * reading sessions. Neutral enough to let character/story art carry the
+ * personality.
  */
 
 :root {
 	/* ===== Color palette ===== */
-	--bg: #071615; /* app background */
-	--bg-raised: #0d1e1c; /* raised panels, top bar */
-	--surface: #122523; /* nav rail, panels */
-	--surface-elevated: #19352f; /* cards, input pill */
-	--border: #264b43; /* hairline borders */
-	--border-subtle: #1c3933; /* softer hairlines (subtle dividers) */
+	--bg: #0a0a0a; /* app background */
+	--bg-raised: #141414; /* raised panels, top bar */
+	--surface: #1a1a1a; /* nav rail, panels */
+	--surface-elevated: #242424; /* cards, input pill */
+	--border: #2e2e2e; /* hairline borders */
+	--border-subtle: #222222; /* softer hairlines (subtle dividers) */
 
-	--text: #edf8f5; /* primary text — warm off-white */
-	--text-secondary: #b5cbc6; /* secondary text / UI labels */
-	--text-muted: #9cb6b1; /* metadata — weakest, still readable */
+	--text: #f0f0f0; /* primary text */
+	--text-secondary: #a0a0a0; /* secondary text / UI labels */
+	--text-muted: #666666; /* metadata — weakest, still readable */
 
-	--accent: #2dd4bf; /* primary accent */
-	--accent-hover: #5eead4; /* accent on hover */
-	--accent-muted: #20665a; /* accent tinted darker (active tabs) */
-	--accent-soft: #164f47; /* accent-tinted background */
-	--on-accent: #04201c; /* text/icon on accent fills */
+	--accent: #3b82f6; /* primary accent — blue */
+	--accent-hover: #60a5fa; /* accent on hover */
+	--accent-muted: #1e40af; /* accent tinted darker (active tabs) */
+	--accent-soft: #1a2744; /* accent-tinted background */
+	--on-accent: #ffffff; /* text/icon on accent fills */
 
-	--user-bg: #17483f; /* user message pill */
-	--user-border: #2a6a5e; /* user message pill border */
-	--user-text: #edf8f5; /* text inside the user pill */
+	--user-bg: #1e1e1e; /* user message pill */
+	--user-border: #333333; /* user message pill border */
+	--user-text: #f0f0f0; /* text inside the user pill */
 
-	--assistant-bg: #1b3a33; /* AI message bubble — mirrors the user pill shape, distinct color */
-	--assistant-border: #264b43; /* AI message bubble border */
+	--assistant-bg: #161616; /* AI message bubble — mirrors the user pill shape, distinct color */
+	--assistant-border: #2a2a2a; /* AI message bubble border */
 
-	--ai-dialogue: #f4fbf9; /* AI quoted dialogue — strongest reading */
-	--ai-narration: #bcd1cc; /* AI non-dialogue text (narration + stage direction) */
+	--ai-dialogue: #f5f5f5; /* AI quoted dialogue — strongest reading */
+	--ai-narration: #999999; /* AI non-dialogue text (narration + stage direction) */
 
-	--icon: #94aeaa; /* default icon color */
-	--icon-hover: #d5e6e2; /* icon on hover */
-	--icon-active: #5eead4; /* active / selected icon */
+	--icon: #888888; /* default icon color */
+	--icon-hover: #cccccc; /* icon on hover */
+	--icon-active: #3b82f6; /* active / selected icon */
+
+	--favorite: #f43f5e; /* heart / favorite toggle */
 
 	/* ===== Spacing scale ===== */
 	--space-1: 4px;

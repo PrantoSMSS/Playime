@@ -59,6 +59,7 @@ function runMigrations(db: DatabaseSync): void {
     ['persona_id', 'TEXT'],
     ['persona_snapshot', 'TEXT'],
     ['persona_source', 'TEXT'],
+    ['favorite', 'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, typedef] of sessionColumns) {
     try {
@@ -78,6 +79,7 @@ function runMigrations(db: DatabaseSync): void {
     ['cover_file', 'TEXT'],
     ['source', "TEXT NOT NULL DEFAULT 'playime'"],
     ['source_id', 'TEXT'],
+    ['favorite', 'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, typedef] of cardColumns) {
     try {

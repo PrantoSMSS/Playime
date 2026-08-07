@@ -25,6 +25,7 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 		hue: 172,
 		cardId: 'yehwa',
 		startingScenarioId: 'evening',
+		favorite: 0,
 		createdAt: now - 2 * MINUTE,
 	},
 	{
@@ -36,6 +37,7 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 		hue: 172,
 		cardId: 'yehwa',
 		startingScenarioId: 'plum',
+		favorite: 0,
 		createdAt: now - 37 * MINUTE,
 	},
 	{
@@ -47,6 +49,7 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 		hue: 172,
 		cardId: 'yehwa',
 		startingScenarioId: 'night-watch',
+		favorite: 0,
 		createdAt: now - 3 * 60 * MINUTE,
 	},
 	{
@@ -58,6 +61,7 @@ export const SAMPLE_SESSIONS: ChatSession[] = [
 		hue: 320,
 		cardId: '215fb191-9d97-45eb-8029-394ab92fe0d7',
 		startingScenarioId: 'doorstep',
+		favorite: 0,
 		createdAt: now - 24 * 60 * MINUTE,
 	},
 ];

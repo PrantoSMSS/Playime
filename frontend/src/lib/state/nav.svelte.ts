@@ -11,6 +11,7 @@
 
 /** All possible views, including the implicit 'conversation' view. */
 export type NavView =
+	| 'home'
 	| 'search'
 	| 'story'
 	| 'character'
@@ -21,7 +22,7 @@ export type NavView =
 
 /** Which page is currently active. */
 export const nav = $state({
-	activeView: 'character' as NavView,
+	activeView: 'home' as NavView,
 });
 
 /** Chats sub-tab filter. */

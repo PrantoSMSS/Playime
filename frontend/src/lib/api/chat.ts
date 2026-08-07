@@ -107,6 +107,7 @@ export interface ApiSession {
 	persona_id: string | null;
 	persona_snapshot: ApiPersona | null;
 	persona_source: string | null;
+	favorite: number;
 }
 
 /** A persona (user identity) from the backend. */
@@ -288,6 +289,18 @@ export function createSession(options?: {
 /** List all sessions from the backend, newest first. */
 export function listSessions(): Promise<ApiSession[]> {
 	return request<ApiSession[]>('/api/sessions', { method: 'GET' });
+}
+
+/** Partially update a session (e.g. toggle favorite). */
+export function patchSession(
+	sessionId: string,
+	patch: { favorite?: number },
+): Promise<ApiSession> {
+	return request<ApiSession>(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+		method: 'PATCH',
+		body: JSON.stringify(patch),
+		headers: { 'Content-Type': 'application/json' },
+	});
 }
 
 /** List all visible messages for a session. */
