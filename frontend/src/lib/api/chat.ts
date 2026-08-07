@@ -498,6 +498,125 @@ export async function deleteStory(id: string): Promise<void> {
 	await request<void>(`/api/stories/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
+// ── Story Extraction ────────────────────────────────────────────────────
+
+/** Stage progress event from the extraction pipeline. */
+export interface ApiStageProgress {
+	stage: 'outline' | 'cast' | 'quests';
+	status: 'started' | 'done';
+}
+
+/** NPC extracted from source text. */
+export interface ApiExtractedNpc {
+	id: string;
+	name: string;
+	description: string;
+	relationship_state: { affection: number; trust: number; flags: string[] };
+}
+
+/** The draft returned by the extraction pipeline (not yet persisted). */
+export interface ApiExtractionDraft {
+	title: string;
+	genre: string;
+	premise: string;
+	tone: string;
+	locations: string[];
+	npcs: ApiExtractedNpc[];
+	quest_log: ApiQuestEntry[];
+}
+
+/** SSE event from the extraction stream. */
+export type ApiExtractionEvent =
+	| { type: 'stage'; data: ApiStageProgress }
+	| { type: 'done'; data: { draft: ApiExtractionDraft } }
+	| { type: 'error'; data: { code: string; message: string } };
+
+/**
+ * Run the AI extraction pipeline via SSE.
+ *
+ * Sends the source text, receives stage progress events, and resolves
+ * with the final draft. Calls `onStage` for each stage progress event.
+ *
+ * @returns The extraction draft (not persisted).
+ */
+export async function extractStory(
+	text: string,
+	onStage?: (stage: ApiStageProgress) => void,
+): Promise<ApiExtractionDraft> {
+	const res = await fetch(`${BASE}/api/stories/extract`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ text }),
+	});
+
+	if (!res.ok) {
+		throw await errorFrom(res);
+	}
+
+	const reader = res.body?.getReader();
+	if (!reader) throw new ApiError(500, 'no_body', 'No response body');
+
+	const decoder = new TextDecoder();
+	let buffer = '';
+	let draft: ApiExtractionDraft | undefined;
+
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		buffer += decoder.decode(value, { stream: true });
+
+		// Parse SSE frames: "event: X\ndata: Y\n\n"
+		const parts = buffer.split('\n\n');
+		buffer = parts.pop() ?? '';
+
+		for (const part of parts) {
+			if (!part.trim()) continue;
+			const eventMatch = part.match(/^event:\s*(.+)$/m);
+			const dataMatch = part.match(/^data:\s*(.+)$/m);
+			if (!eventMatch || !dataMatch) continue;
+
+			const event = eventMatch[1].trim();
+			let data: unknown;
+			try {
+				data = JSON.parse(dataMatch[1]);
+			} catch {
+				continue;
+			}
+
+			if (event === 'stage') {
+				onStage?.(data as ApiStageProgress);
+			} else if (event === 'done') {
+				draft = (data as { draft: ApiExtractionDraft }).draft;
+			} else if (event === 'error') {
+				const err = data as { code: string; message: string };
+				throw new ApiError(502, err.code, err.message);
+			}
+		}
+	}
+
+	if (!draft) {
+		throw new ApiError(502, 'no_draft', 'Extraction completed but no draft was returned');
+	}
+	return draft;
+}
+
+/** Regenerate a single quest entry without rerunning the full pipeline. */
+export async function regenerateQuest(
+	questId: string,
+	questLog: ApiQuestEntry[],
+	outline: { title: string; genre: string; premise: string; tone: string; locations: { name: string; description: string }[]; beats: { summary: string; order: number }[] },
+	cast: { npcs: { name: string; personality: string; speech_style: string; tagline: string }[] },
+): Promise<ApiQuestEntry> {
+	const res = await request<{ quest: ApiQuestEntry }>(
+		`/api/stories/extract/quest/${encodeURIComponent(questId)}/regenerate`,
+		{
+			method: 'POST',
+			body: JSON.stringify({ quest_log: questLog, outline, cast }),
+		},
+	);
+	return res.quest;
+}
+
 /** Upload an image file to the entity storage. Returns the saved filename and relative path. */
 export async function uploadAvatar(
 	entityType: string,

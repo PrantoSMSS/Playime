@@ -82,21 +82,21 @@ Runs on the existing roleplay `LmAdapter` (opencode) via `generate()` with
 strict-JSON prompts, same pattern as other structured-extraction calls in
 this codebase. No new adapter needed — this is pure text.
 
-- [ ] `backend/src/story-extraction.ts` — orchestrates the pipeline as
+- [x] `backend/src/story-extraction.ts` — orchestrates the pipeline as
       three sequential stages, each a separate prompt + JSON parse/validate
       step so a bad output at stage 2 doesn't have to be diagnosed inside a
       monolithic call:
 
-  - [ ] **Stage 1 — Outline.** Input: full source text (chunked — see
+  - [x] **Stage 1 — Outline.** Input: full source text (chunked — see
         below). Output: `{ title, genre, tone, premise, locations: [{name,
         description}], beats: [{summary, order}] }` — a rough ordered list
         of major turns in plain language, no quest formatting yet. This is
         the scaffold later stages build on.
-  - [ ] **Stage 2 — Cast.** Input: outline + source text. Output:
+  - [x] **Stage 2 — Cast.** Input: outline + source text. Output:
         `npcs: [{name, personality, speech_style, tagline}]` — one entry
         per named character who matters to the plot (heuristic: appears in
         more than one beat, or is explicitly named as significant).
-  - [ ] **Stage 3 — Quest chain.** Input: outline's `beats` + cast. Output:
+  - [x] **Stage 3 — Quest chain.** Input: outline's `beats` + cast. Output:
         the actual `quest_log` — one `QuestEntry` per beat (`title,
         objective, order, origin: 'source'`), plus **one additional
         appended entry** for the ending: `origin: 'projected',
@@ -109,13 +109,13 @@ this codebase. No new adapter needed — this is pure text.
         evaluation, not guaranteed accurate; the user can edit them in
         Phase 3's review step.
 
-- [ ] **Chunking for long input.** If source text exceeds a safe token
+- [x] **Chunking for long input.** If source text exceeds a safe token
       budget for Stage 1, split into sequential segments, summarize each
       segment individually, then feed the concatenated segment summaries
       into the outline prompt instead of raw text (map-reduce, not a
       single giant call). Needs a defined chunk size and overlap so beats
       spanning a chunk boundary aren't lost.
-- [ ] `POST /api/stories/extract` — takes `{ text: string }`, runs all
+- [x] `POST /api/stories/extract` — takes `{ text: string }`, runs all
       three stages, returns the assembled draft (`title, genre, premise,
       tone, locations, npcs, quest_log`) **without writing to the DB** —
       same "propose, don't commit" pattern as the persona autofill idea.
@@ -123,10 +123,13 @@ this codebase. No new adapter needed — this is pure text.
       'quests', status: 'started' | 'done'}`) so the UI can show real
       progress instead of one long spinner, given this is a multi-call
       pipeline that will take a while on longer stories.
-- [ ] `POST /api/stories/extract/quest/:questId/regenerate` (or similar) —
+- [x] `POST /api/stories/extract/quest/:questId/regenerate` (or similar) —
       re-runs just Stage 3's prompt for a single quest given the existing
       outline/cast context, so the user can regenerate one weak entry
       without rerunning the whole pipeline.
+- [x] `frontend/src/lib/api/chat.ts` — `ApiExtractionDraft`,
+      `ApiStageProgress`, `ApiExtractedNpc` types + `extractStory()`
+      (SSE-based) and `regenerateQuest()` client functions.
 
 ---
 
