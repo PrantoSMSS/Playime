@@ -1,8 +1,8 @@
 /**
  * Navigation / routing state.
  *
- * Owns which page is currently active (`activeView`) and the Chats
- * sub-tab filter (`chatsTab`). Consumed by NavRail, ChatsList,
+ * Owns which page is currently active (`activeView`) and the Records
+ * sub-tab filter (`recordsTab`). Consumed by NavRail, ChatsList,
  * +page.svelte, and ChatTopBar.
  *
  * `'conversation'` is an implicit view — not shown in the nav rail,
@@ -15,7 +15,7 @@ export type NavView =
 	| 'search'
 	| 'story'
 	| 'character'
-	| 'chats'
+	| 'records'
 	| 'personas'
 	| 'notifications'
 	| 'conversation';
@@ -25,10 +25,10 @@ export const nav = $state({
 	activeView: 'home' as NavView,
 });
 
-/** Chats sub-tab filter. */
-export type ChatsTab = 'story' | 'character';
+/** Records sub-tab filter. */
+export type RecordsTab = 'story' | 'character';
 
-/** Active Chats tab (Story / Character). */
-export const chatsTab = $state({
-	tab: 'character' as ChatsTab,
+/** Active Records tab (Story / Character). */
+export const recordsTab = $state({
+	tab: 'character' as RecordsTab,
 });

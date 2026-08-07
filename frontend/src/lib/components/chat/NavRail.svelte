@@ -10,8 +10,8 @@
 		{ id: 'home', label: 'Home' },
 		{ id: 'search', label: 'Search' },
 		{ id: 'story', label: 'Story' },
-		{ id: 'character', label: 'Character' },
-		{ id: 'chats', label: 'Chats' },
+		{ id: 'character', label: 'Characters' },
+		{ id: 'records', label: 'Records' },
 		{ id: 'personas', label: 'Personas' },
 		{ id: 'notifications', label: 'Notifications' }
 	];

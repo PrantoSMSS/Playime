@@ -28,7 +28,7 @@
 </script>
 
 <header class="top-bar">
-	<button class="icon-btn" title="Back" onclick={() => (nav.activeView = 'chats')}>
+	<button class="icon-btn" title="Back" onclick={() => (nav.activeView = 'records')}>
 		<Icon name="chevron-left" size={22} />
 	</button>
 

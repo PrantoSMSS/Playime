@@ -4,7 +4,7 @@
 		toggleSelection, selectAll, enterSelectionMode, exitSelectionMode,
 		bulkDeleteSessions, bulkResetSessions,
 	} from '$lib/state/chat.svelte';
-	import { nav, chatsTab } from '$lib/state/nav.svelte';
+	import { nav, recordsTab } from '$lib/state/nav.svelte';
 	import type { ChatSession } from '$lib/types/chat';
 	import Avatar from './Avatar.svelte';
 	import Icon from './Icon.svelte';
@@ -13,7 +13,7 @@
 	let menuOpenId = $state<string | null>(null);
 
 	const filteredSessions = $derived(
-		chat.sessions.filter((s) => s.kind === chatsTab.tab),
+		chat.sessions.filter((s) => s.kind === recordsTab.tab),
 	);
 
 	const selectedCount = $derived.by(() => Object.keys(chat.selectedSessionIds).length);
@@ -90,7 +90,7 @@
 		{#if chat.selectionMode}
 			<h2 class="history-list__title">Select conversations</h2>
 		{:else}
-			<h2 class="history-list__title">Chats</h2>
+			<h2 class="history-list__title">Records</h2>
 		{/if}
 		<div class="history-list__header-actions">
 			{#if chat.selectionMode}
@@ -110,17 +110,17 @@
 				<div class="history-list__tabs" role="tablist">
 					<button
 						class="history-list__tab"
-						class:history-list__tab--active={chatsTab.tab === 'story'}
+						class:history-list__tab--active={recordsTab.tab === 'story'}
 						role="tab"
-						onclick={() => (chatsTab.tab = 'story')}
+						onclick={() => (recordsTab.tab = 'story')}
 					>
 						Story
 					</button>
 					<button
 						class="history-list__tab"
-						class:history-list__tab--active={chatsTab.tab === 'character'}
+						class:history-list__tab--active={recordsTab.tab === 'character'}
 						role="tab"
-						onclick={() => (chatsTab.tab = 'character')}
+						onclick={() => (recordsTab.tab = 'character')}
 					>
 						Character
 					</button>
@@ -132,7 +132,7 @@
 
 	<div class="history-list__items">
 		{#if filteredSessions.length === 0}
-			<p class="history-list__empty">No {chatsTab.tab} sessions yet.</p>
+			<p class="history-list__empty">No {recordsTab.tab} sessions yet.</p>
 		{/if}
 		{#each filteredSessions as s (s.id)}
 			<!-- svelte-ignore a11y_click_events_have_key_events -->

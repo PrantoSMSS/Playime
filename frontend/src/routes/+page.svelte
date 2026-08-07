@@ -26,7 +26,7 @@
 	<Home />
 {:else if nav.activeView === 'character'}
 	<CharacterGrid />
-{:else if nav.activeView === 'chats'}
+{:else if nav.activeView === 'records'}
 	<ChatsList />
 {:else if nav.activeView === 'personas'}
 	<Personas />
