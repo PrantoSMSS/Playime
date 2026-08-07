@@ -48,6 +48,8 @@ export const chat = $state({
 	personasError: null as string | null,
 	/** Card info modal state. */
 	cardInfoModal: null as { card: ApiCharacterCard; source?: 'card-browser' | 'conversation' } | null,
+	/** When true, CardInfoModal is hidden (CSS) but preserved in DOM. */
+	cardInfoModalHidden: false,
 	/** Available personas for the New Play persona picker. */
 	personas: [] as ApiPersona[],
 	/** All loaded character cards. */
@@ -65,7 +67,7 @@ export const chat = $state({
 	/** Persona info modal state (read-only view). */
 	personaInfoModal: null as { persona: ApiPersona } | null,
 	/** Persona form modal state (create or edit). */
-	personaFormModal: null as { mode: 'create' | 'edit'; persona?: ApiPersona } | null,
+	personaFormModal: null as { mode: 'create' | 'edit'; persona?: ApiPersona; oncreated?: (persona: ApiPersona) => void } | null,
 	/** Bulk selection mode for the Records list. */
 	selectionMode: false,
 	/** IDs of currently selected sessions (bulk operations). Object for Svelte 5 reactivity. */
@@ -141,6 +143,10 @@ export function openPersonaFormModal(mode: 'create' | 'edit', persona?: ApiPerso
 /** Close the persona form modal. */
 export function closePersonaFormModal(): void {
 	chat.personaFormModal = null;
+	// Re-show CardInfoModal if it was hidden for persona creation
+	if (chat.cardInfoModalHidden) {
+		chat.cardInfoModalHidden = false;
+	}
 }
 
 /** Convert a backend ApiSession to a frontend ChatSession. */

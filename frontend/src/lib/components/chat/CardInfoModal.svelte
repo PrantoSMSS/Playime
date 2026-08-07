@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { ApiCharacterCard, ApiStartingScenario, ApiPersona, ApiDefaultPersona } from '$lib/api/chat';
 	import { parseMessage } from '$lib/messageParse';
-	import { chat, removeCard, closeCardInfoModal, openEditCardModal } from '$lib/state/chat.svelte';
+	import { chat, removeCard, closeCardInfoModal, openEditCardModal, openPersonaFormModal } from '$lib/state/chat.svelte';
 	import { exportCardAsJson, exportCardAsPng, resolveFileUrl } from '$lib/api/chat';
 	import Modal from './Modal.svelte';
 	import DeleteConfirmButton from './DeleteConfirmButton.svelte';
@@ -48,6 +48,29 @@
 	let isDeleting = $state(false);
 	let isExporting = $state(false);
 	let localError = $state<string | null>(null);
+	let personaDropdownOpen = $state(false);
+	let pendingNewPersona = $state(false);
+
+	// Auto-select newly created persona when it appears in the refreshed list
+	$effect(() => {
+		if (!pendingNewPersona) return;
+		const personas = chat.personas;
+		// Find the most recently created persona (highest created_at)
+		const newest = personas.reduce((a, b) => (a.created_at > b.created_at ? a : b));
+		if (newest) {
+			personaSelectValue = `custom:${newest.id}`;
+			pendingNewPersona = false;
+		}
+	});
+
+	// Svelte action: close dropdown when clicking outside
+	function clickOutside(node: HTMLElement, callback: () => void) {
+		const handleClick = (e: MouseEvent) => {
+			if (!node.contains(e.target as Node)) callback();
+		};
+		document.addEventListener('click', handleClick, true);
+		return { destroy: () => document.removeEventListener('click', handleClick, true) };
+	}
 
 	// ── Derived values ────────────────────────────────────────────────────
 	const selectedScenario = $derived(
@@ -91,8 +114,16 @@
 		return '';
 	});
 
-	function handlePersonaSelect(e: Event) {
-		personaSelectValue = (e.target as HTMLSelectElement).value;
+	function handleCreatePersona(): void {
+		personaDropdownOpen = false;
+		pendingNewPersona = true;
+		chat.cardInfoModalHidden = true;
+		openPersonaFormModal('create');
+	}
+
+	function selectPersona(value: string): void {
+		personaSelectValue = value;
+		personaDropdownOpen = false;
 	}
 
 	// Play button enabled state — only needs a scenario selection
@@ -196,7 +227,7 @@
 
 <svelte:window onpointerdown={handleClickOutside} />
 
-<Modal title="Character Information" {onclose} aria-labelledby="card-info-title" backdropclose={false}>
+<Modal title="Character Information" {onclose} aria-labelledby="card-info-title" backdropclose={false} hidden={chat.cardInfoModalHidden}>
 	<!-- Top section: image left, info right -->
 	<div class="modal__top">
 		{#if displayImage()}
@@ -288,18 +319,54 @@
 		{/if}
 
 		<div class="modal__personas">
-			<select
-				class="modal__persona-select"
-				value={personaSelectValue}
-				onchange={handlePersonaSelect}
-			>
-				<option value="default">{defaultPersonaLabel()}</option>
-				{#each customPersonas as persona (persona.id)}
-					<option value="custom:{persona.id}">
-						{persona.name}{persona.description ? ` — ${persona.description}` : ''}
-					</option>
-				{/each}
-			</select>
+			<div class="persona-dropdown" use:clickOutside={() => (personaDropdownOpen = false)}>
+				<button
+					type="button"
+					class="modal__persona-select persona-dropdown__trigger"
+					onclick={() => (personaDropdownOpen = !personaDropdownOpen)}
+				>
+					<span class="persona-dropdown__label">
+						{#if personaSelectValue === 'default'}
+							{defaultPersonaLabel()}
+						{:else}
+							{@const selected = customPersonas.find((p) => `custom:${p.id}` === personaSelectValue)}
+							{selected?.name ?? 'Select persona'}
+						{/if}
+					</span>
+					<svg class="persona-dropdown__chevron" class:open={personaDropdownOpen} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+				</button>
+				{#if personaDropdownOpen}
+					<div class="persona-dropdown__menu">
+						<button
+							type="button"
+							class="persona-dropdown__item"
+							class:active={personaSelectValue === 'default'}
+							onclick={() => selectPersona('default')}
+						>
+							{defaultPersonaLabel()}
+						</button>
+						{#each customPersonas as persona (persona.id)}
+							<button
+								type="button"
+								class="persona-dropdown__item"
+								class:active={personaSelectValue === `custom:${persona.id}`}
+								onclick={() => selectPersona(`custom:${persona.id}`)}
+							>
+								{persona.name}{persona.description ? ` — ${persona.description}` : ''}
+							</button>
+						{/each}
+						<div class="persona-dropdown__divider"></div>
+						<button
+							type="button"
+							class="persona-dropdown__item persona-dropdown__create"
+							onclick={handleCreatePersona}
+						>
+							<span class="persona-dropdown__create-icon">+</span>
+							Create new persona
+						</button>
+					</div>
+				{/if}
+			</div>
 
 			{#if personaDescription()}
 				<p class="modal__persona-selected-desc">{personaDescription()}</p>
@@ -686,6 +753,91 @@
 	.modal__persona-select option {
 		background: var(--bg-raised);
 		color: var(--text);
+	}
+
+	/* Custom persona dropdown */
+	.persona-dropdown {
+		position: relative;
+	}
+	.persona-dropdown__trigger {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		text-align: left;
+	}
+	.persona-dropdown__label {
+		flex: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.persona-dropdown__chevron {
+		flex-shrink: 0;
+		opacity: 0.5;
+		transition: transform var(--transition-fast);
+	}
+	.persona-dropdown__chevron.open {
+		transform: rotate(180deg);
+	}
+	.persona-dropdown__menu {
+		position: absolute;
+		top: calc(100% + 4px);
+		left: 0;
+		right: 0;
+		z-index: 200;
+		background: var(--bg-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+		max-height: 240px;
+		overflow-y: auto;
+		padding: var(--space-1) 0;
+	}
+	.persona-dropdown__item {
+		display: block;
+		width: 100%;
+		padding: var(--space-2) var(--space-3);
+		background: none;
+		border: none;
+		color: var(--text);
+		font-size: var(--font-size-sm);
+		font-family: inherit;
+		text-align: left;
+		cursor: pointer;
+		transition: background var(--transition-fast);
+	}
+	.persona-dropdown__item:hover {
+		background: var(--bg-hover);
+	}
+	.persona-dropdown__item.active {
+		background: var(--accent-soft);
+		color: var(--accent);
+	}
+	.persona-dropdown__divider {
+		height: 1px;
+		background: var(--border);
+		margin: var(--space-1) 0;
+	}
+	.persona-dropdown__create {
+		color: var(--accent);
+		font-weight: 500;
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+	.persona-dropdown__create-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		background: var(--accent);
+		color: var(--bg);
+		font-size: 14px;
+		font-weight: 700;
+		line-height: 1;
 	}
 
 	.modal__persona-selected-desc {

@@ -72,6 +72,7 @@
 
 		try {
 			const pronounsValue = getResolvedPronouns();
+			let result: import('$lib/api/chat').ApiPersona | undefined;
 
 			if (mode === 'create') {
 				const input: CreatePersonaInput = {
@@ -81,7 +82,7 @@
 					...(personality.trim() ? { personality: personality.trim() } : {}),
 					...(pronounsValue ? { pronouns: pronounsValue } : {}),
 				};
-				const result = await createPersona(input);
+				result = await createPersona(input);
 				if (result && avatarFile) {
 					await uploadAvatar('personas', result.id, avatarFile);
 				}
@@ -93,7 +94,7 @@
 					...(personality.trim() ? { personality: personality.trim() } : {}),
 					...(pronounsValue ? { pronouns: pronounsValue } : {}),
 				};
-				const result = await updatePersona(persona!.id, input);
+				result = await updatePersona(persona!.id, input);
 				if (result && avatarFile) {
 					await uploadAvatar('personas', result.id, avatarFile);
 				} else if (result && avatarRemoved) {
@@ -102,6 +103,10 @@
 			}
 
 			await loadPersonas();
+			// Fire callback if provided (e.g. CardInfoModal wants to auto-select the new persona)
+			if (mode === 'create' && result) {
+				chat.personaFormModal?.oncreated?.(result);
+			}
 			closePersonaFormModal();
 		} catch {
 			errorMessage = 'An unexpected error occurred.';

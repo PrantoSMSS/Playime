@@ -10,7 +10,6 @@
 import type { FastifyInstance } from 'fastify';
 import {
   createPersona,
-  countSessionsForPersona,
   deletePersona,
   getPersona,
   listPersonas,
@@ -171,17 +170,6 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
       if (id === DEFAULT_PERSONA_ID) {
         return reply.code(403).send({
           error: { code: 'default_persona_immutable', message: 'The default persona cannot be deleted' },
-        });
-      }
-
-      // Pre-check: sessions referencing this persona block deletion
-      const sessionCount = countSessionsForPersona(id);
-      if (sessionCount > 0) {
-        return reply.code(409).send({
-          error: {
-            code: 'has_active_sessions',
-            message: `Cannot delete — ${sessionCount} conversation(s) still reference this persona. Delete the conversations first.`,
-          },
         });
       }
 

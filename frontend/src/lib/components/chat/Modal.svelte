@@ -5,6 +5,7 @@
 		title,
 		onclose,
 		backdropclose = true,
+		hidden = false,
 		children,
 		header,
 		tabs,
@@ -14,6 +15,7 @@
 		title?: string;
 		onclose: () => void;
 		backdropclose?: boolean;
+		hidden?: boolean;
 		children?: Snippet;
 		header?: Snippet;
 		tabs?: Snippet;
@@ -32,6 +34,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
+{#if !hidden}
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="modal-backdrop" onclick={handleBackdropClick}>
@@ -66,6 +69,7 @@
 		{/if}
 	</div>
 </div>
+{/if}
 
 <style>
 	.modal-backdrop {
