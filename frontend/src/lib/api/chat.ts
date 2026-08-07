@@ -108,6 +108,8 @@ export interface ApiSession {
 	persona_id: string | null;
 	persona_snapshot: ApiPersona | null;
 	persona_source: string | null;
+	quest_log_state: string | null;
+	plot_flags: string | null;
 	favorite: number;
 }
 
@@ -293,6 +295,11 @@ export function createSession(options?: {
 /** List all sessions from the backend, newest first. */
 export function listSessions(): Promise<ApiSession[]> {
 	return request<ApiSession[]>('/api/sessions', { method: 'GET' });
+}
+
+/** Get a single session by id (includes quest_log_state, plot_flags). */
+export function getSession(id: string): Promise<ApiSession> {
+	return request<ApiSession>(`/api/sessions/${encodeURIComponent(id)}`, { method: 'GET' });
 }
 
 /** Partially update a session (e.g. toggle favorite). */

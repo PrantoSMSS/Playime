@@ -42,6 +42,31 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(sessions);
   });
 
+  // ── GET /api/sessions/:id ─────────────────────────────────────────────
+  // Get a single session by id (includes quest_log_state, plot_flags).
+  app.get(
+    '/api/sessions/:id',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          required: ['id'],
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const session = getSession(id);
+      if (!session) {
+        return reply.code(404).send({
+          error: { code: 'session_not_found', message: `Session ${id} not found` },
+        });
+      }
+      return reply.send(session);
+    },
+  );
+
   // ── GET /api/sessions/:id/messages ────────────────────────────────────
   // List all visible messages for a session.
   app.get(

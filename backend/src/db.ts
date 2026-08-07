@@ -62,6 +62,7 @@ function runMigrations(db: DatabaseSync): void {
     ['story_card_id', 'TEXT'],
     ['quest_log_state', 'TEXT'],
     ['plot_flags', "TEXT NOT NULL DEFAULT '{}'"],
+    ['chapter_log', "TEXT NOT NULL DEFAULT '[]'"],
     ['favorite', 'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, typedef] of sessionColumns) {

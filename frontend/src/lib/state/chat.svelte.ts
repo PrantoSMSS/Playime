@@ -14,7 +14,7 @@ import {
 	createSession, getCard, listCards, listPersonas, streamMessage,
 	createCard, updateCard, deleteCard,
 	createPersona, updatePersona, deletePersona,
-	listSessions, listSessionMessages,
+	listSessions, listSessionMessages, getSession,
 	deleteSessionApi, deleteSessionMessages,
 	patchSession,
 	resolveFileUrl,
@@ -26,8 +26,18 @@ import type {
 	CreateCardInput, UpdateCardInput,
 } from '../api/chat';
 import { SAMPLE_SESSIONS } from '../data/sample';
-import type { ChatMessage, ChatSession } from '../types/chat';
+import type { ChatMessage, ChatSession, QuestEntry } from '../types/chat';
 import { nav } from './nav.svelte';
+
+/** Safely parse a JSON string, returning a fallback on failure. */
+function parseJson<T>(raw: string | null, fallback: T): T {
+	if (!raw) return fallback;
+	try {
+		return JSON.parse(raw) as T;
+	} catch {
+		return fallback;
+	}
+}
 
 export type ResponseLength = 'Short' | 'Normal' | 'Long';
 
@@ -205,6 +215,8 @@ function sessionFromApi(
 			avatarUrl,
 			favorite: s.favorite,
 			createdAt: s.created_at,
+			questLogState: parseJson<QuestEntry[]>(s.quest_log_state, []),
+			plotFlags: parseJson<Record<string, unknown>>(s.plot_flags, {}),
 		};
 	}
 
@@ -786,5 +798,26 @@ export async function sendMessage(content: string): Promise<void> {
 		dropStreaming();
 	} finally {
 		chat.sending = false;
+		// Refresh story session state (quest_log, plot_flags) after each turn.
+		// The backend extraction runs fire-and-forget; a short delay lets it finish.
+		if (session.kind === 'story') {
+			void refreshStoryState(session.id);
+		}
+	}
+}
+
+/** Re-fetch session data and update the ChatSession's story state fields. */
+async function refreshStoryState(sessionId: string): Promise<void> {
+	try {
+		// Small delay to let the fire-and-forget extraction complete
+		await new Promise((r) => setTimeout(r, 500));
+		const updated = await getSession(sessionId);
+		const s = chat.sessions.find((x) => x.id === sessionId);
+		if (s) {
+			s.questLogState = parseJson<QuestEntry[]>(updated.quest_log_state, []);
+			s.plotFlags = parseJson<Record<string, unknown>>(updated.plot_flags, {});
+		}
+	} catch {
+		// Silently ignore — sidebar will show stale data until next turn
 	}
 }

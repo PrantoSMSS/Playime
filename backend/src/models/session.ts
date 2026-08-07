@@ -33,6 +33,8 @@ export interface SessionRow {
   quest_log_state: string | null;
   /** Per-session copy of story's plot_flags (JSON object). */
   plot_flags: string | null;
+  /** Per-session chapter summaries (ChapterEntry[] JSON array). */
+  chapter_log: string | null;
   /** 1 = user has marked this session as favorite. */
   favorite: number;
 }
@@ -86,8 +88,8 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
   try {
     const id = allocateId(db, 'sess');
     db.prepare(
-      `INSERT INTO session (id, class, created_at, provider, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, plot_flags, favorite)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO session (id, class, created_at, provider, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, plot_flags, chapter_log, favorite)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       sessionClass,
@@ -104,6 +106,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
       input.persona_source ?? null,
       input.quest_log_state ?? null,
       input.plot_flags ?? '{}',
+      input.chapter_log ?? '[]',
       0,
     );
     db.exec('COMMIT');
@@ -136,7 +139,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
 export function getSession(id: string): SessionRow | undefined {
   const row = getDb()
     .prepare(
-      'SELECT id, class, created_at, provider, model, small_model, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, plot_flags, favorite FROM session WHERE id = ?',
+      'SELECT id, class, created_at, provider, model, small_model, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, plot_flags, chapter_log, favorite FROM session WHERE id = ?',
     )
     .get(id) as unknown as SessionRowRaw | undefined;
   if (!row) return undefined;
@@ -184,7 +187,7 @@ function parseJson<T>(raw: string | null, fallback: T): T {
 export function listSessions(): SessionRow[] {
   const rows = getDb()
     .prepare(
-      `SELECT id, class, created_at, provider, model, small_model, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, plot_flags, favorite
+      `SELECT id, class, created_at, provider, model, small_model, character_card_id, story_card_id, avatar_selection, starting_scenario_id, avatar_snapshot, starting_scenario_snapshot, persona_id, persona_snapshot, persona_source, quest_log_state, plot_flags, chapter_log, favorite
        FROM session
        ORDER BY created_at DESC`,
     )

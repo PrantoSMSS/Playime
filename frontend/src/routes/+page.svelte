@@ -6,22 +6,30 @@
 	import Home from '$lib/components/chat/Home.svelte';
 	import MessageList from '$lib/components/chat/MessageList.svelte';
 	import Personas from '$lib/components/chat/Personas.svelte';
+	import StorySidebar from '$lib/components/chat/StorySidebar.svelte';
 	import Stories from '$lib/components/chat/Stories.svelte';
-	import { chat, sendMessage } from '$lib/state/chat.svelte';
+	import { chat, activeSession, sendMessage } from '$lib/state/chat.svelte';
 	import { nav } from '$lib/state/nav.svelte';
 
 	function handleSend(text: string): void {
 		void sendMessage(text);
 	}
+
+	const session = $derived(activeSession());
 </script>
 
 {#if nav.activeView === 'conversation'}
-	<div class="chat">
-		<ChatTopBar />
-		<MessageList />
-		<div class="chat__composer">
-			<ChatInput onSend={handleSend} disabled={chat.sending} />
+	<div class="chat-area">
+		<div class="chat">
+			<ChatTopBar />
+			<MessageList />
+			<div class="chat__composer">
+				<ChatInput onSend={handleSend} disabled={chat.sending} />
+			</div>
 		</div>
+		{#if session?.kind === 'story'}
+			<StorySidebar />
+		{/if}
 	</div>
 {:else if nav.activeView === 'home'}
 	<Home />
@@ -40,6 +48,13 @@
 {/if}
 
 <style>
+	.chat-area {
+		flex: 1;
+		min-width: 0;
+		height: 100%;
+		display: flex;
+	}
+
 	.chat {
 		flex: 1;
 		min-width: 0;

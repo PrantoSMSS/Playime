@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS session (
   persona_source TEXT,                                -- "default" (from scenario) or "custom" (from library)
   quest_log_state TEXT,                               -- JSON snapshot of QuestEntry[] (per-session copy from story_card.quest_log)
   plot_flags   TEXT NOT NULL DEFAULT '{}',            -- JSON object (per-session copy from story_card.plot_flags)
+  chapter_log  TEXT NOT NULL DEFAULT '[]',            -- JSON array of ChapterEntry[] (per-session chapter summaries)
   favorite INTEGER NOT NULL DEFAULT 0                 -- 1 = user has marked this session as favorite
 );
 
