@@ -7,10 +7,13 @@
 	import NavRail from '$lib/components/chat/NavRail.svelte';
 	import PersonaInfoModal from '$lib/components/chat/PersonaInfoModal.svelte';
 	import PersonaFormModal from '$lib/components/chat/PersonaFormModal.svelte';
+	import StoryImportModal from '$lib/components/chat/StoryImportModal.svelte';
+	import StoryDraftReview from '$lib/components/chat/StoryDraftReview.svelte';
 	import {
 		chat, closeCardInfoModal, startNewPlay, openEditCardModal,
 		closeCharacterFormModal, closeImportCardModal, loadCards, loadSessions, loadPersonas,
 		closePersonaInfoModal, closePersonaFormModal,
+		closeStoryImportModal, closeStoryDraftModal,
 	} from '$lib/state/chat.svelte';
 	import type { ApiCharacterCard } from '$lib/api/chat';
 
@@ -72,6 +75,14 @@
 
 {#if chat.personaFormModal}
 	<PersonaFormModal />
+{/if}
+
+{#if chat.storyImportModal}
+	<StoryImportModal onclose={closeStoryImportModal} />
+{/if}
+
+{#if chat.storyDraftModal}
+	<StoryDraftReview draft={chat.storyDraftModal.draft} onclose={closeStoryDraftModal} />
 {/if}
 
 <style>

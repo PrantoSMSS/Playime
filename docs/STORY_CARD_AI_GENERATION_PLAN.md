@@ -135,24 +135,31 @@ this codebase. No new adapter needed — this is pure text.
 
 ## Phase 3 — Review & create UI (frontend)
 
-- [ ] `frontend/src/lib/components/chat/StoryImportModal.svelte` (or
+- [x] `frontend/src/lib/components/chat/StoryImportModal.svelte` (or
       extend the existing card-creation entry point) — a textarea for
       pasting the story, "Generate" button, stage-progress indicator
       driven by the SSE stream from Phase 2.
-- [ ] `frontend/src/lib/components/chat/StoryDraftReview.svelte` — the
+- [x] `frontend/src/lib/components/chat/StoryDraftReview.svelte` — the
       editable review step:
-  - [ ] Title/genre/premise/tone/locations as plain editable fields.
-  - [ ] NPC list, editable like existing character forms.
-  - [ ] Quest chain as an ordered, editable list — each row shows title,
+  - [x] Title/genre/premise/tone/locations as plain editable fields.
+  - [x] NPC list, editable like existing character forms.
+  - [x] Quest chain as an ordered, editable list — each row shows title,
         objective, and an **origin badge** (`Source` vs `AI-projected`)
         so the user can see at a glance what actually happened in the text
         vs what the AI guessed. The ending quest gets a distinct visual
         treatment (e.g. flagged "Proposed ending — not binding").
-  - [ ] Per-quest actions: edit text inline, delete, reorder (drag or
+  - [x] Per-quest actions: edit text inline, delete, reorder (drag or
         up/down), regenerate (calls the Phase 2 single-quest endpoint).
-  - [ ] "Create Story Card" button — only now does anything hit the DB
+  - [x] "Create Story Card" button — only now does anything hit the DB
         (`POST /api/stories`), building the `StoryCard` from the
         (possibly edited) draft.
+- [x] `frontend/src/lib/state/chat.svelte.ts` — `storyImportModal`,
+      `storyDraftModal` state fields + open/close functions +
+      `createStoryFromDraft()`.
+- [x] `frontend/src/lib/components/chat/Stories.svelte` — Stories page
+      with grid view, "Create Story" button, and delete actions.
+- [x] `frontend/src/routes/+page.svelte` + `+layout.svelte` — wire
+      Stories view, StoryImportModal, and StoryDraftReview into the app.
 
 ---
 

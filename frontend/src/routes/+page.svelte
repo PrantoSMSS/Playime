@@ -6,6 +6,7 @@
 	import Home from '$lib/components/chat/Home.svelte';
 	import MessageList from '$lib/components/chat/MessageList.svelte';
 	import Personas from '$lib/components/chat/Personas.svelte';
+	import Stories from '$lib/components/chat/Stories.svelte';
 	import { chat, sendMessage } from '$lib/state/chat.svelte';
 	import { nav } from '$lib/state/nav.svelte';
 
@@ -24,6 +25,8 @@
 	</div>
 {:else if nav.activeView === 'home'}
 	<Home />
+{:else if nav.activeView === 'story'}
+	<Stories />
 {:else if nav.activeView === 'character'}
 	<CharacterGrid />
 {:else if nav.activeView === 'records'}

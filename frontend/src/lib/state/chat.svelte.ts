@@ -18,9 +18,10 @@ import {
 	deleteSessionApi, deleteSessionMessages,
 	patchSession,
 	resolveFileUrl,
+	createStory,
 } from '../api/chat';
 import type {
-	ApiCharacterCard, ApiMessage, ApiPersona, ApiSession,
+	ApiCharacterCard, ApiExtractionDraft, ApiMessage, ApiPersona, ApiSession,
 	CreateCardInput, UpdateCardInput,
 } from '../api/chat';
 import { SAMPLE_SESSIONS } from '../data/sample';
@@ -68,6 +69,10 @@ export const chat = $state({
 	personaInfoModal: null as { persona: ApiPersona } | null,
 	/** Persona form modal state (create or edit). */
 	personaFormModal: null as { mode: 'create' | 'edit'; persona?: ApiPersona; oncreated?: (persona: ApiPersona) => void } | null,
+	/** Story import modal state (paste text → extraction pipeline). */
+	storyImportModal: false as boolean,
+	/** Story draft review modal state (editable extraction result). */
+	storyDraftModal: null as { draft: ApiExtractionDraft } | null,
 	/** Bulk selection mode for the Records list. */
 	selectionMode: false,
 	/** IDs of currently selected sessions (bulk operations). Object for Svelte 5 reactivity. */
@@ -252,6 +257,49 @@ export function openImportCardModal(onparsed: (data: Partial<CreateCardInput>) =
 /** Close the import card modal. */
 export function closeImportCardModal(): void {
 	chat.importCardModal = null;
+}
+
+// ── Story import / draft modals ─────────────────────────────────────────
+
+/** Open the story import modal (textarea for pasting source text). */
+export function openStoryImportModal(): void {
+	chat.storyImportModal = true;
+}
+
+/** Close the story import modal. */
+export function closeStoryImportModal(): void {
+	chat.storyImportModal = false;
+}
+
+/** Open the story draft review modal with an extraction result. */
+export function openStoryDraftModal(draft: ApiExtractionDraft): void {
+	chat.storyDraftModal = { draft };
+	chat.storyImportModal = false;
+}
+
+/** Close the story draft review modal. */
+export function closeStoryDraftModal(): void {
+	chat.storyDraftModal = null;
+}
+
+/** Create a story card from an edited draft, returning the saved card. */
+export async function createStoryFromDraft(draft: ApiExtractionDraft): Promise<void> {
+	try {
+		const story = await createStory({
+			title: draft.title,
+			genre: draft.genre,
+			premise: draft.premise,
+			tone: draft.tone,
+			locations: draft.locations,
+			npcs: draft.npcs,
+			quest_log: draft.quest_log,
+		});
+		// Close the draft modal and refresh stories list
+		chat.storyDraftModal = null;
+	} catch (err) {
+		// Error will be surfaced by the component
+		throw err;
+	}
 }
 
 /** Delete a session and its messages (backend + frontend). */
