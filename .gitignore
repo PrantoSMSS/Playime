@@ -46,3 +46,5 @@ backend/data/entities/
 test_*.png
 test_*.sh
 big_test.png
+# Git worktrees
+.claude/worktrees/
