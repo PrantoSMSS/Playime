@@ -244,14 +244,15 @@ describe('renderCharacterSystemPrompt', () => {
       },
     });
     // Simulates persona_source: 'default' with player_name: 'Jamal'
+    // id 'myself' triggers the default persona branch
     const persona = {
-      id: 'default_test-card',
+      id: 'myself',
       name: 'Jamal',
       avatar: null,
-      description: 'Competitor',  // from dp.role
-      appearance: 'Tall, athletic build',
-      personality: 'Fierce and determined',
-      pronouns: 'he/him',
+      description: '',
+      appearance: '',
+      personality: '',
+      pronouns: '',
       avatar_file: null,
       background: '',
       details: '',

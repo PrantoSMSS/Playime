@@ -92,9 +92,6 @@ export function renderCharacterSystemPrompt(
     if (persona.description) lines.push(`Role: ${persona.description}`);
     if (persona.appearance) lines.push(`Appearance: ${persona.appearance}`);
     if (persona.personality) lines.push(`Personality: ${persona.personality}`);
-    // Card-author context (background, details) still surfaces even with a custom persona
-    if (dp?.background) lines.push(`Background: ${dp.background}`);
-    if (dp?.details) lines.push(`Details: ${dp.details}`);
   } else if (dp) {
     // Default persona or no persona — use card's default_persona
     const playerName = persona?.name ?? 'the player';
