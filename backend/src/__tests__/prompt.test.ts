@@ -45,6 +45,7 @@ function makeCard(overrides: Partial<CharacterCard> = {}): CharacterCard {
     stats: { replay_count: 0, like_count: 0, comment_count: 0 },
     source: 'playime',
     sourceId: null,
+    favorite: 0,
     created_at: 0,
     updated_at: 0,
     ...overrides,

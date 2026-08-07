@@ -119,7 +119,7 @@ function extractJson<T>(text: string): T {
 
   // Look for ```json ... ``` blocks
   const fenceMatch = trimmed.match(/```json\s*\n?([\s\S]*?)\n?\s*```/);
-  if (fenceMatch) {
+  if (fenceMatch?.[1]) {
     try {
       return JSON.parse(fenceMatch[1].trim()) as T;
     } catch {
@@ -129,7 +129,7 @@ function extractJson<T>(text: string): T {
 
   // Last resort: find the first { ... } or [ ... ] block
   const jsonMatch = trimmed.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-  if (jsonMatch) {
+  if (jsonMatch?.[1]) {
     try {
       return JSON.parse(jsonMatch[1]) as T;
     } catch {
@@ -316,12 +316,12 @@ export async function extractStoryDraft(
   try {
     if (chunks.length === 1) {
       // Short text — single pass
-      outline = await runOutlineStage(adapter, chunks[0]);
+      outline = await runOutlineStage(adapter, chunks[0]!);
     } else {
       // Long text — summarize each chunk, then outline the summaries
       const summaries: string[] = [];
       for (let i = 0; i < chunks.length; i++) {
-        const chunkSummary = await runOutlineStage(adapter, chunks[i]);
+        const chunkSummary = await runOutlineStage(adapter, chunks[i]!);
         summaries.push(
           `--- Segment ${i + 1}/${chunks.length} ---\n` +
           `Title: ${chunkSummary.title}\n` +

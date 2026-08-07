@@ -110,6 +110,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
       model: null,
       small_model: null,
       character_card_id: input.character_card_id ?? null,
+      story_card_id: input.story_card_id ?? null,
       avatar_selection: input.avatar_selection ?? null,
       starting_scenario_id: input.starting_scenario_id ?? null,
       avatar_snapshot: input.avatar_snapshot ?? null,
@@ -117,6 +118,7 @@ export function createSession(input: CreateSessionInput = {}): SessionRow {
       persona_id: input.persona_id ?? null,
       persona_snapshot: input.persona_snapshot ?? null,
       persona_source: input.persona_source ?? null,
+      quest_log_state: input.quest_log_state ?? null,
       favorite: 0,
     };
   } catch (err) {
@@ -149,6 +151,7 @@ interface SessionRowRaw {
   model: string | null;
   small_model: string | null;
   character_card_id: string | null;
+  story_card_id: string | null;
   avatar_selection: string | null;
   starting_scenario_id: string | null;
   avatar_snapshot: string | null;
@@ -156,6 +159,7 @@ interface SessionRowRaw {
   persona_id: string | null;
   persona_snapshot: string | null;
   persona_source: string | null;
+  quest_log_state: string | null;
   favorite: number;
 }
 
