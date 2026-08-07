@@ -5,6 +5,7 @@
 	import ChatsList from '$lib/components/chat/ChatsList.svelte';
 	import Home from '$lib/components/chat/Home.svelte';
 	import MessageList from '$lib/components/chat/MessageList.svelte';
+	import Personas from '$lib/components/chat/Personas.svelte';
 	import { chat, sendMessage } from '$lib/state/chat.svelte';
 	import { nav } from '$lib/state/nav.svelte';
 
@@ -27,6 +28,8 @@
 	<CharacterGrid />
 {:else if nav.activeView === 'chats'}
 	<ChatsList />
+{:else if nav.activeView === 'my-titles'}
+	<Personas />
 {:else}
 	<div class="placeholder">
 		<p>Coming soon</p>

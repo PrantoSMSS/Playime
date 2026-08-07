@@ -13,6 +13,7 @@
 import {
 	createSession, getCard, listCards, listPersonas, streamMessage,
 	createCard, updateCard, deleteCard,
+	createPersona, updatePersona, deletePersona,
 	listSessions, listSessionMessages,
 	deleteSessionApi, deleteSessionMessages,
 	patchSession,
@@ -44,6 +45,7 @@ export const chat = $state({
 	sessionsError: null as string | null,
 	messageError: null as string | null,
 	newPlayError: null as string | null,
+	personasError: null as string | null,
 	/** Card info modal state. */
 	cardInfoModal: null as { card: ApiCharacterCard; source?: 'card-browser' | 'conversation' } | null,
 	/** Available personas for the New Play persona picker. */
@@ -60,6 +62,10 @@ export const chat = $state({
 	importCardModal: null as {
 		onparsed: (data: Partial<CreateCardInput>) => void;
 	} | null,
+	/** Persona info modal state (read-only view). */
+	personaInfoModal: null as { persona: ApiPersona } | null,
+	/** Persona form modal state (create or edit). */
+	personaFormModal: null as { mode: 'create' | 'edit'; persona?: ApiPersona } | null,
 	/** Bulk selection mode for the Chats list. */
 	selectionMode: false,
 	/** IDs of currently selected sessions (bulk operations). Object for Svelte 5 reactivity. */
@@ -100,6 +106,37 @@ export async function loadCards(): Promise<void> {
 	} catch (err) {
 		chat.cardsError = err instanceof Error ? err.message : 'Failed to load cards';
 	}
+}
+
+/** Load all personas from the backend. */
+export async function loadPersonas(): Promise<void> {
+	try {
+		chat.personas = await listPersonas();
+	} catch (err) {
+		chat.personasError = err instanceof Error ? err.message : 'Failed to load personas';
+	}
+}
+
+/** Open the persona info modal for a given persona. */
+export function openPersonaInfoModal(persona: ApiPersona): void {
+	chat.personaInfoModal = { persona };
+}
+
+/** Close the persona info modal. */
+export function closePersonaInfoModal(): void {
+	chat.personaInfoModal = null;
+}
+
+/** Open the persona form modal for creating or editing. */
+export function openPersonaFormModal(mode: 'create' | 'edit', persona?: ApiPersona): void {
+	chat.personaFormModal = { mode, persona };
+	// If coming from info modal, close it
+	chat.personaInfoModal = null;
+}
+
+/** Close the persona form modal. */
+export function closePersonaFormModal(): void {
+	chat.personaFormModal = null;
 }
 
 /** Convert a backend ApiSession to a frontend ChatSession. */

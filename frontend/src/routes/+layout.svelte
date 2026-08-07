@@ -5,17 +5,21 @@
 	import CharacterFormModal from '$lib/components/chat/CharacterFormModal.svelte';
 	import ImportCardModal from '$lib/components/chat/ImportCardModal.svelte';
 	import NavRail from '$lib/components/chat/NavRail.svelte';
+	import PersonaInfoModal from '$lib/components/chat/PersonaInfoModal.svelte';
+	import PersonaFormModal from '$lib/components/chat/PersonaFormModal.svelte';
 	import {
 		chat, closeCardInfoModal, startNewPlay, openEditCardModal,
-		closeCharacterFormModal, closeImportCardModal, loadCards, loadSessions,
+		closeCharacterFormModal, closeImportCardModal, loadCards, loadSessions, loadPersonas,
+		closePersonaInfoModal, closePersonaFormModal,
 	} from '$lib/state/chat.svelte';
 	import type { ApiCharacterCard } from '$lib/api/chat';
 
 	let { children } = $props();
 
-	// Load cards then sessions on mount
+	// Load cards, sessions, and personas on mount
 	$effect(() => {
 		void loadCards().then(() => loadSessions());
+		void loadPersonas();
 	});
 
 	function handleCardSaved(_card: ApiCharacterCard): void {
@@ -60,6 +64,14 @@
 		onclose={closeImportCardModal}
 		onparsed={chat.importCardModal.onparsed}
 	/>
+{/if}
+
+{#if chat.personaInfoModal}
+	<PersonaInfoModal />
+{/if}
+
+{#if chat.personaFormModal}
+	<PersonaFormModal />
 {/if}
 
 <style>
