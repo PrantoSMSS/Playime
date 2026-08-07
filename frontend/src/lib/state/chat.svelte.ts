@@ -1,7 +1,7 @@
 /**
  * Shared chat-shell state (Svelte 5 runes, module-level).
  *
- * Items 4/5: the Chats list and message threads start from
+ * Items 4/5: the Records list and message threads start from
  * `$lib/data/sample.ts` (styling demos — there's no "New Play" flow until
  * Phase 2, so samples are the only way to open a chat). The first real send
  * in a session lazily creates a matching backend session
@@ -32,7 +32,7 @@ export type ResponseLength = 'Short' | 'Normal' | 'Long';
 export const chat = $state({
 	/** Currently-open session. */
 	activeSessionId: '' as string,
-	/** Past sessions for the Chats list (loaded from the backend on mount). */
+	/** Past sessions for the Records list (loaded from the backend on mount). */
 	sessions: [] as ChatSession[],
 	/** Per-session message threads. */
 	messagesBySession: {} as Record<string, ChatMessage[]>,
@@ -66,10 +66,14 @@ export const chat = $state({
 	personaInfoModal: null as { persona: ApiPersona } | null,
 	/** Persona form modal state (create or edit). */
 	personaFormModal: null as { mode: 'create' | 'edit'; persona?: ApiPersona } | null,
-	/** Bulk selection mode for the Chats list. */
+	/** Bulk selection mode for the Records list. */
 	selectionMode: false,
 	/** IDs of currently selected sessions (bulk operations). Object for Svelte 5 reactivity. */
 	selectedSessionIds: {} as Record<string, boolean>,
+	/** IDs of currently selected personas (bulk operations). */
+	selectedPersonaIds: {} as Record<string, boolean>,
+	/** IDs of currently selected character cards (bulk operations). */
+	selectedCardIds: {} as Record<string, boolean>,
 });
 
 /** Display session id → backend session id, for sessions made real on demand. */
@@ -370,6 +374,64 @@ export async function bulkResetSessions(): Promise<void> {
 	const ids = Object.keys(chat.selectedSessionIds);
 	exitSelectionMode();
 	await Promise.all(ids.map((id) => resetSession(id)));
+}
+
+// ── Persona bulk selection ────────────────────────────────────────────────
+
+/** Toggle a persona's selection state. */
+export function togglePersonaSelection(personaId: string): void {
+	if (chat.selectedPersonaIds[personaId]) {
+		delete chat.selectedPersonaIds[personaId];
+	} else {
+		chat.selectedPersonaIds[personaId] = true;
+	}
+}
+
+/** Select or deselect all visible personas. */
+export function selectAllPersonas(visibleIds: string[]): void {
+	const allSelected = visibleIds.every((id) => chat.selectedPersonaIds[id]);
+	if (allSelected) {
+		for (const id of visibleIds) delete chat.selectedPersonaIds[id];
+	} else {
+		for (const id of visibleIds) chat.selectedPersonaIds[id] = true;
+	}
+}
+
+/** Delete all selected personas (bulk). */
+export async function bulkDeletePersonas(): Promise<void> {
+	const ids = Object.keys(chat.selectedPersonaIds);
+	exitSelectionMode();
+	await Promise.all(ids.map((id) => deletePersona(id)));
+	await loadPersonas();
+}
+
+// ── Card bulk selection ───────────────────────────────────────────────────
+
+/** Toggle a card's selection state. */
+export function toggleCardSelection(cardId: string): void {
+	if (chat.selectedCardIds[cardId]) {
+		delete chat.selectedCardIds[cardId];
+	} else {
+		chat.selectedCardIds[cardId] = true;
+	}
+}
+
+/** Select or deselect all visible cards. */
+export function selectAllCards(visibleIds: string[]): void {
+	const allSelected = visibleIds.every((id) => chat.selectedCardIds[id]);
+	if (allSelected) {
+		for (const id of visibleIds) delete chat.selectedCardIds[id];
+	} else {
+		for (const id of visibleIds) chat.selectedCardIds[id] = true;
+	}
+}
+
+/** Delete all selected cards (bulk). */
+export async function bulkDeleteCards(): Promise<void> {
+	const ids = Object.keys(chat.selectedCardIds);
+	exitSelectionMode();
+	await Promise.all(ids.map((id) => deleteCard(id)));
+	chat.cards = chat.cards.filter((c) => !ids.includes(c.id));
 }
 
 /** Start a new play session from the card info modal selections. */

@@ -4,14 +4,34 @@
 		loadPersonas,
 		openPersonaInfoModal,
 		openPersonaFormModal,
+		togglePersonaSelection,
+		selectAllPersonas,
+		enterSelectionMode,
+		exitSelectionMode,
+		bulkDeletePersonas,
 	} from '$lib/state/chat.svelte';
 	import type { ApiPersona } from '$lib/api/chat';
 	import { resolveFileUrl } from '$lib/api/chat';
 
 	let loading = $state(false);
 
+	const selectedCount = $derived.by(() => Object.keys(chat.selectedPersonaIds).length);
+	const allVisibleSelected = $derived.by(() =>
+		chat.personas.length > 0 && chat.personas.every((p) => chat.selectedPersonaIds[p.id]),
+	);
+
 	function handleCardClick(persona: ApiPersona): void {
+		if (chat.selectionMode) {
+			togglePersonaSelection(persona.id);
+			return;
+		}
 		openPersonaInfoModal(persona);
+	}
+
+	function handleKeydown(e: KeyboardEvent): void {
+		if (e.key === 'Escape' && chat.selectionMode) {
+			exitSelectionMode();
+		}
 	}
 
 	function getInitials(name: string): string {
@@ -29,18 +49,37 @@
 	}
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="personas-grid">
 	<!-- Header bar -->
 	<div class="personas-header">
-		<h1 class="personas-header__title">Personas</h1>
+		<h1 class="personas-header__title">
+			{chat.selectionMode ? 'Select personas' : 'Personas'}
+		</h1>
 		<div class="personas-header__actions">
-			<button class="action-btn" onclick={() => openPersonaFormModal('create')}>
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<line x1="12" y1="5" x2="12" y2="19" />
-					<line x1="5" y1="12" x2="19" y2="12" />
-				</svg>
-				<span>New</span>
-			</button>
+			{#if chat.selectionMode}
+				<button class="select-all-btn" onclick={() => selectAllPersonas(chat.personas.map((p) => p.id))}>
+					{allVisibleSelected ? 'Deselect All' : 'Select All'}
+				</button>
+				{#if selectedCount > 0}
+					<button class="action-btn action-btn--delete" onclick={bulkDeletePersonas}>
+						Delete ({selectedCount})
+					</button>
+				{/if}
+				<button class="action-btn action-btn--cancel" onclick={exitSelectionMode}>Cancel</button>
+			{:else}
+				<button class="action-btn" onclick={() => openPersonaFormModal('create')}>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<line x1="12" y1="5" x2="12" y2="19" />
+						<line x1="5" y1="12" x2="19" y2="12" />
+					</svg>
+					<span>New</span>
+				</button>
+				<button class="action-btn" onclick={enterSelectionMode}>Select</button>
+			{/if}
 		</div>
 	</div>
 
@@ -72,7 +111,21 @@
 			{#each chat.personas as persona (persona.id)}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="card" onclick={() => handleCardClick(persona)}>
+				<div
+					class="card"
+					class:card--selected={chat.selectedPersonaIds[persona.id]}
+					onclick={() => handleCardClick(persona)}
+				>
+					{#if chat.selectionMode}
+						<div class="card__checkbox">
+							<input
+								type="checkbox"
+								checked={!!chat.selectedPersonaIds[persona.id]}
+								onclick={(e) => { e.stopPropagation(); togglePersonaSelection(persona.id); }}
+								tabindex="-1"
+							/>
+						</div>
+					{/if}
 					<div class="card__image">
 						{#if getAvatarUrl(persona)}
 							<img src={getAvatarUrl(persona)} alt={persona.name} />
@@ -121,6 +174,7 @@
 	.personas-header__actions {
 		display: flex;
 		gap: var(--space-3);
+		align-items: center;
 	}
 
 	.action-btn {
@@ -144,6 +198,38 @@
 		background: var(--accent-soft);
 		color: var(--accent);
 		border-color: var(--accent);
+	}
+
+	.select-all-btn {
+		background: none;
+		border: none;
+		color: var(--accent);
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-medium);
+		cursor: pointer;
+		padding: var(--space-2) var(--space-3);
+	}
+	.select-all-btn:hover {
+		text-decoration: underline;
+	}
+
+	.action-btn--delete {
+		background: var(--danger-bg, #3b1c1c);
+		color: var(--danger-text, #f87171);
+		border-color: transparent;
+	}
+	.action-btn--delete:hover {
+		background: var(--danger-hover, #4c2020);
+		color: var(--danger-text, #f87171);
+	}
+
+	.action-btn--cancel {
+		background: var(--accent);
+		color: var(--on-accent);
+		border-color: transparent;
+	}
+	.action-btn--cancel:hover {
+		background: var(--accent-hover);
 	}
 
 	/* ── Empty state ─────────────────────────────────────────────────── */
@@ -204,6 +290,7 @@
 
 	/* ── Card ────────────────────────────────────────────────────────── */
 	.card {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		border: 1px solid var(--border);
@@ -213,7 +300,8 @@
 		cursor: pointer;
 		transition:
 			border-color var(--transition-fast),
-			box-shadow var(--transition-fast);
+			box-shadow var(--transition-fast),
+			background var(--transition-fast);
 		text-align: left;
 		padding: 0;
 		font: inherit;
@@ -221,6 +309,25 @@
 	.card:hover {
 		border-color: var(--accent);
 		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	}
+	.card--selected {
+		background: var(--accent-soft);
+		border-color: var(--accent);
+	}
+
+	.card__checkbox {
+		position: absolute;
+		top: var(--space-2);
+		left: var(--space-2);
+		z-index: 1;
+		display: flex;
+		align-items: center;
+	}
+	.card__checkbox input[type='checkbox'] {
+		width: 18px;
+		height: 18px;
+		accent-color: var(--accent);
+		cursor: pointer;
 	}
 
 	.card__image {
