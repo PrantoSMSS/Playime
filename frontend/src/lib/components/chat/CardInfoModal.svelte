@@ -306,7 +306,7 @@
 			{/if}
 
 			{#if selectedPersonaType === 'default'}
-				<p class="modal__persona-recommend">✦ Recommended for the best roleplay experience</p>
+				<p class="modal__persona-recommend">✦ Create a custom persona to shape how the character sees you</p>
 			{/if}
 		</div>
 	</div>
