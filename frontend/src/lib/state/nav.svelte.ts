@@ -16,7 +16,7 @@ export type NavView =
 	| 'story'
 	| 'character'
 	| 'chats'
-	| 'my-titles'
+	| 'personas'
 	| 'notifications'
 	| 'conversation';
 

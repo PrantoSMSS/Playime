@@ -28,7 +28,7 @@
 	<CharacterGrid />
 {:else if nav.activeView === 'chats'}
 	<ChatsList />
-{:else if nav.activeView === 'my-titles'}
+{:else if nav.activeView === 'personas'}
 	<Personas />
 {:else}
 	<div class="placeholder">
